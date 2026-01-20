@@ -1,0 +1,26 @@
+# Terminal Command Execution Rules
+
+## Frontend Development
+
+- **ALWAYS** start the frontend using `dev.cmd` from the project root (`C:\crm-yahalom\frontend\dev.cmd`)
+- **NEVER** run `npm run dev` directly
+- **NEVER** use PowerShell scripts (npm.ps1) - always use npm.cmd or wrap in `cmd /c`
+
+## npm Command Execution
+
+- For any npm command, use `npm.cmd` or wrap in `cmd /c "npm.cmd ..."`
+- Example: `cmd /c "npm.cmd install"` instead of `npm install`
+- Prefer using the provided .cmd scripts (dev.cmd, build.cmd, start.cmd)
+
+## Terminal Output Verification
+
+- If terminal output is empty, verify by:
+  1. Checking if process is running: `tasklist | findstr node`
+  2. Checking if port is listening: `netstat -ano | findstr ":517"`
+  3. Opening browser to http://localhost:5173 or http://localhost:5174
+
+## Available Scripts
+
+- `dev.cmd` - Start development server (Vite)
+- `build.cmd` - Build for production
+- `start.cmd` - Start production server
