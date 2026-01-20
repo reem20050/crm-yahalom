@@ -10,7 +10,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=True) # Check validity if google auth is primary
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String, nullable=True) # Nullable for google auth users
-    role = Column(String, default="admin") # admin, manager
+    role = Column(String, default="Guard")  # Admin, OperationsManager, Scheduler, Sales, Finance, ShiftLead, Guard
     tasks_assigned = relationship("Task", foreign_keys="Task.assigned_to", back_populates="assigned_user")
     tasks_created = relationship("Task", foreign_keys="Task.created_by", back_populates="creator")
     notifications = relationship("Notification", back_populates="user")

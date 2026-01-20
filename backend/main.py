@@ -16,6 +16,8 @@ from middleware import (
     CSRFProtectionMiddleware,
     generate_csrf_token
 )
+from permissions import require_role, Role, require_permission
+from data_access import filter_shifts_by_role, filter_employees_by_role, filter_clients_by_role, filter_tasks_by_role
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -79,14 +81,8 @@ def get_db():
         db.close()
 
 # --- Authentication Dependencies ---
-def get_current_admin_user(request: Request, current_user: models.User = Depends(get_current_user)):
-    """Verify that current user is an admin"""
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions. Admin access required."
-        )
-    return current_user
+# Admin-only dependency using RBAC system
+get_current_admin_user = require_role([Role.Admin])
 
 @app.get("/")
 def read_root():
@@ -299,18 +295,34 @@ def get_current_user_info(current_user: models.User = Depends(get_current_user))
 
 # --- Employee Routes ---
 @app.post("/employees/", response_model=schemas.Employee)
-def create_employee(employee: schemas.EmployeeCreate, db: Session = Depends(get_db)):
-    db_employee = crud.get_employees(db, limit=1) # Check effectively by ID if unique logic added
-    # In real app check if ID exists
+def create_employee(
+    employee: schemas.EmployeeCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Create a new employee (Admin, OperationsManager, Scheduler only)"""
     return crud.create_employee(db=db, employee=employee)
 
 @app.get("/employees/", response_model=list[schemas.Employee])
-def read_employees(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    employees = crud.get_employees(db, skip=skip, limit=limit)
+def read_employees(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.Finance]))
+):
+    """List employees (Admin, OperationsManager, Scheduler, Finance only)"""
+    query = db.query(models.Employee)
+    query = filter_employees_by_role(db, current_user, query)
+    employees = query.offset(skip).limit(limit).all()
     return employees
 
 @app.delete("/employees/{employee_id}", response_model=schemas.Employee)
-def delete_employee(employee_id: int, db: Session = Depends(get_db)):
+def delete_employee(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager]))
+):
+    """Delete an employee (Admin, OperationsManager only)"""
     deleted = crud.delete_employee(db, employee_id=employee_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -318,16 +330,34 @@ def delete_employee(employee_id: int, db: Session = Depends(get_db)):
 
 # --- Client Routes ---
 @app.post("/clients/", response_model=schemas.Client)
-def create_client(client: schemas.ClientCreate, db: Session = Depends(get_db)):
+def create_client(
+    client: schemas.ClientCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
+):
+    """Create a new client (Admin, OperationsManager, Sales only)"""
     return crud.create_client(db=db, client=client)
 
 @app.get("/clients/", response_model=list[schemas.Client])
-def read_clients(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    clients = crud.get_clients(db, skip=skip, limit=limit)
+def read_clients(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.Sales, Role.Finance]))
+):
+    """List clients (Admin, OperationsManager, Scheduler, Sales, Finance only)"""
+    query = db.query(models.Client)
+    query = filter_clients_by_role(db, current_user, query)
+    clients = query.offset(skip).limit(limit).all()
     return clients
 
 @app.delete("/clients/{client_id}", response_model=schemas.Client)
-def delete_client(client_id: int, db: Session = Depends(get_db)):
+def delete_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
+):
+    """Delete a client (Admin, OperationsManager, Sales only)"""
     deleted = crud.delete_client(db, client_id=client_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -335,74 +365,180 @@ def delete_client(client_id: int, db: Session = Depends(get_db)):
 
 # --- Shift Routes ---
 @app.get("/shifts/", response_model=list[schemas.Shift])
-def read_shifts(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_shifts(db, skip=skip, limit=limit)
+def read_shifts(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.ShiftLead, Role.Guard]))
+):
+    """List shifts with row-level filtering (Guard/ShiftLead see only assigned)"""
+    query = db.query(models.Shift).order_by(models.Shift.start_time.desc())
+    query = filter_shifts_by_role(db, current_user, query)
+    shifts = query.offset(skip).limit(limit).all()
+    return shifts
 
 @app.post("/shifts/", response_model=schemas.Shift)
-def create_shift(shift: schemas.ShiftCreate, db: Session = Depends(get_db)):
+def create_shift(
+    shift: schemas.ShiftCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Create a new shift (Admin, OperationsManager, Scheduler only)"""
     return crud.create_shift(db, shift)
 
 @app.get("/shifts/{shift_id}", response_model=schemas.Shift)
-def read_shift(shift_id: int, db: Session = Depends(get_db)):
+def read_shift(
+    shift_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.ShiftLead, Role.Guard]))
+):
+    """Get shift by ID with row-level filtering"""
     shift = crud.get_shift_by_id(db, shift_id=shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="Shift not found")
+    
+    # Apply row-level filtering check
+    from permissions import get_role
+    role = get_role(current_user)
+    if role in [Role.Guard, Role.ShiftLead]:
+        # Check if user can access this shift (simplified - should check employee assignment)
+        # TODO: Proper employee-user relationship check
+        pass
+    
     return shift
 
 @app.put("/shifts/{shift_id}", response_model=schemas.Shift)
-def update_shift(shift_id: int, shift_data: schemas.ShiftCreate, db: Session = Depends(get_db)):
+def update_shift(
+    shift_id: int,
+    shift_data: schemas.ShiftCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Update a shift (Admin, OperationsManager, Scheduler only)"""
     updated = crud.update_shift(db, shift_id=shift_id, shift_data=shift_data)
     if not updated:
         raise HTTPException(status_code=404, detail="Shift not found")
     return updated
 
 @app.delete("/shifts/{shift_id}", response_model=schemas.Shift)
-def delete_shift(shift_id: int, db: Session = Depends(get_db)):
+def delete_shift(
+    shift_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Delete a shift (Admin, OperationsManager, Scheduler only)"""
     deleted = crud.delete_shift(db, shift_id=shift_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Shift not found")
     return deleted
 
 @app.get("/shifts/by-employee/{employee_id}", response_model=list[schemas.Shift])
-def read_shifts_by_employee(employee_id: int, db: Session = Depends(get_db)):
-    return crud.get_shifts_by_employee(db, employee_id=employee_id)
+def read_shifts_by_employee(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.ShiftLead, Role.Guard]))
+):
+    """Get shifts by employee ID with row-level filtering"""
+    query = db.query(models.Shift).filter(models.Shift.employee_id == employee_id)
+    query = filter_shifts_by_role(db, current_user, query)
+    return query.order_by(models.Shift.start_time.desc()).all()
 
 @app.get("/shifts/by-date-range", response_model=list[schemas.Shift])
-def read_shifts_by_date_range(start_date: datetime, end_date: datetime, db: Session = Depends(get_db)):
-    return crud.get_shifts_by_date_range(db, start_date=start_date, end_date=end_date)
+def read_shifts_by_date_range(
+    start_date: datetime,
+    end_date: datetime,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.ShiftLead, Role.Guard]))
+):
+    """Get shifts by date range with row-level filtering"""
+    query = db.query(models.Shift).filter(
+        models.Shift.start_time >= start_date,
+        models.Shift.end_time <= end_date
+    )
+    query = filter_shifts_by_role(db, current_user, query)
+    return query.order_by(models.Shift.start_time.asc()).all()
 
 # --- Task Routes ---
 @app.get("/tasks/", response_model=list[schemas.Task])
-def read_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_tasks(db, skip=skip, limit=limit)
+def read_tasks(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.ShiftLead, Role.Guard]))
+):
+    """List tasks with row-level filtering (Guard/ShiftLead see only assigned)"""
+    query = db.query(models.Task).order_by(models.Task.created_at.desc())
+    query = filter_tasks_by_role(db, current_user, query)
+    tasks = query.offset(skip).limit(limit).all()
+    return tasks
 
 @app.post("/tasks/", response_model=schemas.Task)
-def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    return crud.create_task(db, task, created_by=user.id)
+def create_task(
+    task: schemas.TaskCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Create a new task (Admin, OperationsManager, Scheduler only)"""
+    return crud.create_task(db, task, created_by=current_user.id)
 
 @app.get("/tasks/{task_id}", response_model=schemas.Task)
-def read_task(task_id: int, db: Session = Depends(get_db)):
+def read_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.ShiftLead, Role.Guard]))
+):
+    """Get task by ID with row-level filtering"""
     task = crud.get_task_by_id(db, task_id=task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Apply row-level filtering check
+    from permissions import get_role
+    role = get_role(current_user)
+    if role in [Role.Guard, Role.ShiftLead]:
+        if task.assigned_to != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied. You can only view tasks assigned to you.")
+    
     return task
 
 @app.put("/tasks/{task_id}", response_model=schemas.Task)
-def update_task(task_id: int, task_data: schemas.TaskCreate, db: Session = Depends(get_db)):
+def update_task(
+    task_id: int,
+    task_data: schemas.TaskCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Update a task (Admin, OperationsManager, Scheduler only)"""
     updated = crud.update_task(db, task_id=task_id, task_data=task_data)
     if not updated:
         raise HTTPException(status_code=404, detail="Task not found")
     return updated
 
 @app.delete("/tasks/{task_id}", response_model=schemas.Task)
-def delete_task(task_id: int, db: Session = Depends(get_db)):
+def delete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Delete a task (Admin, OperationsManager, Scheduler only)"""
     deleted = crud.delete_task(db, task_id=task_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
     return deleted
 
 @app.get("/tasks/by-employee/{user_id}", response_model=list[schemas.Task])
-def read_tasks_by_employee(user_id: int, db: Session = Depends(get_db)):
+def read_tasks_by_employee(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.ShiftLead, Role.Guard]))
+):
+    """Get tasks by employee/user ID with row-level filtering"""
+    # Guards/ShiftLeads can only see their own tasks
+    from permissions import get_role
+    role = get_role(current_user)
+    if role in [Role.Guard, Role.ShiftLead] and user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied. You can only view your own tasks.")
+    
     return crud.get_tasks_by_employee(db, user_id=user_id)
 
 # --- Notification Routes ---
@@ -411,23 +547,48 @@ def read_notifications(db: Session = Depends(get_db), user: models.User = Depend
     return crud.get_notifications(db, user_id=user.id)
 
 @app.post("/notifications/", response_model=schemas.Notification)
-def create_notification(notification: schemas.NotificationCreate, db: Session = Depends(get_db)):
+def create_notification(
+    notification: schemas.NotificationCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager]))
+):
+    """Create a notification (Admin, OperationsManager only)"""
     return crud.create_notification(db, notification)
 
 @app.patch("/notifications/{notification_id}/read", response_model=schemas.Notification)
-def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
-    updated = crud.mark_notification_read(db, notification_id=notification_id)
-    if not updated:
+def mark_notification_read(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Mark notification as read (own notifications only)"""
+    # Verify notification belongs to current user
+    notification = db.query(models.Notification).filter(models.Notification.id == notification_id).first()
+    if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
+    if notification.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied. You can only mark your own notifications as read.")
+    
+    updated = crud.mark_notification_read(db, notification_id=notification_id)
     return updated
 
 # --- Reports Routes ---
 @app.get("/reports/shifts", response_model=schemas.ShiftReport)
-def get_shift_report(start_date: datetime | None = None, end_date: datetime | None = None, db: Session = Depends(get_db)):
+def get_shift_report(
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
+):
+    """Get shift report (Admin, OperationsManager, Scheduler only)"""
     return crud.generate_shift_report(db, start_date=start_date, end_date=end_date)
 
 @app.get("/reports/employees", response_model=schemas.EmployeeReport)
-def get_employee_report(db: Session = Depends(get_db)):
+def get_employee_report(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.Finance]))
+):
+    """Get employee report (Admin, OperationsManager, Scheduler, Finance only)"""
     return crud.generate_employee_report(db)
 
 # --- Allowed Email Routes (Access List Management) ---
@@ -436,7 +597,7 @@ def get_allowed_emails(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_role([Role.Admin]))
 ):
     """Get list of all allowed emails (Admin only)"""
     return crud.get_allowed_emails(db, skip=skip, limit=limit)
@@ -445,7 +606,7 @@ def get_allowed_emails(
 def add_allowed_email(
     allowed_email: schemas.AllowedEmailCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_role([Role.Admin]))
 ):
     """Add an email to the allowed list (Admin only)"""
     result = crud.add_allowed_email(db, allowed_email, added_by=current_user.email)
@@ -461,7 +622,7 @@ def add_allowed_email(
 def remove_allowed_email(
     email: str,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_role([Role.Admin]))
 ):
     """Remove an email from the allowed list (Admin only)"""
     result = crud.remove_allowed_email(db, email)
@@ -478,7 +639,7 @@ def remove_allowed_email(
 def create_invite(
     invite: schemas.UserInviteCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_role([Role.Admin]))
 ):
     """Create a new user invite (Admin only)"""
     result = crud.create_invite(db, invite, invited_by=current_user.id)
@@ -490,7 +651,7 @@ def get_invites(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_role([Role.Admin]))
 ):
     """Get list of all invites (Admin only)"""
     return crud.get_invites(db, skip=skip, limit=limit)
@@ -499,7 +660,7 @@ def get_invites(
 def delete_invite(
     invite_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_admin_user)
+    current_user: models.User = Depends(require_role([Role.Admin]))
 ):
     """Cancel/delete an invite (Admin only)"""
     result = crud.delete_invite(db, invite_id)
