@@ -75,26 +75,17 @@ if SENTRY_DSN:
 else:
     logger.warning("[startup] SENTRY_DSN not set, error tracking disabled")
 
-# Configure JSON logging
-logHandler = logging.StreamHandler(sys.stdout)
-formatter = jsonlogger.JsonFormatter(
-    '%(timestamp)s %(level)s %(name)s %(message)s',
-    timestamp=True
-)
-logHandler.setFormatter(formatter)
-
-# Setup root logger
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
-root_logger.addHandler(logHandler)
-
-# Setup application logger
-logger = logging.getLogger(__name__)
-
 # Create tables
-models.Base.metadata.create_all(bind=engine)
+try:
+    logger.info("[startup] Creating database tables...")
+    models.Base.metadata.create_all(bind=engine)
+    logger.info("[startup] Database tables created successfully")
+except Exception as e:
+    logger.error(f"[startup] Error creating database tables: {str(e)}")
+    raise
 
 app = FastAPI(title="Tzevet Yahalom CRM", version="0.1.0")
+logger.info("[startup] FastAPI app created")
 
 # Rate Limiting
 limiter = Limiter(key_func=get_remote_address)
@@ -112,109 +103,31 @@ if ENVIRONMENT == "development":
     allowed_origins.extend(["http://localhost:5173", "http://localhost:3000"])
 
 # Add middleware in correct order
-app.add_middleware(CorrelationIDMiddleware)  # First: Generate correlation ID
-app.add_middleware(RequestLoggingMiddleware)  # Log requests/responses
-app.add_middleware(SecurityHeadersMiddleware)  # Add security headers
-# CSRF middleware - uncomment if using SameSite=Strict
-# app.add_middleware(CSRFProtectionMiddleware)
-=======
-from jose import jwt
-from datetime import datetime, timedelta
-import os
-import sqlite3
-
-# Check if database exists and has correct schema
-db_path = "./crm.db"
-# #region agent log
-import json
 try:
-    log_path = r'g:\My Drive\python\מערכת CRM צוות יהלום\.cursor\debug.log'
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, 'a', encoding='utf-8') as f:
-        f.write(json.dumps({"location":"main.py:14","message":"Checking database schema","data":{"db_path":os.path.abspath(db_path),"exists":os.path.exists(db_path)},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run2","hypothesisId":"F"})+'\n')
+    logger.info("[startup] Adding middleware...")
+    app.add_middleware(CorrelationIDMiddleware)  # First: Generate correlation ID
+    app.add_middleware(RequestLoggingMiddleware)  # Log requests/responses
+    app.add_middleware(SecurityHeadersMiddleware)  # Add security headers
+    # CSRF middleware - uncomment if using SameSite=Strict
+    # app.add_middleware(CSRFProtectionMiddleware)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    logger.info(f"[startup] Middleware configured. Allowed origins: {allowed_origins}")
 except Exception as e:
-    print(f"[debug] Failed to write log: {e}")
-# #endregion
-needs_recreate = False
-
-if os.path.exists(db_path):
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    try:
-        # Check if users table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-        table_exists = cursor.fetchone() is not None
-        
-        if table_exists:
-            cursor.execute("PRAGMA table_info(users)")
-            columns = [col[1] for col in cursor.fetchall()]
-            print(f"[startup] Users table columns: {columns}")
-            if 'email' not in columns:
-                print("[startup] Old database schema detected (missing email column). Recreating database...")
-                needs_recreate = True
-        else:
-            print("[startup] Users table does not exist. Will create new database...")
-            needs_recreate = True
-    except Exception as e:
-        print(f"[startup] Error checking database schema: {e}. Recreating database...")
-        needs_recreate = True
-    finally:
-        conn.close()
-    
-    if needs_recreate:
-        try:
-            os.remove(db_path)
-            print("[startup] Old database removed. Creating new database...")
-        except Exception as e:
-            print(f"[startup] Error removing old database: {e}")
-else:
-    print("[startup] Database does not exist. Creating new database...")
-
-# Create tables
-models.Base.metadata.create_all(bind=engine)
-print("[startup] Database tables created/verified.")
-# #region agent log
-try:
-    log_path = r'g:\My Drive\python\מערכת CRM צוות יהלום\.cursor\debug.log'
-    with open(log_path, 'a', encoding='utf-8') as f:
-        f.write(json.dumps({"location":"main.py:60","message":"Database tables created","data":{"db_path":os.path.abspath(db_path),"exists_after":os.path.exists(db_path)},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run2","hypothesisId":"F"})+'\n')
-        if os.path.exists(db_path):
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            try:
-                cursor.execute("PRAGMA table_info(users)")
-                columns = [col[1] for col in cursor.fetchall()]
-                f.write(json.dumps({"location":"main.py:65","message":"Database schema after creation","data":{"columns":columns,"has_email":'email' in columns},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run2","hypothesisId":"F"})+'\n')
-            except Exception as e:
-                f.write(json.dumps({"location":"main.py:68","message":"Error checking schema after creation","data":{"error":str(e)},"timestamp":int(__import__('time').time()*1000),"sessionId":"debug-session","runId":"run2","hypothesisId":"F"})+'\n')
-            finally:
-                conn.close()
-except Exception as e:
-    print(f"[debug] Failed to write log: {e}")
-# #endregion
-
-app = FastAPI(title="Tzevet Yahalom CRM", version="0.1.0")
-
-default_origins = ["http://localhost:5173", "http://localhost:3000"]
-frontend_url_env = os.getenv("FRONTEND_URL", "").strip()
-extra_origins = [origin.strip() for origin in frontend_url_env.split(",") if origin.strip()]
-allowed_origins = list(dict.fromkeys(default_origins + extra_origins))
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    logger.error(f"[startup] Error configuring middleware: {str(e)}")
+    raise
 
 # --- Google Auth Configuration ---
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "YOUR_GOOGLE_CLIENT_ID")
 SECRET_KEY = os.getenv("SECRET_KEY", "YOUR_SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 1 day
-<<<<<<< HEAD
 
 # Startup logging
 logger.info(f"[startup] GOOGLE_CLIENT_ID set: {GOOGLE_CLIENT_ID != 'YOUR_GOOGLE_CLIENT_ID'}")
@@ -223,12 +136,6 @@ if GOOGLE_CLIENT_ID != "YOUR_GOOGLE_CLIENT_ID":
     logger.info(f"[startup] GOOGLE_CLIENT_ID value: {GOOGLE_CLIENT_ID[:20]}...")
 else:
     logger.warning("[startup] GOOGLE_CLIENT_ID not set! Using placeholder value.")
-=======
-security = HTTPBearer()
-
-print(f"[startup] GOOGLE_CLIENT_ID set: {GOOGLE_CLIENT_ID not in ['', 'YOUR_GOOGLE_CLIENT_ID']}")
-print(f"[startup] SECRET_KEY set: {SECRET_KEY not in ['', 'YOUR_SECRET_KEY']}")
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -244,31 +151,9 @@ def get_db():
     finally:
         db.close()
 
-<<<<<<< HEAD
 # --- Authentication Dependencies ---
 # Admin-only dependency using RBAC system
 get_current_admin_user = require_role([Role.Admin])
-=======
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-        if not email:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-    user = crud.get_user_by_email(db, email=email)
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
-
-def require_admin(user: models.User = Depends(get_current_user)):
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 @app.get("/")
 def read_root():
@@ -934,6 +819,139 @@ def delete_client(
     
     return deleted
 
+
+# --- Client File Routes ---
+@app.post("/clients/{client_id}/files", response_model=schemas.ClientFile)
+@limiter.limit("100/minute")
+def upload_client_file(
+    request: Request,
+    client_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
+):
+    """Upload a file for a client (Admin, OperationsManager, Sales only)"""
+    # Verify client exists
+    client = crud.get_client_by_id(db, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    try:
+        # Save file to disk
+        file_path, file_size = storage.save_file(
+            file.file,
+            'client',
+            client_id,
+            file.filename
+        )
+        
+        # Get MIME type
+        file_type = storage.get_mime_type(file.filename)
+        
+        # Create database record
+        db_file = crud.create_client_file(
+            db,
+            client_id,
+            file.filename,
+            file_path,
+            file_size,
+            file_type,
+            current_user.id
+        )
+        
+        # Log audit event
+        log_audit_event(
+            db=db,
+            request=request,
+            user=current_user,
+            action="create",
+            resource_type="client_file",
+            resource_id=db_file.id,
+            old_value=None,
+            new_value={"client_id": client_id, "filename": file.filename}
+        )
+        
+        return db_file
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error uploading file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+
+
+@app.get("/clients/{client_id}/files", response_model=List[schemas.ClientFile])
+def get_client_files(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales, Role.Finance]))
+):
+    """Get all files for a client (Admin, OperationsManager, Sales, Finance only)"""
+    # Verify client exists
+    client = crud.get_client_by_id(db, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    return crud.get_files_by_client(db, client_id)
+
+
+@app.get("/files/{file_id}")
+def download_file(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales, Role.Finance]))
+):
+    """Download a file (Admin, OperationsManager, Sales, Finance only)"""
+    db_file = crud.get_file_by_id(db, file_id)
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Get absolute file path
+    file_path = storage.get_file_path(db_file.file_path)
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=str(file_path),
+        filename=db_file.filename,
+        media_type=db_file.file_type or 'application/octet-stream'
+    )
+
+
+@app.delete("/files/{file_id}", response_model=schemas.ClientFile)
+@limiter.limit("100/minute")
+def delete_file(
+    request: Request,
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
+):
+    """Delete a file (Admin, OperationsManager, Sales only)"""
+    db_file = crud.get_file_by_id(db, file_id)
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Delete from disk
+    storage.delete_file(db_file.file_path)
+    
+    # Delete from database
+    deleted = crud.delete_client_file(db, file_id)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="delete",
+        resource_type="client_file",
+        resource_id=file_id,
+        old_value={"filename": db_file.filename, "client_id": db_file.client_id},
+        new_value=None
+    )
+    
+    return deleted
+
+
 # --- Shift Routes ---
 @app.get("/shifts/", response_model=list[schemas.Shift])
 def read_shifts(
@@ -1320,6 +1338,32 @@ def delete_user(
     db.commit()
     
     return user
+
+
+# --- Global Search Routes ---
+@app.get("/search")
+def global_search(
+    q: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    limit: int = 10
+):
+    """
+    Global search across clients, employees, and shifts.
+    All authenticated users can search.
+    """
+    if not q or len(q.strip()) < 2:
+        return {
+            "clients": [],
+            "employees": [],
+            "shifts": [],
+            "query": q
+        }
+    
+    results = search.search_all(q.strip(), db, limit_per_type=limit)
+    results["query"] = q.strip()
+    
+    return results
 
 
 # --- Audit Log Routes ---

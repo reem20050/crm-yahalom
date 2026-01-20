@@ -2,6 +2,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Database URL from environment variable
 # Production/Staging: PostgreSQL via DATABASE_URL (required)
@@ -11,15 +14,28 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     # Fallback to SQLite for local development
     DATABASE_URL = "sqlite:///./crm.db"
-    print(f"[database] DATABASE_URL not set, using SQLite: {DATABASE_URL}")
+    logger.warning(f"[database] DATABASE_URL not set, using SQLite: {DATABASE_URL}")
+else:
+    # Mask password in logs for security
+    masked_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL
+    logger.info(f"[database] Using DATABASE_URL: ...@{masked_url}")
 
 # Create engine
-# For SQLite, use check_same_thread=False for compatibility
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    # For PostgreSQL, no special connect_args needed
-    engine = create_engine(DATABASE_URL)
+try:
+    # For SQLite, use check_same_thread=False for compatibility
+    if DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    else:
+        # For PostgreSQL, convert postgres:// to postgresql:// if needed (Railway uses postgres://)
+        if DATABASE_URL.startswith("postgres://"):
+            DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+            logger.info("[database] Converted postgres:// to postgresql://")
+        # For PostgreSQL, no special connect_args needed
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)  # pool_pre_ping helps with connection issues
+    logger.info("[database] Database engine created successfully")
+except Exception as e:
+    logger.error(f"[database] Error creating database engine: {str(e)}")
+    raise
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
