@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
-=======
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -12,7 +8,6 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=True) # Check validity if google auth is primary
-<<<<<<< HEAD
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String, nullable=True) # Nullable for google auth users
     role = Column(String, default="Guard")  # Admin, OperationsManager, Scheduler, Sales, Finance, ShiftLead, Guard
@@ -44,11 +39,6 @@ class UserInvite(Base):
     notes = Column(String, nullable=True)  # Optional notes
 
     inviter = relationship("User", foreign_keys=[invited_by])
-=======
-    email = Column(String, unique=True, index=True) 
-    hashed_password = Column(String, nullable=True) # Nullable for google auth users
-    role = Column(String, default="admin") # admin, manager
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class Employee(Base):
     __tablename__ = "employees"
@@ -58,15 +48,16 @@ class Employee(Base):
     last_name = Column(String, index=True)
     id_number = Column(String, unique=True, index=True)
     phone = Column(String)
+    email = Column(String, nullable=True, index=True)
     role = Column(String, default="guard") # guard, shift_manager
+    base_pay = Column(String, nullable=True)  # Using String to avoid decimal precision issues
+    availability = Column(String, nullable=True)  # JSON string for weekly schedule
     start_date = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
-<<<<<<< HEAD
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     shifts = relationship("Shift", back_populates="employee")
     certifications = relationship("EmployeeCertification", back_populates="employee", cascade="all, delete-orphan")
     files = relationship("EmployeeFile", back_populates="employee", cascade="all, delete-orphan")
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class Client(Base):
     __tablename__ = "clients"
@@ -76,12 +67,14 @@ class Client(Base):
     address = Column(String)
     contact_person = Column(String)
     contact_phone = Column(String)
-<<<<<<< HEAD
     email = Column(String, nullable=True, index=True)
     notes = Column(Text, nullable=True)
+    contacts = Column(JSON, nullable=True)  # JSON array of contact objects
+    sites = Column(JSON, nullable=True)  # JSON array of site objects
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     shifts = relationship("Shift", back_populates="client")
+    files = relationship("ClientFile", back_populates="client", cascade="all, delete-orphan")
 
 class Shift(Base):
     __tablename__ = "shifts"
@@ -163,5 +156,36 @@ class EmployeeCertification(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     employee = relationship("Employee", back_populates="certifications")
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
+
+
+class ClientFile(Base):
+    __tablename__ = "client_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
+    filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)  # Path on filesystem or S3 key
+    file_size = Column(Integer, nullable=False)  # Size in bytes
+    file_type = Column(String, nullable=True)  # MIME type
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    client = relationship("Client")
+    uploader = relationship("User")
+
+
+class EmployeeFile(Base):
+    __tablename__ = "employee_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_type = Column(String, nullable=True)
+    document_type = Column(String, nullable=True)  # ID Copy, Contract, Certificate, Other
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    employee = relationship("Employee")
+    uploader = relationship("User")

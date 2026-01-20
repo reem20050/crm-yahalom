@@ -1,11 +1,5 @@
-<<<<<<< HEAD
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-=======
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 from sqlalchemy.orm import Session
 import models, schemas, crud
 from database import SessionLocal, engine
@@ -279,8 +273,6 @@ def require_admin(user: models.User = Depends(get_current_user)):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Tzevet Yahalom CRM API"}
-
-<<<<<<< HEAD
 
 @app.get("/health")
 def health_check(db: Session = Depends(get_db)):
