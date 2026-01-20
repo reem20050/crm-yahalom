@@ -5,7 +5,6 @@ import models, schemas, crud
 from database import SessionLocal, engine
 from google.oauth2 import id_token
 from google.auth.transport import requests
-<<<<<<< HEAD
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -32,6 +31,7 @@ from pagination import paginate_query, create_paginated_response, PaginatedRespo
 from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
 import storage
+import search
 
 # Structured Logging Setup (must be before Sentry)
 from pythonjsonlogger import jsonlogger

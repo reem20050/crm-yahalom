@@ -89,7 +89,6 @@ def delete_employee(db: Session, employee_id: int):
 def get_clients(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Client).offset(skip).limit(limit).all()
 
-<<<<<<< HEAD
 def get_client_by_id(db: Session, client_id: int):
     return db.query(models.Client).filter(models.Client.id == client_id).first()
 
@@ -107,6 +106,20 @@ def update_client(db: Session, client_id: int, client_data: schemas.ClientCreate
     db.refresh(db_client)
     return db_client
 
+def create_client(db: Session, client: schemas.ClientCreate):
+    db_client = models.Client(**client.dict())
+    db.add(db_client)
+    db.commit()
+    db.refresh(db_client)
+    return db_client
+
+def delete_client(db: Session, client_id: int):
+    client = get_client_by_id(db, client_id)
+    if not client:
+        return None
+    db.delete(client)
+    db.commit()
+    return client
 
 # --- Employee Certification CRUD ---
 def get_certification_by_id(db: Session, cert_id: int):
@@ -176,9 +189,272 @@ def delete_client_file(db: Session, file_id: int):
     db.commit()
     return db_file
 
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
-def create_client(db: Session, client: schemas.ClientCreate):
+
+# --- Employee File CRUD ---
+def get_employee_file_by_id(db: Session, file_id: int):
+    return db.query(models.EmployeeFile).filter(models.EmployeeFile.id == file_id).first()
+
+def get_files_by_employee(db: Session, employee_id: int):
+    return db.query(models.EmployeeFile).filter(models.EmployeeFile.employee_id == employee_id).order_by(models.EmployeeFile.created_at.desc()).all()
+
+def create_employee_file(db: Session, employee_id: int, filename: str, file_path: str, file_size: int, file_type: str, document_type: str, uploaded_by: int):
+    db_file = models.EmployeeFile(
+        employee_id=employee_id,
+        filename=filename,
+        file_path=file_path,
+        file_size=file_size,
+        file_type=file_type,
+        document_type=document_type,
+        uploaded_by=uploaded_by
+    )
+    db.add(db_file)
+    db.commit()
+    db.refresh(db_file)
+    return db_file
+
+def delete_employee_file(db: Session, file_id: int):
+    db_file = db.query(models.EmployeeFile).filter(models.EmployeeFile.id == file_id).first()
+    if not db_file:
+        return None
+    db.delete(db_file)
+    db.commit()
+    return db_file
+
+
+# --- Shift CRUD ---
+def get_shifts(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Shift).order_by(models.Shift.start_time.desc()).offset(skip).limit(limit).all()
+
+def get_shift_by_id(db: Session, shift_id: int):
+    return db.query(models.Shift).filter(models.Shift.id == shift_id).first()
+
+def get_shifts_by_employee(db: Session, employee_id: int):
+    return db.query(models.Shift).filter(models.Shift.employee_id == employee_id).order_by(models.Shift.start_time.desc()).all()
+
+def get_shifts_by_date_range(db: Session, start_date: datetime, end_date: datetime):
+    return db.query(models.Shift).filter(
+        models.Shift.start_time >= start_date,
+        models.Shift.end_time <= end_date,
+    ).order_by(models.Shift.start_time.asc()).all()
+
+def create_shift(db: Session, shift: schemas.ShiftCreate):
+    db_shift = models.Shift(**shift.dict())
+    db.add(db_shift)
+    db.commit()
+    db.refresh(db_shift)
+    return db_shift
+
+def update_shift(db: Session, shift_id: int, shift_data: schemas.ShiftCreate):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        return None
+    for field, value in shift_data.dict().items():
+        setattr(shift, field, value)
+    db.commit()
+    db.refresh(shift)
+    return shift
+
+def delete_shift(db: Session, shift_id: int):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        return None
+    db.delete(shift)
+    db.commit()
+    return shift
+
+# --- Task CRUD ---
+def get_tasks(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Task).order_by(models.Task.created_at.desc()).offset(skip).limit(limit).all()
+
+def get_task_by_id(db: Session, task_id: int):
+    return db.query(models.Task).filter(models.Task.id == task_id).first()
+
+def get_tasks_by_employee(db: Session, user_id: int):
+    return db.query(models.Task).filter(models.Task.assigned_to == user_id).order_by(models.Task.due_date.asc()).all()
+
+def create_task(db: Session, task: schemas.TaskCreate, created_by: int | None = None):
+    db_task = models.Task(**task.dict(), created_by=created_by)
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+def update_task(db: Session, task_id: int, task_data: schemas.TaskCreate):
+    task = get_task_by_id(db, task_id)
+    if not task:
+        return None
+    for field, value in task_data.dict().items():
+        setattr(task, field, value)
+    db.commit()
+    db.refresh(task)
+    return task
+
+def delete_task(db: Session, task_id: int):
+    task = get_task_by_id(db, task_id)
+    if not task:
+        return None
+    db.delete(task)
+    db.commit()
+    return task
+
+# --- Notification CRUD ---
+def get_notifications(db: Session, user_id: int):
+    return db.query(models.Notification).filter(models.Notification.user_id == user_id).order_by(models.Notification.created_at.desc()).all()
+
+def create_notification(db: Session, notification: schemas.NotificationCreate):
+    db_notification = models.Notification(**notification.dict())
+    db.add(db_notification)
+    db.commit()
+    db.refresh(db_notification)
+    return db_notification
+
+def mark_notification_read(db: Session, notification_id: int):
+    notification = db.query(models.Notification).filter(models.Notification.id == notification_id).first()
+    if not notification:
+        return None
+    notification.is_read = True
+    db.commit()
+    db.refresh(notification)
+    return notification
+
+# --- Reports ---
+def generate_shift_report(db: Session, start_date: datetime | None = None, end_date: datetime | None = None):
+    query = db.query(models.Shift)
+    if start_date:
+        query = query.filter(models.Shift.start_time >= start_date)
+    if end_date:
+        query = query.filter(models.Shift.end_time <= end_date)
+    shifts = query.all()
+    return {
+        "total_shifts": len(shifts),
+        "scheduled_shifts": sum(1 for s in shifts if s.status == "scheduled"),
+        "completed_shifts": sum(1 for s in shifts if s.status == "completed"),
+        "canceled_shifts": sum(1 for s in shifts if s.status == "canceled"),
+    }
+
+def generate_employee_report(db: Session):
+    employees = db.query(models.Employee).all()
+    items = []
+    for employee in employees:
+        total_shifts = len(employee.shifts)
+        active_shifts = sum(1 for s in employee.shifts if s.status == "scheduled")
+        items.append({
+            "employee_id": employee.id,
+            "employee_name": f"{employee.first_name} {employee.last_name}",
+            "total_shifts": total_shifts,
+            "active_shifts": active_shifts,
+        })
+    return {"total_employees": len(employees), "items": items}
+
+# --- Allowed Email CRUD ---
+def is_email_allowed(db: Session, email: str) -> bool:
+    """Check if an email is in the allowed list"""
+    allowed = db.query(models.AllowedEmail).filter(models.AllowedEmail.email == email.lower()).first()
+    return allowed is not None
+
+def get_allowed_emails(db: Session, skip: int = 0, limit: int = 100):
+    """Get all allowed emails"""
+    return db.query(models.AllowedEmail).order_by(models.AllowedEmail.added_at.desc()).offset(skip).limit(limit).all()
+
+def get_allowed_email_by_email(db: Session, email: str):
+    """Get a specific allowed email by email address"""
+    return db.query(models.AllowedEmail).filter(models.AllowedEmail.email == email.lower()).first()
+
+def add_allowed_email(db: Session, allowed_email: schemas.AllowedEmailCreate, added_by: str = None):
+    """Add an email to the allowed list"""
+    # Check if already exists
+    existing = get_allowed_email_by_email(db, allowed_email.email)
+    if existing:
+        return None  # Already exists
+    
+    db_allowed = models.AllowedEmail(
+        email=allowed_email.email.lower(),
+        notes=allowed_email.notes,
+        added_by=added_by
+    )
+    db.add(db_allowed)
+    db.commit()
+    db.refresh(db_allowed)
+    return db_allowed
+
+def remove_allowed_email(db: Session, email: str):
+    """Remove an email from the allowed list"""
+    allowed = get_allowed_email_by_email(db, email)
+    if not allowed:
+        return None
+    db.delete(allowed)
+    db.commit()
+    return allowed
+
+# --- User Invite CRUD ---
+def get_invite_by_email(db: Session, email: str):
+    """Get invite by email address"""
+    return db.query(models.UserInvite).filter(
+        models.UserInvite.email == email.lower()
+    ).first()
+
+def get_invite_by_token(db: Session, token: str):
+    """Get invite by token"""
+    return db.query(models.UserInvite).filter(
+        models.UserInvite.token == token
+    ).first()
+
+def get_invites(db: Session, skip: int = 0, limit: int = 100):
+    """Get all invites"""
+    return db.query(models.UserInvite).order_by(
+        models.UserInvite.created_at.desc()
+    ).offset(skip).limit(limit).all()
+
+def create_invite(
+    db: Session,
+    invite: schemas.UserInviteCreate,
+    invited_by: int = None
+):
+    """Create a new user invite"""
+    from datetime import timedelta
+    import secrets
+    
+    # Generate unique token
+    token = secrets.token_urlsafe(32)
+    
+    # Set expiration (default 7 days)
+    expires_at = datetime.utcnow() + timedelta(days=7)
+    
+    db_invite = models.UserInvite(
+        email=invite.email.lower(),
+        role=invite.role,
+        invited_by=invited_by,
+        token=token,
+        expires_at=expires_at,
+        notes=invite.notes
+    )
+    db.add(db_invite)
+    db.commit()
+    db.refresh(db_invite)
+    return db_invite
+
+def delete_invite(db: Session, invite_id: int):
+    """Delete an invite"""
+    invite = db.query(models.UserInvite).filter(
+        models.UserInvite.id == invite_id
+    ).first()
+    if not invite:
+        return None
+    db.delete(invite)
+    db.commit()
+    return invite
+
+def mark_invite_accepted(db: Session, invite_id: int):
+    """Mark invite as accepted"""
+    invite = db.query(models.UserInvite).filter(
+        models.UserInvite.id == invite_id
+    ).first()
+    if not invite:
+        return None
+    invite.accepted_at = datetime.utcnow()
+    db.commit()
+    db.refresh(invite)
+    return invite
     db_client = models.Client(**client.dict())
     db.add(db_client)
     db.commit()
