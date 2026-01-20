@@ -1,6 +1,6 @@
 <<<<<<< HEAD
 from pydantic import BaseModel, validator
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from validators import (
     validate_phone,

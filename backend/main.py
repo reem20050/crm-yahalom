@@ -14,12 +14,13 @@ from google.auth.transport import requests
 <<<<<<< HEAD
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import os
 import logging
 import json
 import sys
 from auth import get_current_user, COOKIE_NAME, get_optional_current_user
+from validators import validate_phone, validate_email
 from middleware import (
     SecurityHeadersMiddleware,
     CorrelationIDMiddleware,
@@ -34,6 +35,9 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from pagination import paginate_query, create_paginated_response, PaginatedResponse
+from fastapi import UploadFile, File
+from fastapi.responses import FileResponse
+import storage
 
 # Structured Logging Setup (must be before Sentry)
 from pythonjsonlogger import jsonlogger
@@ -593,6 +597,120 @@ def delete_employee(
     
     return deleted
 
+
+# --- Employee Certification Routes ---
+@app.post("/employees/{employee_id}/certifications", response_model=schemas.EmployeeCertification)
+@limiter.limit("100/minute")
+def create_certification(
+    request: Request,
+    employee_id: int,
+    certification: schemas.EmployeeCertificationCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager]))
+):
+    """Create a certification for an employee (Admin, OperationsManager only)"""
+    # Verify employee exists
+    employee = crud.get_employee_by_id(db, employee_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    created = crud.create_certification(db, employee_id, certification)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="create",
+        resource_type="certification",
+        resource_id=created.id,
+        old_value=None,
+        new_value={"employee_id": employee_id, "name": certification.name, "expiry_date": str(certification.expiry_date) if certification.expiry_date else None}
+    )
+    
+    return created
+
+
+@app.get("/employees/{employee_id}/certifications", response_model=List[schemas.EmployeeCertification])
+def get_certifications(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.Finance]))
+):
+    """Get all certifications for an employee (Admin, OperationsManager, Scheduler, Finance only)"""
+    # Verify employee exists
+    employee = crud.get_employee_by_id(db, employee_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    return crud.get_certifications_by_employee(db, employee_id)
+
+
+@app.put("/employees/{employee_id}/certifications/{cert_id}", response_model=schemas.EmployeeCertification)
+@limiter.limit("100/minute")
+def update_certification(
+    request: Request,
+    employee_id: int,
+    cert_id: int,
+    certification: schemas.EmployeeCertificationUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager]))
+):
+    """Update a certification (Admin, OperationsManager only)"""
+    # Verify certification belongs to employee
+    cert = crud.get_certification_by_id(db, cert_id)
+    if not cert or cert.employee_id != employee_id:
+        raise HTTPException(status_code=404, detail="Certification not found")
+    
+    old_expiry = cert.expiry_date
+    updated = crud.update_certification(db, cert_id, certification)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="update",
+        resource_type="certification",
+        resource_id=cert_id,
+        old_value={"expiry_date": str(old_expiry) if old_expiry else None},
+        new_value={"expiry_date": str(certification.expiry_date) if certification.expiry_date else None}
+    )
+    
+    return updated
+
+
+@app.delete("/employees/{employee_id}/certifications/{cert_id}", response_model=schemas.EmployeeCertification)
+@limiter.limit("100/minute")
+def delete_certification(
+    request: Request,
+    employee_id: int,
+    cert_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager]))
+):
+    """Delete a certification (Admin, OperationsManager only)"""
+    # Verify certification belongs to employee
+    cert = crud.get_certification_by_id(db, cert_id)
+    if not cert or cert.employee_id != employee_id:
+        raise HTTPException(status_code=404, detail="Certification not found")
+    
+    deleted = crud.delete_certification(db, cert_id)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="delete",
+        resource_type="certification",
+        resource_id=cert_id,
+        old_value={"name": cert.name, "employee_id": employee_id},
+        new_value=None
+    )
+    
+    return deleted
+
 # --- Client Routes ---
 @app.post("/clients/", response_model=schemas.Client)
 @limiter.limit("100/minute")
@@ -660,6 +778,139 @@ def read_clients(
     clients = paginated_query.all()
     
     return create_paginated_response(clients, total, skip, limit)
+
+@app.get("/clients/{client_id}", response_model=schemas.Client)
+def get_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.Sales, Role.Finance]))
+):
+    """Get client by ID (Admin, OperationsManager, Scheduler, Sales, Finance only)"""
+    client = crud.get_client_by_id(db, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return client
+
+
+@app.put("/clients/{client_id}/contacts", response_model=schemas.Client)
+@limiter.limit("100/minute")
+def update_client_contacts(
+    request: Request,
+    client_id: int,
+    contacts: List[Dict[str, Any]],
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
+):
+    """Update client contacts (Admin, OperationsManager, Sales only)"""
+    client = crud.get_client_by_id(db, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Validate contacts
+    for contact in contacts:
+        if 'name' not in contact:
+            raise HTTPException(status_code=400, detail="Each contact must have a 'name' field")
+        if 'phone' in contact and contact['phone']:
+            try:
+                validate_phone(contact['phone'])
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid phone in contact: {str(e)}")
+        if 'email' in contact and contact['email']:
+            try:
+                validate_email(contact['email'])
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid email in contact: {str(e)}")
+    
+    client.contacts = contacts
+    client.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(client)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="update",
+        resource_type="client",
+        resource_id=client_id,
+        old_value={"contacts": client.contacts},
+        new_value={"contacts": contacts}
+    )
+    
+    return client
+
+
+@app.put("/clients/{client_id}/sites", response_model=schemas.Client)
+@limiter.limit("100/minute")
+def update_client_sites(
+    request: Request,
+    client_id: int,
+    sites: List[Dict[str, Any]],
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
+):
+    """Update client sites (Admin, OperationsManager, Sales only)"""
+    client = crud.get_client_by_id(db, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Validate sites
+    for site in sites:
+        if 'name' not in site or 'address' not in site:
+            raise HTTPException(status_code=400, detail="Each site must have 'name' and 'address' fields")
+    
+    client.sites = sites
+    client.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(client)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="update",
+        resource_type="client",
+        resource_id=client_id,
+        old_value={"sites": client.sites},
+        new_value={"sites": sites}
+    )
+    
+    return client
+
+
+@app.put("/clients/{client_id}", response_model=schemas.Client)
+@limiter.limit("100/minute")
+def update_client(
+    request: Request,
+    client_id: int,
+    client_data: schemas.ClientCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
+):
+    """Update a client (Admin, OperationsManager, Sales only, audited)"""
+    # Get client before update for audit
+    old_client = crud.get_client_by_id(db, client_id)
+    if not old_client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    updated = crud.update_client(db, client_id=client_id, client_data=client_data)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="update",
+        resource_type="client",
+        resource_id=client_id,
+        old_value={"name": old_client.name, "email": old_client.email},
+        new_value={"name": client_data.name, "email": client_data.email}
+    )
+    
+    return updated
+
 
 @app.delete("/clients/{client_id}", response_model=schemas.Client)
 @limiter.limit("100/minute")

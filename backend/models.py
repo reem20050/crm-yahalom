@@ -63,6 +63,8 @@ class Employee(Base):
     is_active = Column(Boolean, default=True)
 <<<<<<< HEAD
     shifts = relationship("Shift", back_populates="employee")
+    certifications = relationship("EmployeeCertification", back_populates="employee", cascade="all, delete-orphan")
+    files = relationship("EmployeeFile", back_populates="employee", cascade="all, delete-orphan")
 =======
 >>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
@@ -145,5 +147,21 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     user = relationship("User")
+
+
+class EmployeeCertification(Base):
+    __tablename__ = "employee_certifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)  # e.g., "Security Guard License", "First Aid"
+    issuer = Column(String, nullable=True)  # Issuing organization
+    issued_date = Column(DateTime, nullable=True)
+    expiry_date = Column(DateTime, nullable=True, index=True)  # Indexed for expiry queries
+    certificate_number = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    employee = relationship("Employee", back_populates="certifications")
 =======
 >>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

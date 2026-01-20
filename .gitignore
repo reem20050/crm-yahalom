@@ -1,14 +1,14 @@
 # Python
 __pycache__/
 *.py[cod]
-<<<<<<< HEAD
 *$py.class
 *.so
+*.pyd
 .Python
 venv/
 env/
 ENV/
-.venv
+.venv/
 *.db
 *.sqlite
 *.sqlite3
@@ -30,11 +30,13 @@ build/
 *.swo
 *~
 .DS_Store
+Thumbs.db
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+.env.*
 
 # Logs
 *.log
@@ -49,24 +51,3 @@ crm.db
 
 # Build outputs
 !NPM_OUTPUT_FILE!
-=======
-*.pyd
-*.db
-*.sqlite3
-venv/
-.venv/
-
-# Node
-node_modules/
-dist/
-npm-debug.log*
-yarn-error.log*
-
-# Env
-.env
-.env.*
-
-# OS
-.DS_Store
-Thumbs.db
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

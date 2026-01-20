@@ -219,6 +219,7 @@ function Employees() {
                                 <th>Name</th>
                                 <th>ID Number</th>
                                 <th>Phone</th>
+                                <th>Email</th>
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th>Actions</th>

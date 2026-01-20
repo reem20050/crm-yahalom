@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 <<<<<<< HEAD
 from datetime import datetime
+import json
 =======
 >>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 import models, schemas
@@ -91,6 +92,89 @@ def get_clients(db: Session, skip: int = 0, limit: int = 100):
 <<<<<<< HEAD
 def get_client_by_id(db: Session, client_id: int):
     return db.query(models.Client).filter(models.Client.id == client_id).first()
+
+def update_client(db: Session, client_id: int, client_data: schemas.ClientCreate):
+    db_client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not db_client:
+        return None
+    
+    # Update all fields
+    for key, value in client_data.dict(exclude_unset=True).items():
+        setattr(db_client, key, value)
+    
+    db_client.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_client)
+    return db_client
+
+
+# --- Employee Certification CRUD ---
+def get_certification_by_id(db: Session, cert_id: int):
+    return db.query(models.EmployeeCertification).filter(models.EmployeeCertification.id == cert_id).first()
+
+def get_certifications_by_employee(db: Session, employee_id: int):
+    return db.query(models.EmployeeCertification).filter(models.EmployeeCertification.employee_id == employee_id).order_by(models.EmployeeCertification.expiry_date.asc()).all()
+
+def create_certification(db: Session, employee_id: int, certification: schemas.EmployeeCertificationCreate):
+    db_cert = models.EmployeeCertification(
+        employee_id=employee_id,
+        **certification.dict()
+    )
+    db.add(db_cert)
+    db.commit()
+    db.refresh(db_cert)
+    return db_cert
+
+def update_certification(db: Session, cert_id: int, certification: schemas.EmployeeCertificationUpdate):
+    db_cert = db.query(models.EmployeeCertification).filter(models.EmployeeCertification.id == cert_id).first()
+    if not db_cert:
+        return None
+    
+    for key, value in certification.dict(exclude_unset=True).items():
+        setattr(db_cert, key, value)
+    
+    db_cert.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_cert)
+    return db_cert
+
+def delete_certification(db: Session, cert_id: int):
+    db_cert = db.query(models.EmployeeCertification).filter(models.EmployeeCertification.id == cert_id).first()
+    if not db_cert:
+        return None
+    db.delete(db_cert)
+    db.commit()
+    return db_cert
+
+
+# --- Client File CRUD ---
+def get_file_by_id(db: Session, file_id: int):
+    return db.query(models.ClientFile).filter(models.ClientFile.id == file_id).first()
+
+def get_files_by_client(db: Session, client_id: int):
+    return db.query(models.ClientFile).filter(models.ClientFile.client_id == client_id).order_by(models.ClientFile.created_at.desc()).all()
+
+def create_client_file(db: Session, client_id: int, filename: str, file_path: str, file_size: int, file_type: str, uploaded_by: int):
+    db_file = models.ClientFile(
+        client_id=client_id,
+        filename=filename,
+        file_path=file_path,
+        file_size=file_size,
+        file_type=file_type,
+        uploaded_by=uploaded_by
+    )
+    db.add(db_file)
+    db.commit()
+    db.refresh(db_file)
+    return db_file
+
+def delete_client_file(db: Session, file_id: int):
+    db_file = db.query(models.ClientFile).filter(models.ClientFile.id == file_id).first()
+    if not db_file:
+        return None
+    db.delete(db_file)
+    db.commit()
+    return db_file
 
 =======
 >>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

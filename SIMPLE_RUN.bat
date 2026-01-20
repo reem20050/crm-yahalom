@@ -5,11 +5,7 @@ echo ========================================
 echo.
 
 echo Step 1: Starting Backend...
-<<<<<<< HEAD
 start "Backend Server" cmd /k "cd /d %~dp0backend && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-=======
-start "Backend Server" cmd /k "cd /d %~dp0backend && python -m uvicorn main:app --host 0.0.0.0 --port 8000"
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 timeout /t 3 /nobreak >nul
 
