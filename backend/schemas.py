@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from pydantic import BaseModel, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -9,36 +8,22 @@ from validators import (
     validate_string_length,
     validate_shift_times
 )
-=======
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 class GoogleLogin(BaseModel):
-<<<<<<< HEAD
     credential: str  # JWT credential from Google Identity Services (not token)
 
 # --- User Schemas ---
 class UserBase(BaseModel):
     username: Optional[str] = None
-=======
-    token: str
-
-# --- User Schemas ---
-class UserBase(BaseModel):
-    username: str
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
     role: Optional[str] = "admin"
 
 class UserCreate(UserBase):
     password: str
 
-<<<<<<< HEAD
 class UserOut(BaseModel):
     id: int
     email: str
@@ -47,25 +32,10 @@ class UserOut(BaseModel):
 
     class Config:
         from_attributes = True
-=======
-class User(UserBase):
-    id: int
-    class Config:
-        orm_mode = True
-
-class UserOut(BaseModel):
-    id: int
-    email: str
-    role: Optional[str] = "user"
-
-    class Config:
-        orm_mode = True
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class UserRoleUpdate(BaseModel):
     role: str
 
-<<<<<<< HEAD
 # --- Allowed Email Schemas ---
 class AllowedEmailBase(BaseModel):
     email: str
@@ -117,17 +87,30 @@ class UserInvite(UserInviteBase):
     class Config:
         from_attributes = True
 
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
+# --- Client Contact/Site Schemas ---
+class ClientContact(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None  # e.g., "Manager", "Supervisor", "Contact"
+
+class ClientSite(BaseModel):
+    name: str
+    address: str
+    city: Optional[str] = None
+    zip_code: Optional[str] = None
+
 # --- Employee Schemas ---
 class EmployeeBase(BaseModel):
     first_name: str
     last_name: str
     id_number: str
     phone: Optional[str] = None
+    email: Optional[str] = None
     role: Optional[str] = "guard"
+    base_pay: Optional[str] = None
+    availability: Optional[str] = None  # JSON string
     is_active: Optional[bool] = True
-<<<<<<< HEAD
     
     @validator('first_name')
     def validate_first_name(cls, v):
@@ -147,14 +130,28 @@ class EmployeeBase(BaseModel):
             return validate_phone(v)
         return v
     
+    @validator('email')
+    def validate_email_field(cls, v):
+        if v:
+            return validate_email(v)
+        return v
+    
+    @validator('base_pay')
+    def validate_base_pay(cls, v):
+        if v:
+            # Validate it's a valid number format
+            try:
+                float(v.replace(',', '').replace('₪', '').strip())
+            except ValueError:
+                raise ValueError('Base pay must be a valid number')
+        return v
+    
     @validator('role')
     def validate_employee_role(cls, v):
         allowed = ["guard", "shift_manager"]
         if v not in allowed:
             raise ValueError(f'Invalid employee role. Allowed: {", ".join(allowed)}')
         return v
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class EmployeeCreate(EmployeeBase):
     pass
@@ -162,14 +159,52 @@ class EmployeeCreate(EmployeeBase):
 class Employee(EmployeeBase):
     id: int
     start_date: datetime
-<<<<<<< HEAD
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
-=======
+
+
+# --- Employee Certification Schemas ---
+class EmployeeCertificationBase(BaseModel):
+    name: str
+    issuer: Optional[str] = None
+    issued_date: Optional[datetime] = None
+    expiry_date: Optional[datetime] = None
+    certificate_number: Optional[str] = None
+    
+    @validator('name')
+    def validate_name(cls, v):
+        return validate_string_length(v, min_length=1, max_length=200, field_name="Certification name")
+    
+    @validator('certificate_number')
+    def validate_certificate_number(cls, v):
+        if v:
+            return validate_string_length(v, min_length=1, max_length=100, field_name="Certificate number")
+        return v
+    
+    @validator('expiry_date')
+    def validate_expiry_after_issue(cls, v, values):
+        if v and 'issued_date' in values and values['issued_date']:
+            if v < values['issued_date']:
+                raise ValueError('Expiry date must be after issued date')
+        return v
+
+class EmployeeCertificationCreate(EmployeeCertificationBase):
+    pass
+
+class EmployeeCertificationUpdate(EmployeeCertificationBase):
+    pass
+
+class EmployeeCertification(EmployeeCertificationBase):
+    id: int
+    employee_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
     class Config:
-        orm_mode = True
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
+        from_attributes = True
+
 
 # --- Client Schemas ---
 class ClientBase(BaseModel):
@@ -177,9 +212,10 @@ class ClientBase(BaseModel):
     address: Optional[str] = None
     contact_person: Optional[str] = None
     contact_phone: Optional[str] = None
-<<<<<<< HEAD
     email: Optional[str] = None
     notes: Optional[str] = None
+    contacts: Optional[List[Dict[str, Any]]] = None  # JSON array
+    sites: Optional[List[Dict[str, Any]]] = None  # JSON array
     
     @validator('name')
     def validate_name(cls, v):
@@ -214,15 +250,12 @@ class ClientBase(BaseModel):
         if v:
             return validate_string_length(v, min_length=0, max_length=5000, field_name="Notes")
         return v
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class ClientCreate(ClientBase):
     pass
 
 class Client(ClientBase):
     id: int
-<<<<<<< HEAD
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -343,7 +376,44 @@ class AuditLog(AuditLogBase):
 
     class Config:
         from_attributes = True
-=======
+
+# --- File Attachment Schemas ---
+class ClientFileBase(BaseModel):
+    filename: str
+    file_path: str
+    file_size: int
+    file_type: Optional[str] = None
+
+class ClientFile(ClientFileBase):
+    id: int
+    client_id: int
+    uploaded_by: int
+    created_at: datetime
+
     class Config:
-        orm_mode = True
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
+        from_attributes = True
+
+
+class EmployeeFileBase(BaseModel):
+    filename: str
+    file_path: str
+    file_size: int
+    file_type: Optional[str] = None
+    document_type: Optional[str] = None  # ID Copy, Contract, Certificate, Other
+    
+    @validator('document_type')
+    def validate_document_type(cls, v):
+        if v:
+            allowed = ["ID Copy", "Contract", "Certificate", "Other"]
+            if v not in allowed:
+                raise ValueError(f'Invalid document type. Allowed: {", ".join(allowed)}')
+        return v
+
+class EmployeeFile(EmployeeFileBase):
+    id: int
+    employee_id: int
+    uploaded_by: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
