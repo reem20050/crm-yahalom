@@ -7,8 +7,11 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
+from typing import Optional
 import os
 import logging
+import json
+import sys
 from auth import get_current_user, COOKIE_NAME, get_optional_current_user
 from middleware import (
     SecurityHeadersMiddleware,
@@ -16,17 +19,82 @@ from middleware import (
     CSRFProtectionMiddleware,
     generate_csrf_token
 )
+from logging_middleware import RequestLoggingMiddleware
 from permissions import require_role, Role, require_permission
 from data_access import filter_shifts_by_role, filter_employees_by_role, filter_clients_by_role, filter_tasks_by_role
+from audit import log_audit_event, get_diff_dict
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from pagination import paginate_query, create_paginated_response, PaginatedResponse
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Structured Logging Setup (must be before Sentry)
+from pythonjsonlogger import jsonlogger
+
+# Configure JSON logging
+logHandler = logging.StreamHandler(sys.stdout)
+formatter = jsonlogger.JsonFormatter(
+    '%(timestamp)s %(level)s %(name)s %(message)s',
+    timestamp=True
+)
+logHandler.setFormatter(formatter)
+
+# Setup root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(logHandler)
+
+# Setup application logger
+logger = logging.getLogger(__name__)
+
+# Sentry Integration
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=ENVIRONMENT,
+        integrations=[
+            FastApiIntegration(),
+            SqlalchemyIntegration(),
+        ],
+        traces_sample_rate=1.0 if ENVIRONMENT == "development" else 0.1,
+        send_default_pii=False,  # Don't send personal data
+    )
+    logger.info(f"[startup] Sentry initialized for environment: {ENVIRONMENT}")
+else:
+    logger.warning("[startup] SENTRY_DSN not set, error tracking disabled")
+
+# Configure JSON logging
+logHandler = logging.StreamHandler(sys.stdout)
+formatter = jsonlogger.JsonFormatter(
+    '%(timestamp)s %(level)s %(name)s %(message)s',
+    timestamp=True
+)
+logHandler.setFormatter(formatter)
+
+# Setup root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(logHandler)
+
+# Setup application logger
 logger = logging.getLogger(__name__)
 
 # Create tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Tzevet Yahalom CRM", version="0.1.0")
+
+# Rate Limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS Configuration - environment-based
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
@@ -39,8 +107,9 @@ if ENVIRONMENT == "development":
     allowed_origins.extend(["http://localhost:5173", "http://localhost:3000"])
 
 # Add middleware in correct order
-app.add_middleware(CorrelationIDMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CorrelationIDMiddleware)  # First: Generate correlation ID
+app.add_middleware(RequestLoggingMiddleware)  # Log requests/responses
+app.add_middleware(SecurityHeadersMiddleware)  # Add security headers
 # CSRF middleware - uncomment if using SameSite=Strict
 # app.add_middleware(CSRFProtectionMiddleware)
 
@@ -111,7 +180,9 @@ def health_check(db: Session = Depends(get_db)):
     }
 
 @app.post("/auth/google")
+@limiter.limit("5/minute")
 def google_login(
+    request: Request,
     login_data: schemas.GoogleLogin,
     response: Response,
     db: Session = Depends(get_db)
@@ -210,6 +281,7 @@ def google_login(
                 )
             
             # Create or get user
+            old_role = None
             user = crud.get_user_by_email(db, email=email)
             if not user:
                 # Create new user with role from invite if available, otherwise default
@@ -222,6 +294,7 @@ def google_login(
                     crud.mark_invite_accepted(db, invite.id)
                     logger.info(f"[auth/google] invite marked as accepted for: {email}")
             else:
+                old_role = user.role
                 logger.info(f"[auth/google] existing user found: {email}")
         
         # Create JWT access token
@@ -295,72 +368,207 @@ def get_current_user_info(current_user: models.User = Depends(get_current_user))
 
 # --- Employee Routes ---
 @app.post("/employees/", response_model=schemas.Employee)
+@limiter.limit("100/minute")
 def create_employee(
+    request: Request,
     employee: schemas.EmployeeCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
 ):
     """Create a new employee (Admin, OperationsManager, Scheduler only)"""
-    return crud.create_employee(db=db, employee=employee)
+    try:
+        created = crud.create_employee(db=db, employee=employee)
+        
+        # Log audit event
+        log_audit_event(
+            db=db,
+            request=request,
+            user=current_user,
+            action="create",
+            resource_type="employee",
+            resource_id=created.id,
+            old_value=None,
+            new_value={"first_name": created.first_name, "last_name": created.last_name, "id_number": created.id_number}
+        )
+        
+        return created
+    except Exception as e:
+        # Log failed audit event
+        log_audit_event(
+            db=db,
+            request=request,
+            user=current_user,
+            action="create",
+            resource_type="employee",
+            resource_id=0,
+            old_value=None,
+            new_value=employee.dict(),
+            success=False,
+            error_message=str(e)
+        )
+        raise
 
-@app.get("/employees/", response_model=list[schemas.Employee])
+@app.get("/employees/", response_model=PaginatedResponse[schemas.Employee])
 def read_employees(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 20,
+    search: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    role: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.Finance]))
 ):
-    """List employees (Admin, OperationsManager, Scheduler, Finance only)"""
+    """List employees with pagination and filtering (Admin, OperationsManager, Scheduler, Finance only)"""
     query = db.query(models.Employee)
     query = filter_employees_by_role(db, current_user, query)
-    employees = query.offset(skip).limit(limit).all()
-    return employees
+    
+    # Apply filters
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (models.Employee.first_name.ilike(search_term)) |
+            (models.Employee.last_name.ilike(search_term)) |
+            (models.Employee.id_number.ilike(search_term))
+        )
+    
+    if is_active is not None:
+        query = query.filter(models.Employee.is_active == is_active)
+    
+    if role:
+        query = query.filter(models.Employee.role == role)
+    
+    # Apply pagination
+    paginated_query, total = paginate_query(query, skip=skip, limit=limit)
+    employees = paginated_query.all()
+    
+    return create_paginated_response(employees, total, skip, limit)
 
 @app.delete("/employees/{employee_id}", response_model=schemas.Employee)
+@limiter.limit("100/minute")
 def delete_employee(
+    request: Request,
     employee_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager]))
 ):
     """Delete an employee (Admin, OperationsManager only)"""
-    deleted = crud.delete_employee(db, employee_id=employee_id)
-    if not deleted:
+    # Get employee before deletion for audit
+    employee = crud.get_employee_by_id(db, employee_id)
+    if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
+    
+    deleted = crud.delete_employee(db, employee_id=employee_id)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="delete",
+        resource_type="employee",
+        resource_id=employee_id,
+        old_value={"first_name": employee.first_name, "last_name": employee.last_name, "id_number": employee.id_number},
+        new_value=None
+    )
+    
     return deleted
 
 # --- Client Routes ---
 @app.post("/clients/", response_model=schemas.Client)
+@limiter.limit("100/minute")
 def create_client(
+    request: Request,
     client: schemas.ClientCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
 ):
     """Create a new client (Admin, OperationsManager, Sales only)"""
-    return crud.create_client(db=db, client=client)
+    try:
+        created = crud.create_client(db=db, client=client)
+        
+        # Log audit event
+        log_audit_event(
+            db=db,
+            request=request,
+            user=current_user,
+            action="create",
+            resource_type="client",
+            resource_id=created.id,
+            old_value=None,
+            new_value={"name": created.name, "contact_person": created.contact_person}
+        )
+        
+        return created
+    except Exception as e:
+        log_audit_event(
+            db=db,
+            request=request,
+            user=current_user,
+            action="create",
+            resource_type="client",
+            resource_id=0,
+            old_value=None,
+            new_value=client.dict(),
+            success=False,
+            error_message=str(e)
+        )
+        raise
 
-@app.get("/clients/", response_model=list[schemas.Client])
+@app.get("/clients/", response_model=PaginatedResponse[schemas.Client])
 def read_clients(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 20,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler, Role.Sales, Role.Finance]))
 ):
-    """List clients (Admin, OperationsManager, Scheduler, Sales, Finance only)"""
+    """List clients with pagination and filtering (Admin, OperationsManager, Scheduler, Sales, Finance only)"""
     query = db.query(models.Client)
     query = filter_clients_by_role(db, current_user, query)
-    clients = query.offset(skip).limit(limit).all()
-    return clients
+    
+    # Apply search filter
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (models.Client.name.ilike(search_term)) |
+            (models.Client.contact_person.ilike(search_term)) |
+            (models.Client.address.ilike(search_term))
+        )
+    
+    # Apply pagination
+    paginated_query, total = paginate_query(query, skip=skip, limit=limit)
+    clients = paginated_query.all()
+    
+    return create_paginated_response(clients, total, skip, limit)
 
 @app.delete("/clients/{client_id}", response_model=schemas.Client)
+@limiter.limit("100/minute")
 def delete_client(
+    request: Request,
     client_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Sales]))
 ):
     """Delete a client (Admin, OperationsManager, Sales only)"""
-    deleted = crud.delete_client(db, client_id=client_id)
-    if not deleted:
+    # Get client before deletion for audit
+    client = crud.get_client_by_id(db, client_id)
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    
+    deleted = crud.delete_client(db, client_id=client_id)
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="delete",
+        resource_type="client",
+        resource_id=client_id,
+        old_value={"name": client.name},
+        new_value=None
+    )
+    
     return deleted
 
 # --- Shift Routes ---
@@ -378,7 +586,9 @@ def read_shifts(
     return shifts
 
 @app.post("/shifts/", response_model=schemas.Shift)
+@limiter.limit("100/minute")
 def create_shift(
+    request: Request,
     shift: schemas.ShiftCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
@@ -408,7 +618,9 @@ def read_shift(
     return shift
 
 @app.put("/shifts/{shift_id}", response_model=schemas.Shift)
+@limiter.limit("100/minute")
 def update_shift(
+    request: Request,
     shift_id: int,
     shift_data: schemas.ShiftCreate,
     db: Session = Depends(get_db),
@@ -421,7 +633,9 @@ def update_shift(
     return updated
 
 @app.delete("/shifts/{shift_id}", response_model=schemas.Shift)
+@limiter.limit("100/minute")
 def delete_shift(
+    request: Request,
     shift_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
@@ -473,7 +687,9 @@ def read_tasks(
     return tasks
 
 @app.post("/tasks/", response_model=schemas.Task)
+@limiter.limit("100/minute")
 def create_task(
+    request: Request,
     task: schemas.TaskCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
@@ -502,7 +718,9 @@ def read_task(
     return task
 
 @app.put("/tasks/{task_id}", response_model=schemas.Task)
+@limiter.limit("100/minute")
 def update_task(
+    request: Request,
     task_id: int,
     task_data: schemas.TaskCreate,
     db: Session = Depends(get_db),
@@ -515,7 +733,9 @@ def update_task(
     return updated
 
 @app.delete("/tasks/{task_id}", response_model=schemas.Task)
+@limiter.limit("100/minute")
 def delete_task(
+    request: Request,
     task_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager, Role.Scheduler]))
@@ -603,7 +823,9 @@ def get_allowed_emails(
     return crud.get_allowed_emails(db, skip=skip, limit=limit)
 
 @app.post("/allowed-emails/", response_model=schemas.AllowedEmail)
+@limiter.limit("100/minute")
 def add_allowed_email(
+    request: Request,
     allowed_email: schemas.AllowedEmailCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin]))
@@ -616,10 +838,25 @@ def add_allowed_email(
             detail="Email already exists in the allowed list"
         )
     logger.info(f"[allowed-emails] {current_user.email} added {allowed_email.email} to allowed list")
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="create",
+        resource_type="allowed_email",
+        resource_id=result.id,
+        old_value=None,
+        new_value={"email": allowed_email.email}
+    )
+    
     return result
 
 @app.delete("/allowed-emails/{email}", response_model=schemas.AllowedEmail)
+@limiter.limit("100/minute")
 def remove_allowed_email(
+    request: Request,
     email: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin]))
@@ -634,9 +871,127 @@ def remove_allowed_email(
     logger.info(f"[allowed-emails] {current_user.email} removed {email} from allowed list")
     return result
 
+# --- User Routes ---
+@app.get("/users/", response_model=list[schemas.UserOut])
+def get_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin]))
+):
+    """Get list of all users (Admin only)"""
+    return crud.list_users(db)[skip:skip+limit]
+
+
+@app.get("/users/{user_id}", response_model=schemas.UserOut)
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin]))
+):
+    """Get user by ID (Admin only)"""
+    user = crud.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@app.put("/users/{user_id}/role", response_model=schemas.UserOut)
+@limiter.limit("100/minute")
+def update_user_role(
+    request: Request,
+    user_id: int,
+    role_update: schemas.UserRoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin]))
+):
+    """Update user role (Admin only, audited)"""
+    user = crud.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    old_role = user.role
+    updated = crud.update_user_role(db, user_id, role_update.role)
+    
+    # Log audit event for role change
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="role_change",
+        resource_type="user",
+        resource_id=user_id,
+        old_value={"role": old_role, "email": user.email},
+        new_value={"role": role_update.role, "email": user.email}
+    )
+    
+    return updated
+
+
+@app.delete("/users/{user_id}", response_model=schemas.UserOut)
+@limiter.limit("100/minute")
+def delete_user(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin]))
+):
+    """Delete user (Admin only, audited)"""
+    user = crud.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Log audit event before deletion
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="delete",
+        resource_type="user",
+        resource_id=user_id,
+        old_value={"email": user.email, "role": user.role},
+        new_value=None
+    )
+    
+    db.delete(user)
+    db.commit()
+    
+    return user
+
+
+# --- Audit Log Routes ---
+@app.get("/audit-logs/", response_model=PaginatedResponse[schemas.AuditLog])
+def get_audit_logs(
+    skip: int = 0,
+    limit: int = 20,
+    resource_type: Optional[str] = None,
+    action: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role([Role.Admin, Role.OperationsManager]))
+):
+    """Get audit logs with filtering and pagination (Admin, OperationsManager only)"""
+    query = db.query(models.AuditLog)
+    
+    if resource_type:
+        query = query.filter(models.AuditLog.resource_type == resource_type)
+    
+    if action:
+        query = query.filter(models.AuditLog.action == action)
+    
+    query = query.order_by(models.AuditLog.created_at.desc())
+    
+    # Apply pagination
+    paginated_query, total = paginate_query(query, skip=skip, limit=limit)
+    logs = paginated_query.all()
+    
+    return create_paginated_response(logs, total, skip, limit)
+
+
 # --- User Invite Routes ---
 @app.post("/invites/", response_model=schemas.UserInvite)
+@limiter.limit("100/minute")
 def create_invite(
+    request: Request,
     invite: schemas.UserInviteCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin]))
@@ -644,6 +999,19 @@ def create_invite(
     """Create a new user invite (Admin only)"""
     result = crud.create_invite(db, invite, invited_by=current_user.id)
     logger.info(f"[invites] {current_user.email} created invite for {invite.email}")
+    
+    # Log audit event
+    log_audit_event(
+        db=db,
+        request=request,
+        user=current_user,
+        action="create",
+        resource_type="invite",
+        resource_id=result.id,
+        old_value=None,
+        new_value={"email": invite.email, "role": invite.role}
+    )
+    
     return result
 
 @app.get("/invites/", response_model=list[schemas.UserInvite])
@@ -657,7 +1025,9 @@ def get_invites(
     return crud.get_invites(db, skip=skip, limit=limit)
 
 @app.delete("/invites/{invite_id}", response_model=schemas.UserInvite)
+@limiter.limit("100/minute")
 def delete_invite(
+    request: Request,
     invite_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role([Role.Admin]))

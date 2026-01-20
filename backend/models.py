@@ -106,3 +106,24 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="notifications")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(String, index=True)  # Correlation ID from middleware
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    actor_email = Column(String, index=True)  # Email for easier debugging
+    action = Column(String, nullable=False, index=True)  # create, update, delete, role_change
+    resource_type = Column(String, nullable=False, index=True)  # user, employee, client, shift, task
+    resource_id = Column(Integer, index=True)
+    old_value = Column(String, nullable=True)  # JSON string
+    new_value = Column(String, nullable=True)  # JSON string
+    success = Column(Boolean, default=True)
+    error_message = Column(String, nullable=True)
+    ip_address = Column(String)
+    user_agent = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    user = relationship("User")

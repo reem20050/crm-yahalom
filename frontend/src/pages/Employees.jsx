@@ -4,6 +4,16 @@ import api from '../api';
 function Employees() {
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 20,
+        total: 0,
+        has_next: false,
+        has_prev: false
+    });
+    const [search, setSearch] = useState('');
+    const [filterRole, setFilterRole] = useState('');
+    const [filterActive, setFilterActive] = useState('');
     const [formData, setFormData] = useState({
         first_name: '',
         last_name: '',
@@ -13,10 +23,32 @@ function Employees() {
     });
     const [showForm, setShowForm] = useState(false);
 
-    const fetchEmployees = async () => {
+    const fetchEmployees = async (page = 1, limit = 20) => {
         try {
-            const response = await api.get('/employees/');
-            setEmployees(response.data);
+            setLoading(true);
+            const skip = (page - 1) * limit;
+            const params = new URLSearchParams({
+                skip: skip.toString(),
+                limit: limit.toString()
+            });
+            
+            if (search) params.append('search', search);
+            if (filterRole) params.append('role', filterRole);
+            if (filterActive !== '') params.append('is_active', filterActive);
+            
+            const response = await api.get(`/employees/?${params}`);
+            setEmployees(response.data.data || response.data);
+            
+            // Handle paginated response
+            if (response.data.total !== undefined) {
+                setPagination({
+                    page: response.data.page || page,
+                    limit: response.data.limit || limit,
+                    total: response.data.total || 0,
+                    has_next: response.data.has_next || false,
+                    has_prev: response.data.has_prev || false
+                });
+            }
         } catch (error) {
             console.error('Error fetching employees:', error);
         } finally {
@@ -25,8 +57,8 @@ function Employees() {
     };
 
     useEffect(() => {
-        fetchEmployees();
-    }, []);
+        fetchEmployees(pagination.page, pagination.limit);
+    }, [pagination.page, search, filterRole, filterActive]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -36,7 +68,7 @@ function Employees() {
         e.preventDefault();
         try {
             await api.post('/employees/', formData);
-            fetchEmployees();
+            fetchEmployees(pagination.page, pagination.limit);
             setFormData({ first_name: '', last_name: '', id_number: '', phone: '', role: 'guard' });
             setShowForm(false);
         } catch (error) {
@@ -51,7 +83,7 @@ function Employees() {
         }
         try {
             await api.delete(`/employees/${employeeId}`);
-            fetchEmployees();
+            fetchEmployees(pagination.page, pagination.limit);
         } catch (error) {
             console.error('Error deleting employee:', error);
             alert('Error deleting employee. Make sure there are no shifts assigned to this employee.');

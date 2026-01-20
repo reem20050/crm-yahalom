@@ -7,3 +7,8 @@ python-jose[cryptography]
 passlib[bcrypt]
 google-auth
 requests
+sentry-sdk[fastapi]
+slowapi
+alembic
+psycopg2-binary
+python-json-logger
