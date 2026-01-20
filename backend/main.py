@@ -75,17 +75,22 @@ if SENTRY_DSN:
 else:
     logger.warning("[startup] SENTRY_DSN not set, error tracking disabled")
 
-# Create tables
-try:
-    logger.info("[startup] Creating database tables...")
-    models.Base.metadata.create_all(bind=engine)
-    logger.info("[startup] Database tables created successfully")
-except Exception as e:
-    logger.error(f"[startup] Error creating database tables: {str(e)}")
-    raise
-
 app = FastAPI(title="Tzevet Yahalom CRM", version="0.1.0")
 logger.info("[startup] FastAPI app created")
+
+# Create tables on startup (not during import)
+@app.on_event("startup")
+async def startup_event():
+    try:
+        logger.info("[startup] Creating database tables...")
+        models.Base.metadata.create_all(bind=engine)
+        logger.info("[startup] Database tables created successfully")
+    except Exception as e:
+        logger.error(f"[startup] Error creating database tables: {str(e)}")
+        logger.error(f"[startup] This may be due to missing DATABASE_URL or database connection issues")
+        # Don't raise here - let the app start and show a warning
+        # This allows health checks to still work
+        logger.warning("[startup] Continuing startup despite database table creation error")
 
 # Rate Limiting
 limiter = Limiter(key_func=get_remote_address)
