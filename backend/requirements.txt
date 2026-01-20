@@ -7,11 +7,8 @@ python-jose[cryptography]
 passlib[bcrypt]
 google-auth
 requests
-<<<<<<< HEAD
 sentry-sdk[fastapi]
 slowapi
 alembic
 psycopg2-binary
 python-json-logger
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
