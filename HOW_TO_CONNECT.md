@@ -99,6 +99,19 @@ $env:OWNER_EMAIL="admin@example.com"
 
 **או צור קובץ `.env` בתיקיית `backend`** (אם המערכת תומכת בזה).
 
+**לפרודקשן (Railway):**
+1. היכנס ל-[Railway Dashboard](https://railway.app)
+2. בחר את הפרויקט `crm-yahalom-production`
+3. בחר את השירות (Backend)
+4. לחץ על **Settings** → **Variables**
+5. הוסף/עדכן את המשתנים הבאים:
+   - `GOOGLE_CLIENT_ID` - ה-Client ID מ-Google
+   - `SECRET_KEY` - מפתח סודי ל-JWT
+   - `OWNER_EMAIL` - האימייל של המנהל הראשי (אופציונלי)
+   - `FRONTEND_URL` - `https://crm-yahalom-production.up.railway.app`
+   - `ENVIRONMENT` - `production`
+6. Railway יעדכן את השירות אוטומטית לאחר השינויים
+
 ---
 
 ## שלב 3: התחברות למערכת
@@ -194,17 +207,9 @@ python add_allowed_email.py john@company.com "מנהל משמרות"
 ## הערות חשובות
 
 1. **Cookies:** המערכת משתמשת ב-HttpOnly Cookies לאבטחה - לא צריך לשמור tokens ידנית
-2. **פרודקשן vs פיתוח מקומי:**
-   - **פרודקשן:** המערכת זמינה תמיד ב-https://crm-yahalom-production.up.railway.app
-   - **פיתוח מקומי:** דורש הפעלה של Backend ו-Frontend על המחשב שלך
-3. **CORS:** ב-development, Frontend ו-Backend צריכים לרוץ על הפורטים הנכונים
-4. **Environment Variables:** 
-   - **פיתוח מקומי:** שינויים ב-`.env` דורשים **הפעלה מחדש** של השרתים
-   - **פרודקשן:** משתני הסביבה מוגדרים ב-Railway Dashboard → Settings → Variables
-5. **Google OAuth:** ודא שה-Client ID מוגדר נכון ב-Google Console עם ה-URLs הנכונים:
-   - `https://crm-yahalom-production.up.railway.app` לפרודקשן
-   - `http://localhost:5173` לפיתוח מקומי
-6. **Railway:** המערכת רצה על Railway - לניהול משתני סביבה ועדכונים, היכנס ל-[Railway Dashboard](https://railway.app)
+2. **CORS:** ב-development, Frontend ו-Backend צריכים לרוץ על הפורטים הנכונים
+3. **Environment Variables:** שינויים ב-`.env` דורשים **הפעלה מחדש** של השרתים
+4. **Google OAuth:** ודא שה-Client ID מוגדר נכון ב-Google Console עם ה-URLs הנכונים
 
 ---
 

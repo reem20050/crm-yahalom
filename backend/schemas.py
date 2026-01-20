@@ -137,6 +137,8 @@ class ClientBase(BaseModel):
     address: Optional[str] = None
     contact_person: Optional[str] = None
     contact_phone: Optional[str] = None
+    email: Optional[str] = None
+    notes: Optional[str] = None
     
     @validator('name')
     def validate_name(cls, v):
@@ -159,12 +161,26 @@ class ClientBase(BaseModel):
         if v:
             return validate_phone(v)
         return v
+    
+    @validator('email')
+    def validate_email_field(cls, v):
+        if v:
+            return validate_email(v)
+        return v
+    
+    @validator('notes')
+    def validate_notes(cls, v):
+        if v:
+            return validate_string_length(v, min_length=0, max_length=5000, field_name="Notes")
+        return v
 
 class ClientCreate(ClientBase):
     pass
 
 class Client(ClientBase):
     id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

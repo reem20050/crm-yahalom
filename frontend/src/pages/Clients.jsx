@@ -16,7 +16,9 @@ function Clients() {
         name: '',
         address: '',
         contact_person: '',
-        contact_phone: ''
+        contact_phone: '',
+        email: '',
+        notes: ''
     });
     const [showForm, setShowForm] = useState(false);
 
@@ -143,6 +145,38 @@ function Clients() {
                                     onChange={handleChange}
                                 />
                             </div>
+                            <div className="form-group">
+                                <label>Email</label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    placeholder="Enter email address"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </div>
+                        <div className="form-row mb-2">
+                            <div className="form-group" style={{ width: '100%' }}>
+                                <label>Notes</label>
+                                <textarea
+                                    name="notes"
+                                    placeholder="Enter notes about this client"
+                                    value={formData.notes}
+                                    onChange={handleChange}
+                                    rows={4}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.5rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        border: '1px solid var(--color-border)',
+                                        background: 'var(--color-bg-card)',
+                                        color: 'var(--color-text-primary)',
+                                        fontFamily: 'inherit',
+                                        fontSize: 'inherit'
+                                    }}
+                                />
+                            </div>
                         </div>
                         <button type="submit">Save Client</button>
                     </form>
@@ -204,11 +238,12 @@ function Clients() {
                             <tbody>
                                 {clients.map(client => (
                                     <tr key={client.id}>
-                                        <td>{client.id}</td>
-                                        <td><strong>{client.name}</strong></td>
-                                        <td>{client.address || '—'}</td>
-                                        <td>{client.contact_person || '—'}</td>
-                                        <td>{client.contact_phone || '—'}</td>
+                                    <td>{client.id}</td>
+                                    <td><strong>{client.name}</strong></td>
+                                    <td>{client.address || '—'}</td>
+                                    <td>{client.contact_person || '—'}</td>
+                                    <td>{client.contact_phone || '—'}</td>
+                                    <td>{client.email || '—'}</td>
                                         <td>
                                             <button
                                                 onClick={() => handleDelete(client.id)}
