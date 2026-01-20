@@ -1,0 +1,27 @@
+# Terminal Command Execution Rules for Windows
+
+## Frontend Development
+- **ALWAYS** start the frontend using `dev.cmd` from the project root or frontend directory.
+- **NEVER** run `npm run dev` directly in PowerShell or any shell.
+- Use `dev.cmd` which internally uses `npm.cmd run dev` via CMD.
+
+## NPM Commands
+- For any npm command, use `npm.cmd` explicitly or wrap in `cmd /c`.
+- Example: `cmd /c "npm.cmd install"` or use the provided `.cmd` scripts.
+
+## Terminal Output Verification
+- If terminal output is empty, verify by:
+  1. Checking if process is running: `Get-Process | Where-Object {$_.ProcessName -like "*node*"}`
+  2. Checking if port is listening: `Get-NetTCPConnection -LocalPort 5173-5180`
+  3. Opening browser to `http://localhost:5173` or `http://localhost:5174`
+
+## Available Scripts
+- `dev.cmd` - Start development server
+- `build.cmd` - Build for production
+- `start.cmd` - Start production server
+
+## Installation
+To install these scripts in a new project:
+```
+cmd /c "C:\cursor-templates\install-terminal-scripts.cmd" "C:\path\to\project"
+```
