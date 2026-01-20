@@ -4,7 +4,7 @@ echo Complete Railway Deployment
 echo ========================================
 echo.
 
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo Step 1: Setting up GitHub CLI path...
 set "GH_PATH=C:\Program Files\GitHub CLI"

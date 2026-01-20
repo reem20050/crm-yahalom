@@ -455,12 +455,6 @@ def mark_invite_accepted(db: Session, invite_id: int):
     db.commit()
     db.refresh(invite)
     return invite
-    db_client = models.Client(**client.dict())
-    db.add(db_client)
-    db.commit()
-    db.refresh(db_client)
-    return db_client
-<<<<<<< HEAD
 
 def delete_client(db: Session, client_id: int):
     client = get_client_by_id(db, client_id)
@@ -704,5 +698,3 @@ def mark_invite_accepted(db: Session, invite_id: int):
     db.commit()
     db.refresh(invite)
     return invite
-=======
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

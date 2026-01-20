@@ -231,7 +231,8 @@ function Employees() {
                                     <td>{emp.id}</td>
                                     <td><strong>{emp.first_name} {emp.last_name}</strong></td>
                                     <td>{emp.id_number}</td>
-                                    <td>{emp.phone}</td>
+                                    <td>{emp.phone || '—'}</td>
+                                    <td>{emp.email || '—'}</td>
                                     <td>
                                         <span style={{
                                             padding: '0.25rem 0.5rem',

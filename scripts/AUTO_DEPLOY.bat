@@ -5,7 +5,7 @@ echo ========================================
 echo.
 
 echo Step 1: Checking Git status...
-cd /d "%~dp0"
+cd /d "%~dp0.."
 git status
 echo.
 

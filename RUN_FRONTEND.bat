@@ -1,6 +1,3 @@
 @echo off
-cd /d C:\crm-yahalom\frontend
-echo Starting Frontend...
-echo.
-call dev.cmd
-pause
+cd /d %~dp0
+call scripts\RUN_FRONTEND.bat

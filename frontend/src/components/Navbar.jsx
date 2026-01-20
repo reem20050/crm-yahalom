@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import api from '../api';
@@ -26,38 +25,49 @@ function Navbar() {
         }
     };
 
-=======
-import { NavLink } from 'react-router-dom';
-import './Navbar.css';
-
-function Navbar({ user, onLogout }) {
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
     return (
         <nav className="navbar">
             <div className="navbar-container">
                 <div className="navbar-brand">
                     <span className="brand-icon">💎</span>
-<<<<<<< HEAD
-                    <span className="brand-text">Diamond Team CRM</span>
-=======
                     <span className="brand-text">צוות יהלום</span>
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
                 </div>
 
                 <div className="navbar-links">
                     <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} end>
                         <span className="nav-icon">📊</span>
-<<<<<<< HEAD
-                        Dashboard
+                        לוח בקרה
                     </NavLink>
                     <NavLink to="/employees" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                         <span className="nav-icon">👥</span>
-                        Employees
+                        עובדים
                     </NavLink>
                     <NavLink to="/clients" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
                         <span className="nav-icon">🏢</span>
-                        Clients
+                        לקוחות
                     </NavLink>
+                    <NavLink to="/shifts" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                        <span className="nav-icon">⏰</span>
+                        משמרות
+                    </NavLink>
+                    <NavLink to="/tasks" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                        <span className="nav-icon">✅</span>
+                        משימות
+                    </NavLink>
+                    <NavLink to="/calendar" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                        <span className="nav-icon">📅</span>
+                        לוח שנה
+                    </NavLink>
+                    <NavLink to="/reports" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                        <span className="nav-icon">📈</span>
+                        דוחות
+                    </NavLink>
+                    {user?.role === 'admin' && (
+                        <NavLink to="/users" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                            <span className="nav-icon">🛡️</span>
+                            משתמשים
+                        </NavLink>
+                    )}
                     {user && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1rem' }}>
                             <span style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
@@ -75,32 +85,10 @@ function Navbar({ user, onLogout }) {
                                     fontSize: 'var(--font-size-sm)',
                                 }}
                             >
-                                Logout
+                                התנתקות
                             </button>
                         </div>
                     )}
-=======
-                        לוח בקרה
-                    </NavLink>
-                    <NavLink to="/employees" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                        <span className="nav-icon">👥</span>
-                        עובדים
-                    </NavLink>
-                    <NavLink to="/clients" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                        <span className="nav-icon">🏢</span>
-                        לקוחות
-                    </NavLink>
-                    {user?.role === 'admin' && (
-                        <NavLink to="/users" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-                            <span className="nav-icon">🛡️</span>
-                            משתמשים
-                        </NavLink>
-                    )}
-                    <button className="nav-link" type="button" onClick={onLogout}>
-                        <span className="nav-icon">⏻</span>
-                        התנתקות
-                    </button>
->>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
                 </div>
             </div>
         </nav>
