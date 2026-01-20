@@ -39,15 +39,19 @@ echo Step 3: Creating GitHub repository 'crm-yahalom'...
 "%GH_PATH%\gh.exe" repo create crm-yahalom --public --source=. --remote=origin --push
 if errorlevel 1 (
     echo.
-    echo Repository might already exist. Trying to push anyway...
+    echo Repository already exists. Connecting to existing repository...
+    for /f "tokens=*" %%i in ('"%GH_PATH%\gh.exe" api user -q .login') do set GITHUB_USER=%%i
     git remote remove origin 2>nul
-    git remote add origin https://github.com/YOUR_USERNAME/crm-yahalom.git
+    git remote add origin https://github.com/%GITHUB_USER%/crm-yahalom.git
     echo.
-    echo Please replace YOUR_USERNAME with your GitHub username above,
-    echo then run: git push -u origin main
-    echo.
-    pause
-    exit /b
+    echo Pushing code to existing repository...
+    git branch -M main 2>nul
+    git push -u origin main
+    if errorlevel 1 (
+        echo.
+        echo Push failed. Trying force push...
+        git push -u origin main --force
+    )
 )
 
 echo.

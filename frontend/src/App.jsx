@@ -4,6 +4,10 @@ import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Clients from './pages/Clients';
+import Shifts from './pages/Shifts';
+import Tasks from './pages/Tasks';
+import Calendar from './pages/Calendar';
+import Reports from './pages/Reports';
 import Login from './pages/Login';
 import api from './api';
 import './App.css';
@@ -54,6 +58,10 @@ function App() {
                 <main className="page-container animate-fade-in">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
+                    <Route path="/shifts" element={<Shifts />} />
+                    <Route path="/tasks" element={<Tasks />} />
+                    <Route path="/calendar" element={<Calendar />} />
+                    <Route path="/reports" element={<Reports />} />
                     <Route path="/employees" element={<Employees />} />
                     <Route path="/clients" element={<Clients />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
