@@ -82,6 +82,14 @@ logger.info("[startup] FastAPI app created")
 @app.on_event("startup")
 async def startup_event():
     try:
+        # Check if engine is available
+        if engine is None:
+            logger.error("[startup] Database engine is not available!")
+            logger.error("[startup] DATABASE_URL is required but not set in environment variables.")
+            logger.error("[startup] Please set DATABASE_URL in Railway environment variables.")
+            logger.warning("[startup] App will start but database operations will fail.")
+            return
+        
         logger.info("[startup] Creating database tables...")
         models.Base.metadata.create_all(bind=engine)
         logger.info("[startup] Database tables created successfully")
