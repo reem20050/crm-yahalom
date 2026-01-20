@@ -13,5 +13,9 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 4173,
     strictPort: false,
+    allowedHosts: [
+      'crm-yahalom-production.up.railway.app',
+      '.railway.app',
+    ],
   },
 })
