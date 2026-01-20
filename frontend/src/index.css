@@ -92,6 +92,45 @@ body {
   flex-direction: column;
 }
 
+<<<<<<< HEAD
+=======
+/* --- RTL Support --- */
+html[dir="rtl"] body {
+  direction: rtl;
+  text-align: right;
+}
+
+html[dir="rtl"] th,
+html[dir="rtl"] td {
+  text-align: right;
+}
+
+html[dir="rtl"] th {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+html[dir="rtl"] select {
+  background-position: left 12px center;
+  padding-left: 36px;
+  padding-right: var(--spacing-md);
+}
+
+html[dir="rtl"] .navbar-container {
+  flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .navbar-links {
+  flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .page-header,
+html[dir="rtl"] .card-header,
+html[dir="rtl"] .form-group label {
+  text-align: right;
+}
+
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 /* --- Typography --- */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
@@ -137,6 +176,25 @@ button, .btn {
   box-shadow: 0 4px 15px rgba(34, 211, 238, 0.25);
 }
 
+<<<<<<< HEAD
+=======
+button.nav-link {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+}
+
+button.nav-link:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-glass);
+  transform: none;
+  box-shadow: none;
+}
+
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 button:hover, .btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(34, 211, 238, 0.35);

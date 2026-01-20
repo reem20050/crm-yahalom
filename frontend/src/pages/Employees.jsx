@@ -151,11 +151,52 @@ function Employees() {
                                 />
                             </div>
                             <div className="form-group">
+                                <label>Email</label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    placeholder="Enter email address"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div className="form-group">
                                 <label>Role</label>
                                 <select name="role" value={formData.role} onChange={handleChange}>
                                     <option value="guard">Guard</option>
                                     <option value="shift_manager">Shift Manager</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div className="form-row mb-2">
+                            <div className="form-group">
+                                <label>Base Pay</label>
+                                <input
+                                    name="base_pay"
+                                    placeholder="Enter base pay (e.g., 15000)"
+                                    value={formData.base_pay}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div className="form-group" style={{ width: '100%' }}>
+                                <label>Availability (JSON format)</label>
+                                <textarea
+                                    name="availability"
+                                    placeholder='Enter availability as JSON, e.g., {"monday": ["09:00-17:00"], "tuesday": ["09:00-17:00"]}'
+                                    value={formData.availability}
+                                    onChange={handleChange}
+                                    rows={3}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.5rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        border: '1px solid var(--color-border)',
+                                        background: 'var(--color-bg-card)',
+                                        color: 'var(--color-text-primary)',
+                                        fontFamily: 'monospace',
+                                        fontSize: 'var(--font-size-sm)'
+                                    }}
+                                />
                             </div>
                         </div>
                         <button type="submit">Save Employee</button>

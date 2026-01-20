@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+=======
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -8,6 +12,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=True) # Check validity if google auth is primary
+<<<<<<< HEAD
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String, nullable=True) # Nullable for google auth users
     role = Column(String, default="Guard")  # Admin, OperationsManager, Scheduler, Sales, Finance, ShiftLead, Guard
@@ -39,6 +44,11 @@ class UserInvite(Base):
     notes = Column(String, nullable=True)  # Optional notes
 
     inviter = relationship("User", foreign_keys=[invited_by])
+=======
+    email = Column(String, unique=True, index=True) 
+    hashed_password = Column(String, nullable=True) # Nullable for google auth users
+    role = Column(String, default="admin") # admin, manager
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class Employee(Base):
     __tablename__ = "employees"
@@ -51,7 +61,10 @@ class Employee(Base):
     role = Column(String, default="guard") # guard, shift_manager
     start_date = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+<<<<<<< HEAD
     shifts = relationship("Shift", back_populates="employee")
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class Client(Base):
     __tablename__ = "clients"
@@ -61,6 +74,7 @@ class Client(Base):
     address = Column(String)
     contact_person = Column(String)
     contact_phone = Column(String)
+<<<<<<< HEAD
     email = Column(String, nullable=True, index=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -131,3 +145,5 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     user = relationship("User")
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

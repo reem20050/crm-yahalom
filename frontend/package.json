@@ -10,12 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+<<<<<<< HEAD
     "date-fns": "^3.6.0",
     "react-big-calendar": "^1.13.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.1.3",
     "recharts": "^2.12.7",
+=======
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.1.3",
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
     "axios": "^1.7.9"
   },
   "devDependencies": {

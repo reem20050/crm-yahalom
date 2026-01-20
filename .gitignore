@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+<<<<<<< HEAD
 *$py.class
 *.so
 .Python
@@ -48,3 +49,24 @@ crm.db
 
 # Build outputs
 !NPM_OUTPUT_FILE!
+=======
+*.pyd
+*.db
+*.sqlite3
+venv/
+.venv/
+
+# Node
+node_modules/
+dist/
+npm-debug.log*
+yarn-error.log*
+
+# Env
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

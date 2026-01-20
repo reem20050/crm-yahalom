@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from pydantic import BaseModel, validator
 from typing import Optional
 from datetime import datetime
@@ -8,22 +9,36 @@ from validators import (
     validate_string_length,
     validate_shift_times
 )
+=======
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 class GoogleLogin(BaseModel):
+<<<<<<< HEAD
     credential: str  # JWT credential from Google Identity Services (not token)
 
 # --- User Schemas ---
 class UserBase(BaseModel):
     username: Optional[str] = None
+=======
+    token: str
+
+# --- User Schemas ---
+class UserBase(BaseModel):
+    username: str
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
     role: Optional[str] = "admin"
 
 class UserCreate(UserBase):
     password: str
 
+<<<<<<< HEAD
 class UserOut(BaseModel):
     id: int
     email: str
@@ -32,10 +47,25 @@ class UserOut(BaseModel):
 
     class Config:
         from_attributes = True
+=======
+class User(UserBase):
+    id: int
+    class Config:
+        orm_mode = True
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    role: Optional[str] = "user"
+
+    class Config:
+        orm_mode = True
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class UserRoleUpdate(BaseModel):
     role: str
 
+<<<<<<< HEAD
 # --- Allowed Email Schemas ---
 class AllowedEmailBase(BaseModel):
     email: str
@@ -87,6 +117,8 @@ class UserInvite(UserInviteBase):
     class Config:
         from_attributes = True
 
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 # --- Employee Schemas ---
 class EmployeeBase(BaseModel):
     first_name: str
@@ -95,6 +127,7 @@ class EmployeeBase(BaseModel):
     phone: Optional[str] = None
     role: Optional[str] = "guard"
     is_active: Optional[bool] = True
+<<<<<<< HEAD
     
     @validator('first_name')
     def validate_first_name(cls, v):
@@ -120,6 +153,8 @@ class EmployeeBase(BaseModel):
         if v not in allowed:
             raise ValueError(f'Invalid employee role. Allowed: {", ".join(allowed)}')
         return v
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class EmployeeCreate(EmployeeBase):
     pass
@@ -127,9 +162,14 @@ class EmployeeCreate(EmployeeBase):
 class Employee(EmployeeBase):
     id: int
     start_date: datetime
+<<<<<<< HEAD
 
     class Config:
         from_attributes = True
+=======
+    class Config:
+        orm_mode = True
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 # --- Client Schemas ---
 class ClientBase(BaseModel):
@@ -137,6 +177,7 @@ class ClientBase(BaseModel):
     address: Optional[str] = None
     contact_person: Optional[str] = None
     contact_phone: Optional[str] = None
+<<<<<<< HEAD
     email: Optional[str] = None
     notes: Optional[str] = None
     
@@ -173,12 +214,15 @@ class ClientBase(BaseModel):
         if v:
             return validate_string_length(v, min_length=0, max_length=5000, field_name="Notes")
         return v
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 
 class ClientCreate(ClientBase):
     pass
 
 class Client(ClientBase):
     id: int
+<<<<<<< HEAD
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -299,3 +343,7 @@ class AuditLog(AuditLogBase):
 
     class Config:
         from_attributes = True
+=======
+    class Config:
+        orm_mode = True
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

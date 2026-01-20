@@ -1,5 +1,8 @@
 from sqlalchemy.orm import Session
+<<<<<<< HEAD
 from datetime import datetime
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 import models, schemas
 from passlib.context import CryptContext
 
@@ -17,9 +20,12 @@ def get_user_by_username(db: Session, username: str):
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
+<<<<<<< HEAD
 def get_user_by_id(db: Session, user_id: int):
     return db.query(models.User).filter(models.User.id == user_id).first()
 
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 def get_user_count(db: Session):
     return db.query(models.User).count()
 
@@ -54,9 +60,12 @@ def create_user(db: Session, user: schemas.UserCreate):
 def get_employees(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Employee).offset(skip).limit(limit).all()
 
+<<<<<<< HEAD
 def get_employee_by_id(db: Session, employee_id: int):
     return db.query(models.Employee).filter(models.Employee.id == employee_id).first()
 
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 def create_employee(db: Session, employee: schemas.EmployeeCreate):
     db_employee = models.Employee(**employee.dict())
     db.add(db_employee)
@@ -64,6 +73,7 @@ def create_employee(db: Session, employee: schemas.EmployeeCreate):
     db.refresh(db_employee)
     return db_employee
 
+<<<<<<< HEAD
 def delete_employee(db: Session, employee_id: int):
     employee = get_employee_by_id(db, employee_id)
     if not employee:
@@ -72,19 +82,25 @@ def delete_employee(db: Session, employee_id: int):
     db.commit()
     return employee
 
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 # --- Client CRUD ---
 def get_clients(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Client).offset(skip).limit(limit).all()
 
+<<<<<<< HEAD
 def get_client_by_id(db: Session, client_id: int):
     return db.query(models.Client).filter(models.Client.id == client_id).first()
 
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
 def create_client(db: Session, client: schemas.ClientCreate):
     db_client = models.Client(**client.dict())
     db.add(db_client)
     db.commit()
     db.refresh(db_client)
     return db_client
+<<<<<<< HEAD
 
 def delete_client(db: Session, client_id: int):
     client = get_client_by_id(db, client_id)
@@ -328,3 +344,5 @@ def mark_invite_accepted(db: Session, invite_id: int):
     db.commit()
     db.refresh(invite)
     return invite
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95

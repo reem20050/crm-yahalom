@@ -5,16 +5,21 @@ function Dashboard() {
     const [stats, setStats] = useState({
         employees: 0,
         clients: 0,
+<<<<<<< HEAD
         activeEmployees: 0,
         shifts: 0,
         tasks: 0,
         openTasks: 0
+=======
+        activeEmployees: 0
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
     });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchStats = async () => {
             try {
+<<<<<<< HEAD
                 const [employeesRes, clientsRes, shiftsRes, tasksRes] = await Promise.all([
                     api.get('/employees/'),
                     api.get('/clients/'),
@@ -31,6 +36,18 @@ function Dashboard() {
                     shifts: shiftsRes.data.length,
                     tasks: tasks.length,
                     openTasks: tasks.filter(t => t.status !== 'done').length
+=======
+                const [employeesRes, clientsRes] = await Promise.all([
+                    api.get('/employees/'),
+                    api.get('/clients/')
+                ]);
+
+                const employees = employeesRes.data;
+                setStats({
+                    employees: employees.length,
+                    clients: clientsRes.data.length,
+                    activeEmployees: employees.filter(e => e.is_active).length
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
                 });
             } catch (error) {
                 console.error('Error fetching stats:', error);
@@ -61,7 +78,11 @@ function Dashboard() {
             <div className="stats-grid">
                 <div className="stat-card">
                     <div className="stat-value">{stats.employees}</div>
+<<<<<<< HEAD
                     <div className="stat-label">סה״כ עובדים</div>
+=======
+                    <div className="stat-label">סה&quot;כ עובדים</div>
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
                 </div>
                 <div className="stat-card">
                     <div className="stat-value">{stats.activeEmployees}</div>
@@ -69,6 +90,7 @@ function Dashboard() {
                 </div>
                 <div className="stat-card">
                     <div className="stat-value">{stats.clients}</div>
+<<<<<<< HEAD
                     <div className="stat-label">סה״כ לקוחות</div>
                 </div>
                 <div className="stat-card">
@@ -78,6 +100,9 @@ function Dashboard() {
                 <div className="stat-card">
                     <div className="stat-value">{stats.openTasks}</div>
                     <div className="stat-label">משימות פתוחות</div>
+=======
+                    <div className="stat-label">סה&quot;כ לקוחות</div>
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
                 </div>
             </div>
 
@@ -86,8 +111,11 @@ function Dashboard() {
                     <h3 className="card-title">פעולות מהירות</h3>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', flexDirection: 'row-reverse' }}>
+<<<<<<< HEAD
                     <a href="/shifts" className="btn">+ הוסף משמרת</a>
                     <a href="/tasks" className="btn btn-secondary">+ הוסף משימה</a>
+=======
+>>>>>>> 18fb827a42f32e1cfab7217344b5bd49a54c6c95
                     <a href="/employees" className="btn">+ הוסף עובד</a>
                     <a href="/clients" className="btn btn-secondary">+ הוסף לקוח</a>
                 </div>
