@@ -415,6 +415,21 @@ const initializeDatabase = () => {
     console.log('✅ Admin user created: admin@tzevetyahalom.co.il / Admin123!');
   }
 
+  // Create Reem user if not exists (for Google OAuth)
+  const reemExists = db.prepare('SELECT id FROM users WHERE email = ?').get('yahalomreem@gmail.com');
+
+  if (!reemExists) {
+    const passwordHash = bcrypt.hashSync('Reem123!', 10);
+    const reemId = generateUUID();
+
+    db.prepare(`
+      INSERT INTO users (id, email, password_hash, first_name, last_name, role)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(reemId, 'yahalomreem@gmail.com', passwordHash, 'רים', 'יהלום', 'admin');
+
+    console.log('✅ Reem user created: yahalomreem@gmail.com');
+  }
+
   console.log('✅ Database initialized successfully');
 };
 
