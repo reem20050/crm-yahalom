@@ -1,0 +1,20 @@
+# Render.com deployment configuration
+services:
+  - type: web
+    name: tzevet-yahalom-crm
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+    disk:
+      name: crm-data
+      mountPath: /app/data
+      sizeGB: 1

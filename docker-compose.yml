@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - JWT_SECRET=${JWT_SECRET:-tzevet-yahalom-crm-secret-key-2024-very-secure}
+      - JWT_EXPIRES_IN=7d
+    volumes:
+      - crm_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  crm_data:

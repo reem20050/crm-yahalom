@@ -1,0 +1,305 @@
+const express = require('express');
+const { body, validationResult } = require('express-validator');
+const db = require('../config/database');
+const { authenticateToken, requireManager } = require('../middleware/auth');
+
+const router = express.Router();
+router.use(authenticateToken);
+
+// Get all events
+router.get('/', async (req, res) => {
+  try {
+    const { start_date, end_date, status, customer_id, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let whereClause = [];
+    let params = [];
+    let paramCount = 0;
+
+    if (start_date) {
+      paramCount++;
+      whereClause.push(`event_date >= $${paramCount}`);
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      paramCount++;
+      whereClause.push(`event_date <= $${paramCount}`);
+      params.push(end_date);
+    }
+
+    if (status) {
+      paramCount++;
+      whereClause.push(`status = $${paramCount}`);
+      params.push(status);
+    }
+
+    if (customer_id) {
+      paramCount++;
+      whereClause.push(`customer_id = $${paramCount}`);
+      params.push(customer_id);
+    }
+
+    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+
+    const countResult = await db.query(`SELECT COUNT(*) FROM events ${whereString}`, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    paramCount++;
+    params.push(limit);
+    paramCount++;
+    params.push(offset);
+
+    const result = await db.query(`
+      SELECT e.*,
+             c.company_name,
+             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
+      FROM events e
+      LEFT JOIN customers c ON e.customer_id = c.id
+      ${whereString}
+      ORDER BY e.event_date DESC
+      LIMIT $${paramCount - 1} OFFSET $${paramCount}
+    `, params);
+
+    res.json({
+      events: result.rows,
+      pagination: { total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / limit) }
+    });
+  } catch (error) {
+    console.error('Get events error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת אירועים' });
+  }
+});
+
+// Get single event with assignments
+router.get('/:id', async (req, res) => {
+  try {
+    const eventResult = await db.query(`
+      SELECT e.*, c.company_name
+      FROM events e
+      LEFT JOIN customers c ON e.customer_id = c.id
+      WHERE e.id = $1
+    `, [req.params.id]);
+
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'אירוע לא נמצא' });
+    }
+
+    const assignmentsResult = await db.query(`
+      SELECT ea.*,
+             emp.first_name || ' ' || emp.last_name as employee_name,
+             emp.phone as employee_phone,
+             emp.has_weapon_license
+      FROM event_assignments ea
+      JOIN employees emp ON ea.employee_id = emp.id
+      WHERE ea.event_id = $1
+    `, [req.params.id]);
+
+    res.json({
+      event: eventResult.rows[0],
+      assignments: assignmentsResult.rows
+    });
+  } catch (error) {
+    console.error('Get event error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת אירוע' });
+  }
+});
+
+// Create event
+router.post('/', [
+  body('event_name').notEmpty().withMessage('נדרש שם אירוע'),
+  body('event_date').isDate().withMessage('נדרש תאריך'),
+  body('start_time').notEmpty().withMessage('נדרשת שעת התחלה'),
+  body('end_time').notEmpty().withMessage('נדרשת שעת סיום'),
+  body('location').notEmpty().withMessage('נדרש מיקום'),
+  body('required_guards').isInt({ min: 1 }).withMessage('נדרש מספר מאבטחים')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      customer_id, lead_id, event_name, event_type, event_date,
+      start_time, end_time, location, address, expected_attendance,
+      required_guards, requires_weapon, requires_vehicle,
+      special_equipment, notes, price
+    } = req.body;
+
+    const result = await db.query(`
+      INSERT INTO events (
+        customer_id, lead_id, event_name, event_type, event_date,
+        start_time, end_time, location, address, expected_attendance,
+        required_guards, requires_weapon, requires_vehicle,
+        special_equipment, notes, price
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      RETURNING *
+    `, [customer_id, lead_id, event_name, event_type, event_date,
+        start_time, end_time, location, address, expected_attendance,
+        required_guards, requires_weapon || false, requires_vehicle || false,
+        special_equipment, notes, price]);
+
+    await db.query(`
+      INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
+      VALUES ($1, 'event', $2, 'create', $3)
+    `, [req.user.id, result.rows[0].id, JSON.stringify({ event_name })]);
+
+    res.status(201).json({ event: result.rows[0] });
+  } catch (error) {
+    console.error('Create event error:', error);
+    res.status(500).json({ error: 'שגיאה ביצירת אירוע' });
+  }
+});
+
+// Update event
+router.put('/:id', async (req, res) => {
+  try {
+    const {
+      event_name, event_type, event_date, start_time, end_time,
+      location, address, expected_attendance, required_guards,
+      requires_weapon, requires_vehicle, special_equipment,
+      notes, price, status, planning_document_url
+    } = req.body;
+
+    const result = await db.query(`
+      UPDATE events SET
+        event_name = COALESCE($1, event_name),
+        event_type = COALESCE($2, event_type),
+        event_date = COALESCE($3, event_date),
+        start_time = COALESCE($4, start_time),
+        end_time = COALESCE($5, end_time),
+        location = COALESCE($6, location),
+        address = COALESCE($7, address),
+        expected_attendance = COALESCE($8, expected_attendance),
+        required_guards = COALESCE($9, required_guards),
+        requires_weapon = COALESCE($10, requires_weapon),
+        requires_vehicle = COALESCE($11, requires_vehicle),
+        special_equipment = COALESCE($12, special_equipment),
+        notes = COALESCE($13, notes),
+        price = COALESCE($14, price),
+        status = COALESCE($15, status),
+        planning_document_url = COALESCE($16, planning_document_url),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $17
+      RETURNING *
+    `, [event_name, event_type, event_date, start_time, end_time,
+        location, address, expected_attendance, required_guards,
+        requires_weapon, requires_vehicle, special_equipment,
+        notes, price, status, planning_document_url, req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'אירוע לא נמצא' });
+    }
+
+    res.json({ event: result.rows[0] });
+  } catch (error) {
+    console.error('Update event error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון אירוע' });
+  }
+});
+
+// Assign employee to event
+router.post('/:id/assign', requireManager, [
+  body('employee_id').notEmpty().withMessage('נדרש עובד')
+], async (req, res) => {
+  try {
+    const { employee_id, role } = req.body;
+
+    // Check if already assigned
+    const existingResult = await db.query(
+      'SELECT id FROM event_assignments WHERE event_id = $1 AND employee_id = $2',
+      [req.params.id, employee_id]
+    );
+
+    if (existingResult.rows.length > 0) {
+      return res.status(400).json({ error: 'העובד כבר משובץ לאירוע זה' });
+    }
+
+    const result = await db.query(`
+      INSERT INTO event_assignments (event_id, employee_id, role)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `, [req.params.id, employee_id, role || 'guard']);
+
+    // Update event status if fully staffed
+    const eventResult = await db.query('SELECT required_guards FROM events WHERE id = $1', [req.params.id]);
+    const assignedResult = await db.query('SELECT COUNT(*) FROM event_assignments WHERE event_id = $1', [req.params.id]);
+
+    if (parseInt(assignedResult.rows[0].count) >= eventResult.rows[0].required_guards) {
+      await db.query("UPDATE events SET status = 'staffed' WHERE id = $1 AND status = 'approved'", [req.params.id]);
+    }
+
+    res.status(201).json({ assignment: result.rows[0] });
+  } catch (error) {
+    console.error('Assign to event error:', error);
+    res.status(500).json({ error: 'שגיאה בשיבוץ לאירוע' });
+  }
+});
+
+// Remove employee from event
+router.delete('/:id/assign/:assignmentId', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      'DELETE FROM event_assignments WHERE id = $1 AND event_id = $2 RETURNING id',
+      [req.params.assignmentId, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'שיבוץ לא נמצא' });
+    }
+
+    res.json({ message: 'שיבוץ הוסר בהצלחה' });
+  } catch (error) {
+    console.error('Remove from event error:', error);
+    res.status(500).json({ error: 'שגיאה בהסרת שיבוץ' });
+  }
+});
+
+// Get upcoming events
+router.get('/upcoming/week', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT e.*,
+             c.company_name,
+             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
+      FROM events e
+      LEFT JOIN customers c ON e.customer_id = c.id
+      WHERE e.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+      AND e.status NOT IN ('completed', 'cancelled')
+      ORDER BY e.event_date, e.start_time
+    `);
+
+    res.json({ events: result.rows });
+  } catch (error) {
+    console.error('Get upcoming events error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת אירועים קרובים' });
+  }
+});
+
+// Mark event as completed
+router.post('/:id/complete', requireManager, async (req, res) => {
+  try {
+    const { report_notes } = req.body;
+
+    const result = await db.query(`
+      UPDATE events SET
+        status = 'completed',
+        notes = COALESCE(notes || E'\n\n' || 'דוח אירוע: ' || $2, notes),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `, [req.params.id, report_notes || '']);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'אירוע לא נמצא' });
+    }
+
+    res.json({ event: result.rows[0], message: 'אירוע סומן כהושלם' });
+  } catch (error) {
+    console.error('Complete event error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון אירוע' });
+  }
+});
+
+module.exports = router;
