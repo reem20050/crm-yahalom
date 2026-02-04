@@ -4,10 +4,10 @@ const { query, db, generateUUID } = require('../config/database');
 const googleService = require('../services/google');
 const whatsappService = require('../services/whatsapp');
 const greenInvoiceService = require('../services/greenInvoice');
-const authMiddleware = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
 // Apply auth middleware
-router.use(authMiddleware);
+router.use(authenticateToken);
 
 // ====================
 // INTEGRATION SETTINGS
