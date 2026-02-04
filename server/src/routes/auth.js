@@ -2,8 +2,12 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const { OAuth2Client } = require('google-auth-library');
 const db = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+
+// Google OAuth client
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const router = express.Router();
 
@@ -115,6 +119,81 @@ router.post('/change-password', authenticateToken, [
   } catch (error) {
     console.error('Change password error:', error);
     res.status(500).json({ error: 'שגיאה בשינוי סיסמה' });
+  }
+});
+
+// Google OAuth login - only for existing users
+router.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ error: 'חסר טוקן Google' });
+    }
+
+    // Verify the Google ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload.email?.toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ error: 'לא ניתן לקבל אימייל מ-Google' });
+    }
+
+    // Check if user exists in our database
+    const result = await db.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        error: 'משתמש לא מורשה',
+        message: 'המשתמש עם האימייל הזה לא קיים במערכת. פנה למנהל המערכת לקבלת גישה.'
+      });
+    }
+
+    const user = result.rows[0];
+
+    if (!user.is_active) {
+      return res.status(401).json({ error: 'משתמש לא פעיל' });
+    }
+
+    // Update last login
+    await db.query(
+      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+      [user.id]
+    );
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Google login error:', error);
+
+    if (error.message?.includes('Token used too late') || error.message?.includes('Invalid token')) {
+      return res.status(401).json({ error: 'טוקן Google לא תקין או פג תוקף' });
+    }
+
+    res.status(500).json({ error: 'שגיאה בהתחברות עם Google' });
   }
 });
 

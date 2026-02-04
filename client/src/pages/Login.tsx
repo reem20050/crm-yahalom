@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,6 +7,39 @@ import toast from 'react-hot-toast';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+
+// Google Client ID
+const GOOGLE_CLIENT_ID = '46942876627-akhltgi9p3objsd3maj79kftd1u7b7j9.apps.googleusercontent.com';
+
+// Google types
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+            auto_select?: boolean;
+          }) => void;
+          renderButton: (
+            element: HTMLElement,
+            config: {
+              theme?: 'outline' | 'filled_blue' | 'filled_black';
+              size?: 'large' | 'medium' | 'small';
+              width?: number;
+              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
+              shape?: 'rectangular' | 'pill' | 'circle' | 'square';
+              logo_alignment?: 'left' | 'center';
+              locale?: string;
+            }
+          ) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 const loginSchema = z.object({
   email: z.string().email('אימייל לא תקין'),
@@ -18,6 +51,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
 
@@ -28,6 +62,64 @@ export default function Login() {
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   });
+
+  // Handle Google login response
+  const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
+    setIsGoogleLoading(true);
+    try {
+      const result = await authApi.loginWithGoogle(response.credential);
+      login(result.data.token, result.data.user);
+      toast.success('התחברת בהצלחה עם Google!');
+      navigate('/');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string; message?: string } } };
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'שגיאה בהתחברות עם Google';
+      toast.error(errorMessage);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  }, [login, navigate]);
+
+  // Initialize Google Sign-In
+  useEffect(() => {
+    const initializeGoogleSignIn = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleResponse,
+          auto_select: false,
+        });
+
+        const googleButtonContainer = document.getElementById('google-signin-button');
+        if (googleButtonContainer) {
+          window.google.accounts.id.renderButton(googleButtonContainer, {
+            theme: 'outline',
+            size: 'large',
+            width: 320,
+            text: 'signin_with',
+            shape: 'rectangular',
+            logo_alignment: 'center',
+          });
+        }
+      }
+    };
+
+    // Check if Google script is already loaded
+    if (window.google?.accounts?.id) {
+      initializeGoogleSignIn();
+    } else {
+      // Wait for script to load
+      const checkGoogleLoaded = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(checkGoogleLoaded);
+          initializeGoogleSignIn();
+        }
+      }, 100);
+
+      // Clear interval after 10 seconds
+      setTimeout(() => clearInterval(checkGoogleLoaded), 10000);
+    }
+  }, [handleGoogleResponse]);
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
@@ -61,6 +153,30 @@ export default function Login() {
           <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
             התחברות למערכת
           </h2>
+
+          {/* Google Sign-In Button */}
+          <div className="mb-6">
+            <div
+              id="google-signin-button"
+              className="flex justify-center"
+              style={{ minHeight: '44px' }}
+            />
+            {isGoogleLoading && (
+              <div className="flex justify-center mt-2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">או התחבר עם סיסמה</span>
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
@@ -117,6 +233,11 @@ export default function Login() {
               {isLoading ? 'מתחבר...' : 'התחבר'}
             </button>
           </form>
+
+          {/* Info note */}
+          <p className="mt-4 text-xs text-gray-500 text-center">
+            התחברות עם Google זמינה רק למשתמשים מורשים במערכת
+          </p>
         </div>
 
         <p className="text-center text-primary-200 mt-6 text-sm">
