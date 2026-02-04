@@ -36,14 +36,6 @@ declare global {
           ) => void;
           prompt: () => void;
         };
-        oauth2: {
-          initCodeClient: (config: {
-            client_id: string;
-            scope: string;
-            ux_mode: 'popup' | 'redirect';
-            callback: (response: { code: string }) => void;
-          }) => { requestCode: () => void };
-        };
       };
     };
   }
@@ -60,7 +52,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [gsiLoaded, setGsiLoaded] = useState(false);
   const [gsiError, setGsiError] = useState(false);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
@@ -95,7 +86,6 @@ export default function Login() {
   useEffect(() => {
     const initializeGoogleSignIn = () => {
       if (window.google?.accounts?.id) {
-        setGsiLoaded(true);
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: handleGoogleResponse,
@@ -143,75 +133,32 @@ export default function Login() {
     }
   }, [handleGoogleResponse]);
 
-  // Custom Google OAuth popup handler (fallback when GSI fails)
+  // Custom Google OAuth using redirect (fallback when GSI fails)
   const handleCustomGoogleLogin = () => {
     setIsGoogleLoading(true);
 
-    // Build OAuth URL
+    // Save state to localStorage to verify after redirect
+    const state = Math.random().toString(36).substring(2);
+    const nonce = Math.random().toString(36).substring(2);
+    localStorage.setItem('google_oauth_state', state);
+    localStorage.setItem('google_oauth_nonce', nonce);
+
+    // Build OAuth URL - using redirect mode (not popup)
     const redirectUri = `${window.location.origin}/auth/google/callback`;
     const scope = 'openid email profile';
     const responseType = 'id_token';
-    const nonce = Math.random().toString(36).substring(2);
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('response_type', responseType);
     authUrl.searchParams.set('scope', scope);
+    authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('nonce', nonce);
     authUrl.searchParams.set('prompt', 'select_account');
 
-    // Open popup
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    const popup = window.open(
-      authUrl.toString(),
-      'google-oauth',
-      `width=${width},height=${height},left=${left},top=${top},popup=yes`
-    );
-
-    // Listen for popup close or message
-    const checkPopup = setInterval(() => {
-      if (!popup || popup.closed) {
-        clearInterval(checkPopup);
-        setIsGoogleLoading(false);
-      }
-    }, 500);
-
-    // Listen for message from popup
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data?.type === 'google-oauth-callback' && event.data?.credential) {
-        clearInterval(checkPopup);
-        window.removeEventListener('message', handleMessage);
-
-        try {
-          const result = await authApi.loginWithGoogle(event.data.credential);
-          login(result.data.token, result.data.user);
-          toast.success('התחברת בהצלחה עם Google!');
-          navigate('/');
-        } catch (error: unknown) {
-          const err = error as { response?: { data?: { error?: string; message?: string } } };
-          const errorMessage = err.response?.data?.message || err.response?.data?.error || 'שגיאה בהתחברות עם Google';
-          toast.error(errorMessage);
-        } finally {
-          setIsGoogleLoading(false);
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-
-    // Cleanup after 2 minutes
-    setTimeout(() => {
-      clearInterval(checkPopup);
-      window.removeEventListener('message', handleMessage);
-      setIsGoogleLoading(false);
-    }, 120000);
+    // Redirect to Google (not popup)
+    window.location.href = authUrl.toString();
   };
 
   const onSubmit = async (data: LoginForm) => {
