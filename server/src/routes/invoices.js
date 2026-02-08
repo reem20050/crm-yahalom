@@ -2,6 +2,8 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireManager } = require('../middleware/auth');
+const greenInvoiceService = require('../services/greenInvoice');
+const { query: dbQuery } = require('../config/database');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -42,8 +44,8 @@ router.get('/', async (req, res) => {
 
     const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
 
-    const countResult = await db.query(`SELECT COUNT(*) FROM invoices i ${whereString}`, params);
-    const total = parseInt(countResult.rows[0].count);
+    const countResult = await db.query(`SELECT COUNT(*) as count FROM invoices i ${whereString}`, params);
+    const total = parseInt(countResult.rows[0].count || 0);
 
     paramCount++;
     params.push(limit);
@@ -54,11 +56,11 @@ router.get('/', async (req, res) => {
       SELECT i.*,
              c.company_name,
              CASE
-               WHEN i.status = 'sent' AND i.due_date < CURRENT_DATE THEN 'overdue'
+               WHEN i.status = 'sent' AND i.due_date < date('now') THEN 'overdue'
                ELSE i.status
              END as computed_status,
              CASE
-               WHEN i.due_date < CURRENT_DATE THEN CURRENT_DATE - i.due_date
+               WHEN i.due_date < date('now') THEN CAST(julianday('now') - julianday(i.due_date) AS INTEGER)
                ELSE 0
              END as days_overdue
       FROM invoices i
@@ -133,7 +135,50 @@ router.post('/', requireManager, [
     `, [customer_id, event_id, issue_date, due_date,
         amount, vatCalc, totalCalc, description]);
 
-    res.status(201).json({ invoice: result.rows[0] });
+    const invoice = result.rows[0];
+
+    // Try to create on Green Invoice if configured (non-blocking)
+    try {
+      const settings = dbQuery(`SELECT green_invoice_api_key FROM integration_settings WHERE id = 'main'`);
+      if (settings.rows.length > 0 && settings.rows[0].green_invoice_api_key) {
+        const customerResult = await db.query(`
+          SELECT c.*, ct.name as contact_name, ct.email as contact_email
+          FROM customers c
+          LEFT JOIN contacts ct ON ct.customer_id = c.id AND ct.is_primary = 1
+          WHERE c.id = $1
+        `, [customer_id]);
+
+        if (customerResult.rows.length > 0) {
+          const customer = customerResult.rows[0];
+          const giInvoice = await greenInvoiceService.createInvoice(
+            {
+              name: customer.company_name,
+              email: customer.contact_email,
+              businessId: customer.business_id,
+              address: customer.address,
+              city: customer.city
+            },
+            [{ description: description || 'שירותי אבטחה', price: amount, quantity: 1 }],
+            due_date,
+            description
+          );
+
+          // Update our invoice with Green Invoice ID
+          await db.query(`
+            UPDATE invoices SET green_invoice_id = $1, invoice_number = $2, document_url = $3
+            WHERE id = $4
+          `, [giInvoice.id, giInvoice.number, giInvoice.url?.he, invoice.id]);
+
+          invoice.green_invoice_id = giInvoice.id;
+          invoice.invoice_number = giInvoice.number;
+          invoice.document_url = giInvoice.url?.he;
+        }
+      }
+    } catch (giError) {
+      console.warn('Green Invoice sync failed (invoice still created locally):', giError.message);
+    }
+
+    res.status(201).json({ invoice });
   } catch (error) {
     console.error('Create invoice error:', error);
     res.status(500).json({ error: 'שגיאה ביצירת חשבונית' });
@@ -173,7 +218,18 @@ router.patch('/:id/status', requireManager, [
       return res.status(404).json({ error: 'חשבונית לא נמצאה' });
     }
 
-    res.json({ invoice: result.rows[0] });
+    const updatedInvoice = result.rows[0];
+
+    // Sync status to Green Invoice if connected (non-blocking)
+    if (updatedInvoice.green_invoice_id && status === 'paid') {
+      try {
+        await greenInvoiceService.markAsPaid(updatedInvoice.green_invoice_id, payment_date);
+      } catch (giError) {
+        console.warn('Green Invoice status sync failed:', giError.message);
+      }
+    }
+
+    res.json({ invoice: updatedInvoice });
   } catch (error) {
     console.error('Update invoice status error:', error);
     res.status(500).json({ error: 'שגיאה בעדכון סטטוס חשבונית' });
@@ -186,11 +242,11 @@ router.get('/status/overdue', async (req, res) => {
     const result = await db.query(`
       SELECT i.*,
              c.company_name,
-             CURRENT_DATE - i.due_date as days_overdue
+             CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
       FROM invoices i
       LEFT JOIN customers c ON i.customer_id = c.id
       WHERE i.status = 'sent'
-      AND i.due_date < CURRENT_DATE
+      AND i.due_date < date('now')
       ORDER BY i.due_date
     `);
 
@@ -212,13 +268,13 @@ router.get('/summary/monthly', async (req, res) => {
       SELECT
         COUNT(*) as total_invoices,
         COALESCE(SUM(total_amount), 0) as total_amount,
-        COALESCE(SUM(total_amount) FILTER (WHERE status = 'paid'), 0) as paid_amount,
-        COALESCE(SUM(total_amount) FILTER (WHERE status = 'sent'), 0) as pending_amount,
-        COUNT(*) FILTER (WHERE status = 'paid') as paid_count,
-        COUNT(*) FILTER (WHERE status = 'sent') as pending_count
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as paid_amount,
+        COALESCE(SUM(CASE WHEN status = 'sent' THEN total_amount ELSE 0 END), 0) as pending_amount,
+        SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) as paid_count,
+        SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as pending_count
       FROM invoices
-      WHERE EXTRACT(YEAR FROM issue_date) = $1
-      AND EXTRACT(MONTH FROM issue_date) = $2
+      WHERE CAST(strftime('%Y', issue_date) AS INTEGER) = $1
+      AND CAST(strftime('%m', issue_date) AS INTEGER) = $2
     `, [targetYear, targetMonth]);
 
     res.json(result.rows[0]);

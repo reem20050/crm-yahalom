@@ -4,6 +4,7 @@ const { query, db, generateUUID } = require('../config/database');
 const googleService = require('../services/google');
 const whatsappService = require('../services/whatsapp');
 const greenInvoiceService = require('../services/greenInvoice');
+const whatsappHelper = require('../utils/whatsappHelper');
 const { authenticateToken } = require('../middleware/auth');
 
 // Apply auth middleware
@@ -188,9 +189,9 @@ router.post('/whatsapp/webhook', async (req, res) => {
     const result = await whatsappService.handleWebhook(req.body);
 
     if (result && result.type === 'message') {
-      // Log incoming message
+      // Log and auto-reply to incoming message
       console.log('Incoming WhatsApp message:', result);
-      // TODO: Handle incoming messages (auto-reply, log, etc.)
+      await whatsappHelper.handleIncomingMessage(result.from, result.text, result.timestamp);
     }
 
     res.sendStatus(200);
@@ -345,6 +346,24 @@ router.post('/green-invoice/sync', async (req, res) => {
   } catch (error) {
     console.error('Sync invoices error:', error);
     res.status(500).json({ message: 'שגיאה בסנכרון חשבוניות' });
+  }
+});
+
+// ====================
+// SCHEDULER STATUS
+// ====================
+
+// Get scheduler status
+router.get('/scheduler/status', (req, res) => {
+  try {
+    const scheduler = require('../services/scheduler');
+    res.json({
+      jobs: scheduler.getStatus(),
+      timezone: 'Asia/Jerusalem'
+    });
+  } catch (error) {
+    console.error('Scheduler status error:', error);
+    res.status(500).json({ message: 'שגיאה בטעינת סטטוס מתזמן' });
   }
 });
 

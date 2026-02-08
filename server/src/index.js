@@ -17,6 +17,9 @@ const reportsRoutes = require('./routes/reports');
 const dashboardRoutes = require('./routes/dashboard');
 const integrationsRoutes = require('./routes/integrations');
 
+// Import scheduler
+const scheduler = require('./services/scheduler');
+
 const app = express();
 
 // Middleware
@@ -76,6 +79,9 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Tzevet Yahalom CRM Backend Ready`);
+
+  // Start scheduled tasks (cron jobs)
+  scheduler.start();
 });
 
 module.exports = app;

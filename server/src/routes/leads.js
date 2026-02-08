@@ -2,6 +2,7 @@ const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
+const whatsappHelper = require('../utils/whatsappHelper');
 
 const router = express.Router();
 
@@ -38,7 +39,7 @@ router.get('/', async (req, res) => {
 
     if (search) {
       paramCount++;
-      whereClause.push(`(company_name ILIKE $${paramCount} OR contact_name ILIKE $${paramCount} OR phone ILIKE $${paramCount})`);
+      whereClause.push(`(company_name LIKE $${paramCount} OR contact_name LIKE $${paramCount} OR phone LIKE $${paramCount})`);
       params.push(`%${search}%`);
     }
 
@@ -46,10 +47,10 @@ router.get('/', async (req, res) => {
 
     // Get total count
     const countResult = await db.query(
-      `SELECT COUNT(*) FROM leads ${whereString}`,
+      `SELECT COUNT(*) as count FROM leads ${whereString}`,
       params
     );
-    const total = parseInt(countResult.rows[0].count);
+    const total = parseInt(countResult.rows[0].count || 0);
 
     // Get leads
     paramCount++;
@@ -147,6 +148,9 @@ router.post('/', [
       VALUES ($1, 'lead', $2, 'create', $3)
     `, [req.user.id, result.rows[0].id, JSON.stringify(result.rows[0])]);
 
+    // Send WhatsApp notification (non-blocking)
+    whatsappHelper.notifyNewLead(result.rows[0]).catch(() => {});
+
     res.status(201).json({ lead: result.rows[0] });
   } catch (error) {
     console.error('Create lead error:', error);
@@ -193,6 +197,13 @@ router.put('/:id', async (req, res) => {
       INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
       VALUES ($1, 'lead', $2, 'update', $3)
     `, [req.user.id, req.params.id, JSON.stringify(req.body)]);
+
+    // Notify on status change via WhatsApp (non-blocking)
+    if (status) {
+      const assignedUser = result.rows[0].assigned_to ?
+        (await db.query('SELECT phone FROM users WHERE id = $1', [result.rows[0].assigned_to])).rows[0] : null;
+      whatsappHelper.notifyLeadStatusChange(result.rows[0], status, assignedUser?.phone).catch(() => {});
+    }
 
     res.json({ lead: result.rows[0] });
   } catch (error) {
@@ -274,13 +285,13 @@ router.get('/stats/summary', async (req, res) => {
   try {
     const result = await db.query(`
       SELECT
-        COUNT(*) FILTER (WHERE status = 'new') as new_leads,
-        COUNT(*) FILTER (WHERE status = 'contacted') as contacted,
-        COUNT(*) FILTER (WHERE status = 'proposal_sent') as proposals,
-        COUNT(*) FILTER (WHERE status = 'won') as won,
-        COUNT(*) FILTER (WHERE status = 'lost') as lost,
-        COUNT(*) FILTER (WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)) as this_month,
-        COALESCE(SUM(expected_value) FILTER (WHERE status NOT IN ('lost')), 0) as pipeline_value
+        SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_leads,
+        SUM(CASE WHEN status = 'contacted' THEN 1 ELSE 0 END) as contacted,
+        SUM(CASE WHEN status = 'proposal_sent' THEN 1 ELSE 0 END) as proposals,
+        SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
+        SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END) as lost,
+        SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as this_month,
+        COALESCE(SUM(CASE WHEN status != 'lost' THEN expected_value ELSE 0 END), 0) as pipeline_value
       FROM leads
     `);
 

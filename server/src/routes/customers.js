@@ -24,14 +24,14 @@ router.get('/', async (req, res) => {
 
     if (search) {
       paramCount++;
-      whereClause.push(`(company_name ILIKE $${paramCount} OR business_id ILIKE $${paramCount})`);
+      whereClause.push(`(company_name LIKE $${paramCount} OR business_id LIKE $${paramCount})`);
       params.push(`%${search}%`);
     }
 
     const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
 
-    const countResult = await db.query(`SELECT COUNT(*) FROM customers ${whereString}`, params);
-    const total = parseInt(countResult.rows[0].count);
+    const countResult = await db.query(`SELECT COUNT(*) as count FROM customers ${whereString}`, params);
+    const total = parseInt(countResult.rows[0].count || 0);
 
     paramCount++;
     params.push(limit);
@@ -156,7 +156,7 @@ router.post('/:id/contacts', [
     const { name, role, phone, email, is_primary } = req.body;
 
     if (is_primary) {
-      await db.query('UPDATE contacts SET is_primary = false WHERE customer_id = $1', [req.params.id]);
+      await db.query('UPDATE contacts SET is_primary = 0 WHERE customer_id = $1', [req.params.id]);
     }
 
     const result = await db.query(`

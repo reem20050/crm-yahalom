@@ -2,6 +2,8 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireManager } = require('../middleware/auth');
+const whatsappHelper = require('../utils/whatsappHelper');
+const googleHelper = require('../utils/googleHelper');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -42,8 +44,8 @@ router.get('/', async (req, res) => {
 
     const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
 
-    const countResult = await db.query(`SELECT COUNT(*) FROM events ${whereString}`, params);
-    const total = parseInt(countResult.rows[0].count);
+    const countResult = await db.query(`SELECT COUNT(*) as count FROM events ${whereString}`, params);
+    const total = parseInt(countResult.rows[0].count || 0);
 
     paramCount++;
     params.push(limit);
@@ -145,7 +147,16 @@ router.post('/', [
       VALUES ($1, 'event', $2, 'create', $3)
     `, [req.user.id, result.rows[0].id, JSON.stringify({ event_name })]);
 
-    res.status(201).json({ event: result.rows[0] });
+    const createdEvent = result.rows[0];
+
+    // Sync to Google Calendar (non-blocking)
+    googleHelper.createCalendarEvent(createdEvent).then(calendarId => {
+      if (calendarId) {
+        db.query('UPDATE events SET google_calendar_event_id = $1 WHERE id = $2', [calendarId, createdEvent.id]);
+      }
+    }).catch(() => {});
+
+    res.status(201).json({ event: createdEvent });
   } catch (error) {
     console.error('Create event error:', error);
     res.status(500).json({ error: 'שגיאה ביצירת אירוע' });
@@ -192,7 +203,14 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'אירוע לא נמצא' });
     }
 
-    res.json({ event: result.rows[0] });
+    const updatedEvent = result.rows[0];
+
+    // Sync to Google Calendar if connected (non-blocking)
+    if (updatedEvent.google_calendar_event_id) {
+      googleHelper.updateCalendarEvent(updatedEvent.google_calendar_event_id, updatedEvent).catch(() => {});
+    }
+
+    res.json({ event: updatedEvent });
   } catch (error) {
     console.error('Update event error:', error);
     res.status(500).json({ error: 'שגיאה בעדכון אירוע' });
@@ -230,6 +248,9 @@ router.post('/:id/assign', requireManager, [
       await db.query("UPDATE events SET status = 'staffed' WHERE id = $1 AND status = 'approved'", [req.params.id]);
     }
 
+    // Send WhatsApp notification to assigned employee (non-blocking)
+    whatsappHelper.notifyEventAssignment(employee_id, req.params.id).catch(() => {});
+
     res.status(201).json({ assignment: result.rows[0] });
   } catch (error) {
     console.error('Assign to event error:', error);
@@ -265,7 +286,7 @@ router.get('/upcoming/week', async (req, res) => {
              (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
       FROM events e
       LEFT JOIN customers c ON e.customer_id = c.id
-      WHERE e.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+      WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
       AND e.status NOT IN ('completed', 'cancelled')
       ORDER BY e.event_date, e.start_time
     `);
@@ -285,7 +306,7 @@ router.post('/:id/complete', requireManager, async (req, res) => {
     const result = await db.query(`
       UPDATE events SET
         status = 'completed',
-        notes = COALESCE(notes || E'\n\n' || 'דוח אירוע: ' || $2, notes),
+        notes = COALESCE(notes || char(10) || char(10) || 'דוח אירוע: ' || $2, notes),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *

@@ -23,19 +23,19 @@ router.get('/', async (req, res) => {
     }
 
     if (has_weapon_license === 'true') {
-      whereClause.push(`has_weapon_license = true`);
+      whereClause.push(`has_weapon_license = 1`);
     }
 
     if (search) {
       paramCount++;
-      whereClause.push(`(first_name ILIKE $${paramCount} OR last_name ILIKE $${paramCount} OR phone ILIKE $${paramCount})`);
+      whereClause.push(`(first_name LIKE $${paramCount} OR last_name LIKE $${paramCount} OR phone LIKE $${paramCount})`);
       params.push(`%${search}%`);
     }
 
     const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
 
-    const countResult = await db.query(`SELECT COUNT(*) FROM employees ${whereString}`, params);
-    const total = parseInt(countResult.rows[0].count);
+    const countResult = await db.query(`SELECT COUNT(*) as count FROM employees ${whereString}`, params);
+    const total = parseInt(countResult.rows[0].count || 0);
 
     paramCount++;
     params.push(limit);
@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
       SELECT e.*,
              (SELECT COUNT(*) FROM shift_assignments sa
               JOIN shifts s ON sa.shift_id = s.id
-              WHERE sa.employee_id = e.id AND s.date = CURRENT_DATE) as shifts_today
+              WHERE sa.employee_id = e.id AND s.date = date('now')) as shifts_today
       FROM employees e
       ${whereString}
       ORDER BY e.first_name, e.last_name
@@ -140,7 +140,7 @@ router.post('/', requireManager, [
 
     res.status(201).json({ employee: result.rows[0] });
   } catch (error) {
-    if (error.code === '23505') {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'מספר ת.ז כבר קיים במערכת' });
     }
     console.error('Create employee error:', error);
@@ -269,7 +269,7 @@ router.get('/available/:date', async (req, res) => {
     let params = [date, start_time, end_time];
 
     if (requires_weapon === 'true') {
-      query += ` AND e.has_weapon_license = true AND (e.weapon_license_expiry IS NULL OR e.weapon_license_expiry > $1)`;
+      query += ` AND e.has_weapon_license = 1 AND (e.weapon_license_expiry IS NULL OR e.weapon_license_expiry > $1)`;
     }
 
     query += ` ORDER BY e.first_name, e.last_name`;
@@ -288,18 +288,20 @@ router.get('/:id/hours/:year/:month', async (req, res) => {
   try {
     const { id, year, month } = req.params;
 
+    const monthStr = String(month).padStart(2, '0');
+
     const result = await db.query(`
       SELECT
         SUM(sa.actual_hours) as total_hours,
-        SUM(CASE WHEN EXTRACT(DOW FROM s.date) = 6 THEN sa.actual_hours ELSE 0 END) as saturday_hours,
+        SUM(CASE WHEN CAST(strftime('%w', s.date) AS INTEGER) = 6 THEN sa.actual_hours ELSE 0 END) as saturday_hours,
         COUNT(DISTINCT s.date) as days_worked
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
       WHERE sa.employee_id = $1
-      AND EXTRACT(YEAR FROM s.date) = $2
-      AND EXTRACT(MONTH FROM s.date) = $3
+      AND strftime('%Y', s.date) = $2
+      AND strftime('%m', s.date) = $3
       AND sa.status = 'checked_out'
-    `, [id, year, month]);
+    `, [id, String(year), monthStr]);
 
     const shiftsResult = await db.query(`
       SELECT s.date, s.start_time, s.end_time, sa.actual_hours,
@@ -309,10 +311,10 @@ router.get('/:id/hours/:year/:month', async (req, res) => {
       LEFT JOIN customers c ON s.customer_id = c.id
       LEFT JOIN sites si ON s.site_id = si.id
       WHERE sa.employee_id = $1
-      AND EXTRACT(YEAR FROM s.date) = $2
-      AND EXTRACT(MONTH FROM s.date) = $3
+      AND strftime('%Y', s.date) = $2
+      AND strftime('%m', s.date) = $3
       ORDER BY s.date
-    `, [id, year, month]);
+    `, [id, String(year), monthStr]);
 
     res.json({
       summary: result.rows[0],

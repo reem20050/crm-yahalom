@@ -390,6 +390,20 @@ const initializeDatabase = () => {
     )
   `);
 
+  // Add google_calendar_event_id column to events if not exists
+  try {
+    db.exec(`ALTER TABLE events ADD COLUMN google_calendar_event_id TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Add google_calendar_event_id column to shifts if not exists
+  try {
+    db.exec(`ALTER TABLE shifts ADD COLUMN google_calendar_event_id TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   // Create indexes
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);

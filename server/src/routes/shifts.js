@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireManager } = require('../middleware/auth');
+const whatsappHelper = require('../utils/whatsappHelper');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -50,23 +51,25 @@ router.get('/', async (req, res) => {
              c.company_name,
              si.name as site_name,
              si.address as site_address,
-             (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) as assigned_count,
-             (SELECT json_agg(json_build_object(
-               'id', sa.id,
-               'employee_id', sa.employee_id,
-               'employee_name', e.first_name || ' ' || e.last_name,
-               'role', sa.role,
-               'status', sa.status
-             ))
-             FROM shift_assignments sa
-             JOIN employees e ON sa.employee_id = e.id
-             WHERE sa.shift_id = s.id) as assignments
+             (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) as assigned_count
       FROM shifts s
       LEFT JOIN customers c ON s.customer_id = c.id
       LEFT JOIN sites si ON s.site_id = si.id
       WHERE ${whereClause.join(' AND ')}
       ORDER BY s.date, s.start_time
     `, params);
+
+    // Fetch assignments for each shift
+    for (const shift of result.rows) {
+      const assignResult = await db.query(`
+        SELECT sa.id, sa.employee_id, e.first_name || ' ' || e.last_name as employee_name,
+               sa.role, sa.status
+        FROM shift_assignments sa
+        JOIN employees e ON sa.employee_id = e.id
+        WHERE sa.shift_id = $1
+      `, [shift.id]);
+      shift.assignments = assignResult.rows;
+    }
 
     res.json({ shifts: result.rows });
   } catch (error) {
@@ -230,6 +233,9 @@ router.post('/:id/assign', requireManager, [
       RETURNING *
     `, [req.params.id, employee_id, role || 'guard']);
 
+    // Send WhatsApp assignment confirmation (non-blocking)
+    whatsappHelper.sendAssignmentConfirmation(employee_id, req.params.id).catch(() => {});
+
     res.status(201).json({ assignment: result.rows[0] });
   } catch (error) {
     console.error('Assign to shift error:', error);
@@ -259,18 +265,13 @@ router.delete('/:id/assign/:assignmentId', requireManager, async (req, res) => {
 // Employee check-in
 router.post('/check-in/:assignmentId', async (req, res) => {
   try {
-    const { latitude, longitude } = req.body;
-
-    const point = latitude && longitude ? `(${longitude},${latitude})` : null;
-
     const result = await db.query(`
       UPDATE shift_assignments SET
         status = 'checked_in',
-        check_in_time = CURRENT_TIMESTAMP,
-        check_in_location = $2
+        check_in_time = datetime('now')
       WHERE id = $1
       RETURNING *
-    `, [req.params.assignmentId, point]);
+    `, [req.params.assignmentId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'שיבוץ לא נמצא' });
@@ -293,10 +294,6 @@ router.post('/check-in/:assignmentId', async (req, res) => {
 // Employee check-out
 router.post('/check-out/:assignmentId', async (req, res) => {
   try {
-    const { latitude, longitude } = req.body;
-
-    const point = latitude && longitude ? `(${longitude},${latitude})` : null;
-
     // Get check-in time to calculate hours
     const assignmentResult = await db.query(
       'SELECT check_in_time FROM shift_assignments WHERE id = $1',
@@ -314,12 +311,11 @@ router.post('/check-out/:assignmentId', async (req, res) => {
     const result = await db.query(`
       UPDATE shift_assignments SET
         status = 'checked_out',
-        check_out_time = CURRENT_TIMESTAMP,
-        check_out_location = $2,
-        actual_hours = $3
+        check_out_time = datetime('now'),
+        actual_hours = $2
       WHERE id = $1
       RETURNING *
-    `, [req.params.assignmentId, point, actualHours.toFixed(2)]);
+    `, [req.params.assignmentId, actualHours.toFixed(2)]);
 
     // Check if all assignments are checked out
     const shiftId = (await db.query('SELECT shift_id FROM shift_assignments WHERE id = $1', [req.params.assignmentId])).rows[0].shift_id;
@@ -346,14 +342,14 @@ router.get('/summary/today', async (req, res) => {
     const result = await db.query(`
       SELECT
         COUNT(*) as total_shifts,
-        COUNT(*) FILTER (WHERE s.status = 'scheduled') as scheduled,
-        COUNT(*) FILTER (WHERE s.status = 'in_progress') as in_progress,
-        COUNT(*) FILTER (WHERE s.status = 'completed') as completed,
+        SUM(CASE WHEN s.status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
+        SUM(CASE WHEN s.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed,
         (SELECT COUNT(*) FROM shift_assignments sa
          JOIN shifts sh ON sa.shift_id = sh.id
-         WHERE sh.date = CURRENT_DATE AND sa.status = 'no_show') as no_shows
+         WHERE sh.date = date('now') AND sa.status = 'no_show') as no_shows
       FROM shifts s
-      WHERE s.date = CURRENT_DATE
+      WHERE s.date = date('now')
     `);
 
     const unassignedResult = await db.query(`
@@ -361,7 +357,7 @@ router.get('/summary/today', async (req, res) => {
       FROM shifts s
       LEFT JOIN customers c ON s.customer_id = c.id
       LEFT JOIN sites si ON s.site_id = si.id
-      WHERE s.date = CURRENT_DATE
+      WHERE s.date = date('now')
       AND (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) < s.required_employees
     `);
 

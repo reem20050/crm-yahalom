@@ -23,17 +23,17 @@ router.get('/', async (req, res) => {
       // Leads statistics
       db.query(`
         SELECT
-          COUNT(*) FILTER (WHERE status = 'new') as new_leads,
-          COUNT(*) FILTER (WHERE status IN ('contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation')) as active_leads,
-          COUNT(*) FILTER (WHERE status = 'won' AND updated_at >= DATE_TRUNC('month', CURRENT_DATE)) as won_this_month
+          SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_leads,
+          SUM(CASE WHEN status IN ('contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation') THEN 1 ELSE 0 END) as active_leads,
+          SUM(CASE WHEN status = 'won' AND updated_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as won_this_month
         FROM leads
       `),
 
       // Customers statistics
       db.query(`
         SELECT
-          COUNT(*) FILTER (WHERE status = 'active') as active_customers,
-          COUNT(*) FILTER (WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)) as new_this_month
+          SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_customers,
+          SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as new_this_month
         FROM customers
       `),
 
@@ -41,11 +41,11 @@ router.get('/', async (req, res) => {
       db.query(`
         SELECT
           COUNT(*) as total,
-          COUNT(*) FILTER (WHERE status = 'scheduled') as scheduled,
-          COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
-          COUNT(*) FILTER (WHERE status = 'completed') as completed
+          SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
+          SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
         FROM shifts
-        WHERE date = CURRENT_DATE
+        WHERE date = date('now')
       `),
 
       // Upcoming events (next 7 days)
@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
                (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
         FROM events e
         LEFT JOIN customers c ON e.customer_id = c.id
-        WHERE e.event_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+        WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
         AND e.status NOT IN ('completed', 'cancelled')
         ORDER BY e.event_date, e.start_time
         LIMIT 5
@@ -66,10 +66,10 @@ router.get('/', async (req, res) => {
       db.query(`
         SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
                c.company_name,
-               CURRENT_DATE - i.due_date as days_overdue
+               CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
         FROM invoices i
         LEFT JOIN customers c ON i.customer_id = c.id
-        WHERE i.status = 'sent' AND i.due_date < CURRENT_DATE
+        WHERE i.status = 'sent' AND i.due_date < date('now')
         ORDER BY i.due_date
         LIMIT 5
       `),
@@ -77,12 +77,12 @@ router.get('/', async (req, res) => {
       // Monthly revenue (last 6 months)
       db.query(`
         SELECT
-          TO_CHAR(issue_date, 'YYYY-MM') as month,
-          SUM(total_amount) FILTER (WHERE status = 'paid') as revenue,
+          strftime('%Y-%m', issue_date) as month,
+          SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END) as revenue,
           SUM(total_amount) as total_invoiced
         FROM invoices
-        WHERE issue_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months'
-        GROUP BY TO_CHAR(issue_date, 'YYYY-MM')
+        WHERE issue_date >= date('now', 'start of month', '-5 months')
+        GROUP BY strftime('%Y-%m', issue_date)
         ORDER BY month
       `),
 
@@ -102,7 +102,7 @@ router.get('/', async (req, res) => {
         FROM contracts ct
         JOIN customers c ON ct.customer_id = c.id
         WHERE ct.status = 'active'
-        AND ct.end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+        AND ct.end_date BETWEEN date('now') AND date('now', '+30 days')
         ORDER BY ct.end_date
         LIMIT 5
       `),
@@ -113,7 +113,7 @@ router.get('/', async (req, res) => {
         FROM shifts s
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN sites si ON s.site_id = si.id
-        WHERE s.date = CURRENT_DATE
+        WHERE s.date = date('now')
         AND (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) < s.required_employees
         ORDER BY s.start_time
       `)
@@ -141,16 +141,16 @@ router.get('/notifications', async (req, res) => {
   try {
     const { unread_only } = req.query;
 
-    let query = `
+    let queryStr = `
       SELECT * FROM notifications
       WHERE user_id = $1
     `;
     if (unread_only === 'true') {
-      query += ` AND is_read = false`;
+      queryStr += ` AND is_read = 0`;
     }
-    query += ` ORDER BY created_at DESC LIMIT 50`;
+    queryStr += ` ORDER BY created_at DESC LIMIT 50`;
 
-    const result = await db.query(query, [req.user.id]);
+    const result = await db.query(queryStr, [req.user.id]);
 
     res.json({ notifications: result.rows });
   } catch (error) {
@@ -163,7 +163,7 @@ router.get('/notifications', async (req, res) => {
 router.patch('/notifications/:id/read', async (req, res) => {
   try {
     await db.query(
-      'UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2',
+      'UPDATE notifications SET is_read = 1 WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
     res.json({ message: 'התראה סומנה כנקראה' });
@@ -177,7 +177,7 @@ router.patch('/notifications/:id/read', async (req, res) => {
 router.patch('/notifications/read-all', async (req, res) => {
   try {
     await db.query(
-      'UPDATE notifications SET is_read = true WHERE user_id = $1',
+      'UPDATE notifications SET is_read = 1 WHERE user_id = $1',
       [req.user.id]
     );
     res.json({ message: 'כל ההתראות סומנו כנקראו' });

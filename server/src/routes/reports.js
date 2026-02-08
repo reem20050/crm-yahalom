@@ -27,9 +27,9 @@ router.get('/sales', async (req, res) => {
       db.query(`
         SELECT
           COUNT(*) as total_leads,
-          COUNT(*) FILTER (WHERE status = 'won') as won,
-          COUNT(*) FILTER (WHERE status = 'lost') as lost,
-          ROUND(COUNT(*) FILTER (WHERE status = 'won')::numeric / NULLIF(COUNT(*), 0) * 100, 2) as conversion_rate
+          SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
+          SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END) as lost,
+          ROUND(CAST(SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) AS REAL) / MAX(COUNT(*), 1) * 100, 2) as conversion_rate
         FROM leads
         WHERE created_at BETWEEN $1 AND $2
       `, [startDateParam, endDateParam]),
@@ -37,12 +37,12 @@ router.get('/sales', async (req, res) => {
       // Monthly leads
       db.query(`
         SELECT
-          TO_CHAR(created_at, 'YYYY-MM') as month,
+          strftime('%Y-%m', created_at) as month,
           COUNT(*) as total,
-          COUNT(*) FILTER (WHERE status = 'won') as won
+          SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won
         FROM leads
         WHERE created_at BETWEEN $1 AND $2
-        GROUP BY TO_CHAR(created_at, 'YYYY-MM')
+        GROUP BY strftime('%Y-%m', created_at)
         ORDER BY month
       `, [startDateParam, endDateParam]),
 
@@ -50,8 +50,8 @@ router.get('/sales', async (req, res) => {
       db.query(`
         SELECT
           u.first_name || ' ' || u.last_name as name,
-          COUNT(*) FILTER (WHERE l.status = 'won') as deals_won,
-          COALESCE(SUM(l.expected_value) FILTER (WHERE l.status = 'won'), 0) as revenue
+          SUM(CASE WHEN l.status = 'won' THEN 1 ELSE 0 END) as deals_won,
+          COALESCE(SUM(CASE WHEN l.status = 'won' THEN l.expected_value ELSE 0 END), 0) as revenue
         FROM users u
         LEFT JOIN leads l ON l.assigned_to = u.id AND l.created_at BETWEEN $1 AND $2
         WHERE u.role IN ('admin', 'manager', 'sales')
@@ -80,7 +80,7 @@ router.get('/customers', async (req, res) => {
       // Revenue by customer (top 10)
       db.query(`
         SELECT c.id, c.company_name,
-               COALESCE(SUM(i.total_amount) FILTER (WHERE i.status = 'paid'), 0) as total_revenue,
+               COALESCE(SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END), 0) as total_revenue,
                COUNT(DISTINCT i.id) as invoice_count
         FROM customers c
         LEFT JOIN invoices i ON i.customer_id = c.id
@@ -108,8 +108,8 @@ router.get('/customers', async (req, res) => {
         LEFT JOIN events e ON e.customer_id = c.id
         WHERE c.status = 'active'
         GROUP BY c.id, c.company_name, c.created_at
-        HAVING COALESCE(MAX(s.date), MAX(e.event_date), c.created_at::date) < CURRENT_DATE - INTERVAL '90 days'
-        ORDER BY COALESCE(MAX(s.date), MAX(e.event_date), c.created_at::date) DESC
+        HAVING COALESCE(MAX(s.date), MAX(e.event_date), date(c.created_at)) < date('now', '-90 days')
+        ORDER BY COALESCE(MAX(s.date), MAX(e.event_date), date(c.created_at)) DESC
         LIMIT 10
       `)
     ]);
@@ -131,6 +131,7 @@ router.get('/employees', async (req, res) => {
     const { year, month } = req.query;
     const targetYear = year || new Date().getFullYear();
     const targetMonth = month || new Date().getMonth() + 1;
+    const monthStr = String(targetMonth).padStart(2, '0');
 
     const [hoursBreakdown, attendanceIssues, topPerformers] = await Promise.all([
       // Hours breakdown by employee
@@ -139,53 +140,51 @@ router.get('/employees', async (req, res) => {
           e.id,
           e.first_name || ' ' || e.last_name as name,
           COALESCE(SUM(sa.actual_hours), 0) as total_hours,
-          COALESCE(SUM(sa.actual_hours) FILTER (WHERE EXTRACT(DOW FROM s.date) = 6), 0) as saturday_hours,
+          COALESCE(SUM(CASE WHEN CAST(strftime('%w', s.date) AS INTEGER) = 6 THEN sa.actual_hours ELSE 0 END), 0) as saturday_hours,
           COUNT(DISTINCT s.date) as days_worked
         FROM employees e
         LEFT JOIN shift_assignments sa ON sa.employee_id = e.id
         LEFT JOIN shifts s ON sa.shift_id = s.id
-          AND EXTRACT(YEAR FROM s.date) = $1
-          AND EXTRACT(MONTH FROM s.date) = $2
+          AND strftime('%Y', s.date) = $1
+          AND strftime('%m', s.date) = $2
         WHERE e.status = 'active'
         GROUP BY e.id, e.first_name, e.last_name
         ORDER BY total_hours DESC
-      `, [targetYear, targetMonth]),
+      `, [String(targetYear), monthStr]),
 
-      // Attendance issues (no-shows, late check-ins)
+      // Attendance issues (no-shows)
       db.query(`
         SELECT
           e.first_name || ' ' || e.last_name as name,
-          COUNT(*) FILTER (WHERE sa.status = 'no_show') as no_shows,
-          COUNT(*) FILTER (WHERE sa.check_in_time > (s.date + s.start_time + INTERVAL '15 minutes')) as late_checkins
+          SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) as no_shows
         FROM employees e
         LEFT JOIN shift_assignments sa ON sa.employee_id = e.id
         LEFT JOIN shifts s ON sa.shift_id = s.id
-          AND EXTRACT(YEAR FROM s.date) = $1
-          AND EXTRACT(MONTH FROM s.date) = $2
+          AND strftime('%Y', s.date) = $1
+          AND strftime('%m', s.date) = $2
         WHERE e.status = 'active'
         GROUP BY e.id, e.first_name, e.last_name
-        HAVING COUNT(*) FILTER (WHERE sa.status = 'no_show') > 0
-           OR COUNT(*) FILTER (WHERE sa.check_in_time > (s.date + s.start_time + INTERVAL '15 minutes')) > 0
-        ORDER BY no_shows DESC, late_checkins DESC
-      `, [targetYear, targetMonth]),
+        HAVING SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) > 0
+        ORDER BY no_shows DESC
+      `, [String(targetYear), monthStr]),
 
       // Top performers (most hours, no issues)
       db.query(`
         SELECT
           e.first_name || ' ' || e.last_name as name,
           COALESCE(SUM(sa.actual_hours), 0) as total_hours,
-          COUNT(*) FILTER (WHERE sa.status = 'no_show') as no_shows
+          SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) as no_shows
         FROM employees e
         LEFT JOIN shift_assignments sa ON sa.employee_id = e.id
         LEFT JOIN shifts s ON sa.shift_id = s.id
-          AND EXTRACT(YEAR FROM s.date) = $1
-          AND EXTRACT(MONTH FROM s.date) = $2
+          AND strftime('%Y', s.date) = $1
+          AND strftime('%m', s.date) = $2
         WHERE e.status = 'active'
         GROUP BY e.id, e.first_name, e.last_name
-        HAVING COUNT(*) FILTER (WHERE sa.status = 'no_show') = 0
+        HAVING SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) = 0
         ORDER BY total_hours DESC
         LIMIT 10
-      `, [targetYear, targetMonth])
+      `, [String(targetYear), monthStr])
     ]);
 
     res.json({
@@ -210,23 +209,23 @@ router.get('/events', async (req, res) => {
       db.query(`
         SELECT event_type, COUNT(*) as count
         FROM events
-        WHERE EXTRACT(YEAR FROM event_date) = $1
+        WHERE strftime('%Y', event_date) = $1
         GROUP BY event_type
         ORDER BY count DESC
-      `, [targetYear]),
+      `, [String(targetYear)]),
 
       // Monthly events
       db.query(`
         SELECT
-          TO_CHAR(event_date, 'YYYY-MM') as month,
+          strftime('%Y-%m', event_date) as month,
           COUNT(*) as total,
           SUM(price) as revenue
         FROM events
-        WHERE EXTRACT(YEAR FROM event_date) = $1
+        WHERE strftime('%Y', event_date) = $1
         AND status = 'completed'
-        GROUP BY TO_CHAR(event_date, 'YYYY-MM')
+        GROUP BY strftime('%Y-%m', event_date)
         ORDER BY month
-      `, [targetYear]),
+      `, [String(targetYear)]),
 
       // Revenue by event type
       db.query(`
@@ -235,11 +234,11 @@ router.get('/events', async (req, res) => {
                SUM(price) as total_revenue,
                AVG(price) as avg_price
         FROM events
-        WHERE EXTRACT(YEAR FROM event_date) = $1
+        WHERE strftime('%Y', event_date) = $1
         AND status = 'completed'
         GROUP BY event_type
         ORDER BY total_revenue DESC
-      `, [targetYear])
+      `, [String(targetYear)])
     ]);
 
     res.json({
@@ -263,40 +262,40 @@ router.get('/financial', async (req, res) => {
       // Monthly revenue
       db.query(`
         SELECT
-          TO_CHAR(issue_date, 'YYYY-MM') as month,
+          strftime('%Y-%m', issue_date) as month,
           SUM(total_amount) as invoiced,
-          SUM(total_amount) FILTER (WHERE status = 'paid') as collected
+          SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END) as collected
         FROM invoices
-        WHERE EXTRACT(YEAR FROM issue_date) = $1
-        GROUP BY TO_CHAR(issue_date, 'YYYY-MM')
+        WHERE strftime('%Y', issue_date) = $1
+        GROUP BY strftime('%Y-%m', issue_date)
         ORDER BY month
-      `, [targetYear]),
+      `, [String(targetYear)]),
 
       // Outstanding payments
       db.query(`
         SELECT
-          SUM(total_amount) FILTER (WHERE status = 'sent' AND due_date >= CURRENT_DATE) as pending,
-          SUM(total_amount) FILTER (WHERE status = 'sent' AND due_date < CURRENT_DATE) as overdue,
-          SUM(total_amount) FILTER (WHERE status = 'sent' AND due_date < CURRENT_DATE - INTERVAL '30 days') as overdue_30,
-          SUM(total_amount) FILTER (WHERE status = 'sent' AND due_date < CURRENT_DATE - INTERVAL '60 days') as overdue_60,
-          SUM(total_amount) FILTER (WHERE status = 'sent' AND due_date < CURRENT_DATE - INTERVAL '90 days') as overdue_90
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date >= date('now') THEN total_amount ELSE 0 END), 0) as pending,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now') THEN total_amount ELSE 0 END), 0) as overdue,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-30 days') THEN total_amount ELSE 0 END), 0) as overdue_30,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-60 days') THEN total_amount ELSE 0 END), 0) as overdue_60,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-90 days') THEN total_amount ELSE 0 END), 0) as overdue_90
         FROM invoices
       `),
 
       // Revenue by customer (this year)
       db.query(`
         SELECT c.company_name,
-               SUM(i.total_amount) FILTER (WHERE i.status = 'paid') as paid,
-               SUM(i.total_amount) FILTER (WHERE i.status = 'sent') as pending
+               COALESCE(SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END), 0) as paid,
+               COALESCE(SUM(CASE WHEN i.status = 'sent' THEN i.total_amount ELSE 0 END), 0) as pending
         FROM customers c
         LEFT JOIN invoices i ON i.customer_id = c.id
-          AND EXTRACT(YEAR FROM i.issue_date) = $1
+          AND strftime('%Y', i.issue_date) = $1
         WHERE c.status = 'active'
         GROUP BY c.id, c.company_name
         HAVING SUM(i.total_amount) > 0
-        ORDER BY paid DESC NULLS LAST
+        ORDER BY paid DESC
         LIMIT 15
-      `, [targetYear])
+      `, [String(targetYear)])
     ]);
 
     res.json({
