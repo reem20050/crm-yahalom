@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -15,9 +15,11 @@ import {
   X,
   ChevronDown,
   Settings,
+  Search,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { clsx } from 'clsx';
+import SearchCommand from './SearchCommand';
 
 const navigation = [
   { name: 'דשבורד', href: '/', icon: LayoutDashboard },
@@ -34,8 +36,21 @@ const navigation = [
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  // Ctrl+K / Cmd+K keyboard shortcut to open search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -141,7 +156,18 @@ export default function Layout() {
               <Menu className="w-6 h-6" />
             </button>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                title="חיפוש (Ctrl+K)"
+              >
+                <Search className="w-5 h-5" />
+                <span className="hidden sm:inline text-sm">חיפוש</span>
+                <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-xs text-gray-400 bg-gray-100 rounded border border-gray-200">
+                  Ctrl+K
+                </kbd>
+              </button>
               <button className="relative p-2 rounded-lg hover:bg-gray-100">
                 <Bell className="w-6 h-6 text-gray-600" />
                 <span className="absolute top-1 left-1 w-2 h-2 bg-red-500 rounded-full"></span>
@@ -155,6 +181,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Search Command Palette */}
+      <SearchCommand isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </div>
   );
 }

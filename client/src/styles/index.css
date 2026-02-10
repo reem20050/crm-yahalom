@@ -148,3 +148,48 @@ input[type="email"] {
   direction: ltr;
   text-align: right;
 }
+
+/* Print styles */
+@media print {
+  body {
+    direction: rtl;
+  }
+
+  /* Hide sidebar, header, buttons */
+  nav, .sidebar, header, button, .btn-primary, .btn-secondary, .btn-danger, .btn-success,
+  [class*="no-print"], .animate-spin {
+    display: none !important;
+  }
+
+  /* Make content full width */
+  main, .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Nice table borders for print */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: right;
+  }
+
+  /* Cards look good in print */
+  .card {
+    border: 1px solid #ddd;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .stat-card {
+    border: 1px solid #ddd;
+    box-shadow: none !important;
+  }
+}

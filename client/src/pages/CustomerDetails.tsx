@@ -1,17 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Building2, MapPin, Phone, Mail, FileText, Calendar, Plus, X } from 'lucide-react';
+import {
+  ArrowRight,
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  FileText,
+  Calendar,
+  Plus,
+  X,
+  Edit3,
+  Save,
+  Trash2,
+  AlertTriangle,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { customersApi } from '../services/api';
+
+const SERVICE_TYPE_OPTIONS = [
+  { value: 'regular', label: 'שמירה רגילה' },
+  { value: 'event', label: 'אירועים' },
+  { value: 'both', label: 'שניהם' },
+];
+
+const PAYMENT_TERMS_OPTIONS = [
+  { value: 'net30', label: 'שוטף + 30' },
+  { value: 'net60', label: 'שוטף + 60' },
+  { value: 'net90', label: 'שוטף + 90' },
+  { value: 'immediate', label: 'מיידי' },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'פעיל' },
+  { value: 'inactive', label: 'לא פעיל' },
+  { value: 'suspended', label: 'מושהה' },
+];
+
+interface EditForm {
+  company_name: string;
+  business_id: string;
+  address: string;
+  city: string;
+  service_type: string;
+  payment_terms: string;
+  status: string;
+  notes: string;
+}
 
 export default function CustomerDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSiteForm, setShowSiteForm] = useState(false);
   const [showContactForm, setShowContactForm] = useState(false);
   const [showContractForm, setShowContractForm] = useState(false);
+
+  const [editForm, setEditForm] = useState<EditForm>({
+    company_name: '',
+    business_id: '',
+    address: '',
+    city: '',
+    service_type: '',
+    payment_terms: '',
+    status: 'active',
+    notes: '',
+  });
+
   const [siteForm, setSiteForm] = useState({ name: '', address: '', city: '', requirements: '', requires_weapon: false, notes: '' });
   const [contactForm, setContactForm] = useState({ name: '', role: '', phone: '', email: '', is_primary: false });
   const [contractForm, setContractForm] = useState({ start_date: '', end_date: '', monthly_value: '', terms: '' });
@@ -20,6 +79,47 @@ export default function CustomerDetails() {
     queryKey: ['customer', id],
     queryFn: () => customersApi.getOne(id!).then((res) => res.data),
     enabled: !!id,
+  });
+
+  const customer = data?.customer;
+
+  // Sync edit form when customer data loads or changes
+  useEffect(() => {
+    if (customer) {
+      setEditForm({
+        company_name: customer.company_name || '',
+        business_id: customer.business_id || '',
+        address: customer.address || '',
+        city: customer.city || '',
+        service_type: customer.service_type || '',
+        payment_terms: customer.payment_terms || '',
+        status: customer.status || 'active',
+        notes: customer.notes || '',
+      });
+    }
+  }, [customer]);
+
+  // --- Mutations ---
+
+  const updateMutation = useMutation({
+    mutationFn: (updateData: Record<string, unknown>) => customersApi.update(id!, updateData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('הלקוח עודכן בהצלחה');
+      setIsEditing(false);
+    },
+    onError: () => toast.error('שגיאה בעדכון הלקוח'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => customersApi.delete(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('הלקוח נמחק בהצלחה');
+      navigate('/customers');
+    },
+    onError: () => toast.error('שגיאה במחיקת הלקוח'),
   });
 
   const addSiteMutation = useMutation({
@@ -55,6 +155,34 @@ export default function CustomerDetails() {
     onError: () => toast.error('שגיאה בהוספת חוזה'),
   });
 
+  // --- Handlers ---
+
+  const handleSave = () => {
+    if (!editForm.company_name.trim()) {
+      toast.error('שם חברה הוא שדה חובה');
+      return;
+    }
+    updateMutation.mutate(editForm as unknown as Record<string, unknown>);
+  };
+
+  const handleCancelEdit = () => {
+    if (customer) {
+      setEditForm({
+        company_name: customer.company_name || '',
+        business_id: customer.business_id || '',
+        address: customer.address || '',
+        city: customer.city || '',
+        service_type: customer.service_type || '',
+        payment_terms: customer.payment_terms || '',
+        status: customer.status || 'active',
+        notes: customer.notes || '',
+      });
+    }
+    setIsEditing(false);
+  };
+
+  // --- Loading state ---
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -63,10 +191,9 @@ export default function CustomerDetails() {
     );
   }
 
-  const customer = data?.customer;
-
   return (
     <div className="space-y-6">
+      {/* Back button */}
       <button
         onClick={() => navigate('/customers')}
         className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
@@ -75,21 +202,118 @@ export default function CustomerDetails() {
         חזרה ללקוחות
       </button>
 
-      <div className="flex items-start gap-4">
-        <div className="w-16 h-16 bg-primary-100 rounded-xl flex items-center justify-center">
-          <Building2 className="w-8 h-8 text-primary-600" />
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4">
+          <div className="w-16 h-16 bg-primary-100 rounded-xl flex items-center justify-center">
+            <Building2 className="w-8 h-8 text-primary-600" />
+          </div>
+          <div>
+            {isEditing ? (
+              <div className="space-y-2">
+                <div>
+                  <label className="label">שם חברה *</label>
+                  <input
+                    value={editForm.company_name}
+                    onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
+                    className="input text-2xl font-bold"
+                    placeholder="שם חברה"
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold text-gray-900">{customer?.company_name}</h1>
+                {customer?.city && (
+                  <p className="text-gray-500 flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    {customer.city}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{customer?.company_name}</h1>
-          {customer?.city && (
-            <p className="text-gray-500 flex items-center gap-2">
-              <MapPin className="w-4 h-4" />
-              {customer.city}
-            </p>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={updateMutation.isPending}
+                className="btn-success text-sm flex items-center gap-1 px-3 py-2"
+              >
+                <Save className="w-4 h-4" />
+                {updateMutation.isPending ? 'שומר...' : 'שמור'}
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                className="btn-secondary text-sm flex items-center gap-1 px-3 py-2"
+              >
+                <X className="w-4 h-4" />
+                ביטול
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="btn-primary text-sm flex items-center gap-1 px-3 py-2"
+              >
+                <Edit3 className="w-4 h-4" />
+                עריכה
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="btn-danger text-sm flex items-center gap-1 px-3 py-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                מחק לקוח
+              </button>
+            </>
           )}
         </div>
       </div>
 
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">מחיקת לקוח</h3>
+                <p className="text-sm text-gray-500">פעולה זו אינה ניתנת לביטול</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              האם אתה בטוח שברצונך למחוק את הלקוח{' '}
+              <strong>{customer?.company_name}</strong>?
+              כל הנתונים הקשורים ללקוח זה יימחקו לצמיתות.
+            </p>
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="btn-secondary px-4 py-2"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="btn-danger px-4 py-2"
+              >
+                {deleteMutation.isPending ? 'מוחק...' : 'מחק לקוח'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Contacts */}
@@ -306,28 +530,131 @@ export default function CustomerDetails() {
         <div className="space-y-6">
           <div className="card">
             <h2 className="text-lg font-semibold mb-4">פרטים</h2>
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-sm text-gray-500">ח.פ</dt>
-                <dd className="font-medium">{customer?.business_id || '-'}</dd>
+            {isEditing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="label">ח.פ</label>
+                  <input
+                    value={editForm.business_id}
+                    onChange={(e) => setEditForm({ ...editForm, business_id: e.target.value })}
+                    className="input"
+                    dir="ltr"
+                    placeholder="מספר ח.פ"
+                  />
+                </div>
+                <div>
+                  <label className="label">כתובת</label>
+                  <input
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    className="input"
+                    placeholder="כתובת"
+                  />
+                </div>
+                <div>
+                  <label className="label">עיר</label>
+                  <input
+                    value={editForm.city}
+                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                    className="input"
+                    placeholder="עיר"
+                  />
+                </div>
+                <div>
+                  <label className="label">סוג שירות</label>
+                  <select
+                    value={editForm.service_type}
+                    onChange={(e) => setEditForm({ ...editForm, service_type: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">בחר סוג שירות</option>
+                    {SERVICE_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">תנאי תשלום</label>
+                  <select
+                    value={editForm.payment_terms}
+                    onChange={(e) => setEditForm({ ...editForm, payment_terms: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">בחר תנאי תשלום</option>
+                    {PAYMENT_TERMS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">סטטוס</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="input"
+                  >
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">הערות</label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    className="input"
+                    rows={3}
+                    placeholder="הערות..."
+                  />
+                </div>
               </div>
-              <div>
-                <dt className="text-sm text-gray-500">סוג שירות</dt>
-                <dd className="font-medium">{customer?.service_type || '-'}</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-gray-500">תנאי תשלום</dt>
-                <dd className="font-medium">{customer?.payment_terms || '-'}</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-gray-500">סטטוס</dt>
-                <dd>
-                  <span className={`badge ${customer?.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
-                    {customer?.status === 'active' ? 'פעיל' : customer?.status}
-                  </span>
-                </dd>
-              </div>
-            </dl>
+            ) : (
+              <dl className="space-y-3">
+                <div>
+                  <dt className="text-sm text-gray-500">ח.פ</dt>
+                  <dd className="font-medium">{customer?.business_id || '-'}</dd>
+                </div>
+                {customer?.address && (
+                  <div>
+                    <dt className="text-sm text-gray-500">כתובת</dt>
+                    <dd className="font-medium">{customer.address}{customer.city ? `, ${customer.city}` : ''}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-sm text-gray-500">סוג שירות</dt>
+                  <dd className="font-medium">
+                    {SERVICE_TYPE_OPTIONS.find((o) => o.value === customer?.service_type)?.label || customer?.service_type || '-'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-gray-500">תנאי תשלום</dt>
+                  <dd className="font-medium">
+                    {PAYMENT_TERMS_OPTIONS.find((o) => o.value === customer?.payment_terms)?.label || customer?.payment_terms || '-'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-gray-500">סטטוס</dt>
+                  <dd>
+                    <span className={`badge ${customer?.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
+                      {STATUS_OPTIONS.find((o) => o.value === customer?.status)?.label || customer?.status}
+                    </span>
+                  </dd>
+                </div>
+                {customer?.notes && (
+                  <div>
+                    <dt className="text-sm text-gray-500">הערות</dt>
+                    <dd className="font-medium text-sm whitespace-pre-wrap">{customer.notes}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
           </div>
 
           {/* Recent invoices */}

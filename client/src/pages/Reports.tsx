@@ -7,6 +7,8 @@ import {
   Building2,
   Calendar,
   DollarSign,
+  Download,
+  Printer,
 } from 'lucide-react';
 import {
   BarChart,
@@ -25,6 +27,29 @@ import { reportsApi } from '../services/api';
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 type ReportTab = 'sales' | 'customers' | 'employees' | 'financial';
+
+function exportToCSV(data: Record<string, unknown>[], headers: Record<string, string>, filename: string) {
+  if (!data || data.length === 0) return;
+  const headerKeys = Object.keys(headers);
+  const headerLabels = Object.values(headers);
+  const csvRows = [headerLabels.join(',')];
+  for (const row of data) {
+    const values = headerKeys.map((key) => {
+      const val = row[key] ?? '';
+      const escaped = String(val).replace(/"/g, '""');
+      return `"${escaped}"`;
+    });
+    csvRows.push(values.join(','));
+  }
+  const csvContent = '\uFEFF' + csvRows.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
@@ -60,11 +85,48 @@ export default function Reports() {
     { id: 'financial' as const, label: 'כספים', icon: DollarSign },
   ];
 
+  const handleExport = () => {
+    switch (activeTab) {
+      case 'sales':
+        if (salesData?.leadsBySource) {
+          exportToCSV(salesData.leadsBySource, { source: 'מקור', count: 'כמות' }, 'sales-by-source.csv');
+        }
+        break;
+      case 'customers':
+        if (customersData?.revenueByCustomer) {
+          exportToCSV(customersData.revenueByCustomer, { company_name: 'חברה', total_revenue: 'הכנסות' }, 'customers-revenue.csv');
+        }
+        break;
+      case 'employees':
+        if (employeesData?.hoursBreakdown) {
+          exportToCSV(employeesData.hoursBreakdown, { name: 'עובד', total_hours: 'שעות', days_worked: 'ימי עבודה', saturday_hours: 'שעות שבת' }, 'employees-hours.csv');
+        }
+        break;
+      case 'financial':
+        if (financialData?.revenueByCustomer) {
+          exportToCSV(financialData.revenueByCustomer, { company_name: 'לקוח', paid: 'שולם', pending: 'ממתין' }, 'financial-revenue.csv');
+        }
+        break;
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">דוחות</h1>
-        <p className="text-gray-500">ניתוח נתונים וביצועים</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">דוחות</h1>
+          <p className="text-gray-500">ניתוח נתונים וביצועים</p>
+        </div>
+        <div className="flex items-center gap-2 no-print">
+          <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
+            <Download className="w-5 h-5" />
+            ייצוא לאקסל
+          </button>
+          <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2">
+            <Printer className="w-5 h-5" />
+            הדפס
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}

@@ -160,4 +160,9 @@ export const reportsApi = {
   financial: (params?: Record<string, unknown>) => api.get('/reports/financial', { params }),
 };
 
+// Search
+export const searchApi = {
+  search: (q: string) => api.get('/search', { params: { q } }),
+};
+
 export default api;

@@ -23,11 +23,23 @@ const generateUUID = () => crypto.randomUUID();
 const query = (sql, params = []) => {
   try {
     // Convert $1, $2 params to ? for SQLite
+    // Handle repeated parameter references (e.g. $1 used multiple times)
     let sqliteQuery = sql;
-    let paramIndex = 1;
-    while (sqliteQuery.includes(`$${paramIndex}`)) {
-      sqliteQuery = sqliteQuery.replace(`$${paramIndex}`, '?');
-      paramIndex++;
+    const newParams = [];
+    // Find the highest param index used
+    let maxParam = 0;
+    for (let i = 1; i <= params.length + 5; i++) {
+      if (sql.includes(`$${i}`)) maxParam = i;
+    }
+    // Replace all $N with ? and build expanded params array
+    if (maxParam > 0) {
+      // Use regex to find all $N references in order and build new params
+      sqliteQuery = sql.replace(/\$(\d+)/g, (match, num) => {
+        const idx = parseInt(num) - 1; // $1 -> index 0
+        newParams.push(params[idx]);
+        return '?';
+      });
+      params = newParams;
     }
 
     // Check if it's a SELECT query

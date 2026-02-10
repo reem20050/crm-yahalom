@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check } from 'lucide-react';
+import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer } from 'lucide-react';
 import { invoicesApi, customersApi } from '../services/api';
 
 const statusLabels: Record<string, { label: string; class: string }> = {
@@ -148,10 +148,16 @@ export default function Invoices() {
           <h1 className="text-2xl font-bold text-gray-900">חשבוניות</h1>
           <p className="text-gray-500">ניהול חשבוניות ותשלומים</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          חשבונית חדשה
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2 no-print">
+            <Printer className="w-5 h-5" />
+            הדפס
+          </button>
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            חשבונית חדשה
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}

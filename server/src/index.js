@@ -16,6 +16,7 @@ const invoicesRoutes = require('./routes/invoices');
 const reportsRoutes = require('./routes/reports');
 const dashboardRoutes = require('./routes/dashboard');
 const integrationsRoutes = require('./routes/integrations');
+const searchRoutes = require('./routes/search');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
@@ -40,6 +41,7 @@ app.use('/api/invoices', invoicesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/integrations', integrationsRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

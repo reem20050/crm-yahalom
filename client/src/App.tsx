@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import GoogleCallback from './pages/GoogleCallback';
 import Dashboard from './pages/Dashboard';
@@ -16,6 +17,7 @@ import EventDetails from './pages/EventDetails';
 import Invoices from './pages/Invoices';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import NotFound from './pages/NotFound';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -24,32 +26,35 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/auth/google/callback" element={<GoogleCallback />} />
-      <Route
-        path="/"
-        element={
-          <PrivateRoute>
-            <Layout />
-          </PrivateRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="leads" element={<Leads />} />
-        <Route path="leads/:id" element={<LeadDetails />} />
-        <Route path="customers" element={<Customers />} />
-        <Route path="customers/:id" element={<CustomerDetails />} />
-        <Route path="employees" element={<Employees />} />
-        <Route path="employees/:id" element={<EmployeeDetails />} />
-        <Route path="shifts" element={<Shifts />} />
-        <Route path="events" element={<Events />} />
-        <Route path="events/:id" element={<EventDetails />} />
-        <Route path="invoices" element={<Invoices />} />
-        <Route path="reports" element={<Reports />} />
-        <Route path="settings" element={<Settings />} />
-      </Route>
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <Layout />
+            </PrivateRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="leads" element={<Leads />} />
+          <Route path="leads/:id" element={<LeadDetails />} />
+          <Route path="customers" element={<Customers />} />
+          <Route path="customers/:id" element={<CustomerDetails />} />
+          <Route path="employees" element={<Employees />} />
+          <Route path="employees/:id" element={<EmployeeDetails />} />
+          <Route path="shifts" element={<Shifts />} />
+          <Route path="events" element={<Events />} />
+          <Route path="events/:id" element={<EventDetails />} />
+          <Route path="invoices" element={<Invoices />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
   );
 }
 
