@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { employeesApi } from '../services/api';
+import WhatsAppButton from '../components/WhatsAppButton';
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'id_card', label: 'תעודת זהות' },
@@ -436,9 +437,14 @@ export default function EmployeeDetails() {
                   <Phone className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">טלפון</p>
-                    <a href={`tel:${employee?.phone}`} className="text-primary-600 font-medium">
-                      {employee?.phone}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${employee?.phone}`} className="text-primary-600 font-medium">
+                        {employee?.phone}
+                      </a>
+                      {employee?.phone && (
+                        <WhatsAppButton phone={employee.phone} name={`${employee.first_name} ${employee.last_name}`} size="sm" />
+                      )}
+                    </div>
                   </div>
                 </div>
                 {employee?.email && (

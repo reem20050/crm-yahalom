@@ -4,8 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer } from 'lucide-react';
-import { invoicesApi, customersApi } from '../services/api';
+import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw } from 'lucide-react';
+import { invoicesApi, customersApi, integrationsApi } from '../services/api';
 
 const statusLabels: Record<string, { label: string; class: string }> = {
   draft: { label: 'טיוטה', class: 'badge-gray' },
@@ -46,6 +46,11 @@ export default function Invoices() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paymentDateModal, setPaymentDateModal] = useState<{ invoiceId: string; show: boolean }>({ invoiceId: '', show: false });
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isGreenInvoiceModalOpen, setIsGreenInvoiceModalOpen] = useState(false);
+  const [greenInvoiceItems, setGreenInvoiceItems] = useState<Array<{ description: string; quantity: number; unitPrice: number }>>([{ description: '', quantity: 1, unitPrice: 0 }]);
+  const [greenInvoiceCustomer, setGreenInvoiceCustomer] = useState('');
+  const [greenInvoiceDueDate, setGreenInvoiceDueDate] = useState(new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]);
+  const [greenInvoiceRemarks, setGreenInvoiceRemarks] = useState('');
   const queryClient = useQueryClient();
 
   // Queries
@@ -104,6 +109,29 @@ export default function Invoices() {
     },
   });
 
+  const greenInvoiceMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => integrationsApi.createGreenInvoice(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
+      toast.success('חשבונית ירוקה נוצרה בהצלחה');
+      setIsGreenInvoiceModalOpen(false);
+      setGreenInvoiceItems([{ description: '', quantity: 1, unitPrice: 0 }]);
+      setGreenInvoiceCustomer('');
+      setGreenInvoiceRemarks('');
+    },
+    onError: () => toast.error('שגיאה ביצירת חשבונית ירוקה'),
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () => integrationsApi.syncGreenInvoices(),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success(res.data.message || 'חשבוניות סונכרנו בהצלחה');
+    },
+    onError: () => toast.error('שגיאה בסנכרון חשבוניות'),
+  });
+
   // Form
   const {
     register,
@@ -141,6 +169,18 @@ export default function Invoices() {
 
   const getEffectiveStatus = (invoice: Invoice) => invoice.computed_status || invoice.status;
 
+  const handleGreenInvoiceSubmit = () => {
+    if (!greenInvoiceCustomer) { toast.error('נדרש לבחור לקוח'); return; }
+    const validItems = greenInvoiceItems.filter(i => i.description && i.unitPrice > 0);
+    if (validItems.length === 0) { toast.error('נדרשת לפחות שורה אחת'); return; }
+    greenInvoiceMutation.mutate({
+      customerId: greenInvoiceCustomer,
+      items: validItems.map(i => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice })),
+      dueDate: greenInvoiceDueDate,
+      remarks: greenInvoiceRemarks,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -149,6 +189,21 @@ export default function Invoices() {
           <p className="text-gray-500">ניהול חשבוניות ותשלומים</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <RefreshCw className={`w-5 h-5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            סנכרן
+          </button>
+          <button
+            onClick={() => setIsGreenInvoiceModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <FileCheck className="w-5 h-5" />
+            חשבונית ירוקה
+          </button>
           <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2 no-print">
             <Printer className="w-5 h-5" />
             הדפס
@@ -398,6 +453,158 @@ export default function Invoices() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Green Invoice Modal */}
+      {isGreenInvoiceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-bold">הפקת חשבונית ירוקה</h2>
+              <button
+                onClick={() => setIsGreenInvoiceModalOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Customer */}
+              <div>
+                <label className="label">לקוח *</label>
+                <select
+                  value={greenInvoiceCustomer}
+                  onChange={(e) => setGreenInvoiceCustomer(e.target.value)}
+                  className="input"
+                >
+                  <option value="">בחר לקוח...</option>
+                  {customersData?.customers?.map((customer: { id: string; company_name: string }) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.company_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Items */}
+              <div>
+                <label className="label">פריטים</label>
+                <div className="space-y-2">
+                  {greenInvoiceItems.map((item, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="תיאור"
+                        value={item.description}
+                        onChange={(e) => {
+                          const updated = [...greenInvoiceItems];
+                          updated[index].description = e.target.value;
+                          setGreenInvoiceItems(updated);
+                        }}
+                        className="input flex-1"
+                      />
+                      <input
+                        type="number"
+                        placeholder="כמות"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const updated = [...greenInvoiceItems];
+                          updated[index].quantity = Number(e.target.value) || 1;
+                          setGreenInvoiceItems(updated);
+                        }}
+                        className="input w-20"
+                        dir="ltr"
+                      />
+                      <input
+                        type="number"
+                        placeholder="מחיר יחידה"
+                        min="0"
+                        step="0.01"
+                        value={item.unitPrice || ''}
+                        onChange={(e) => {
+                          const updated = [...greenInvoiceItems];
+                          updated[index].unitPrice = Number(e.target.value) || 0;
+                          setGreenInvoiceItems(updated);
+                        }}
+                        className="input w-28"
+                        dir="ltr"
+                      />
+                      <span className="text-sm font-medium w-24 text-left" dir="ltr">
+                        ₪{(item.quantity * item.unitPrice).toLocaleString()}
+                      </span>
+                      {greenInvoiceItems.length > 1 && (
+                        <button
+                          onClick={() => {
+                            setGreenInvoiceItems(greenInvoiceItems.filter((_, i) => i !== index));
+                          }}
+                          className="text-red-400 hover:text-red-600 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGreenInvoiceItems([...greenInvoiceItems, { description: '', quantity: 1, unitPrice: 0 }])}
+                  className="mt-2 text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  הוסף שורה
+                </button>
+              </div>
+
+              {/* Total */}
+              <div className="flex justify-between items-center py-3 border-t border-b font-bold text-lg">
+                <span>סה"כ</span>
+                <span dir="ltr">₪{greenInvoiceItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0).toLocaleString()}</span>
+              </div>
+
+              {/* Due date */}
+              <div>
+                <label className="label">תאריך לתשלום</label>
+                <input
+                  type="date"
+                  value={greenInvoiceDueDate}
+                  onChange={(e) => setGreenInvoiceDueDate(e.target.value)}
+                  className="input"
+                  dir="ltr"
+                />
+              </div>
+
+              {/* Remarks */}
+              <div>
+                <label className="label">הערות</label>
+                <textarea
+                  value={greenInvoiceRemarks}
+                  onChange={(e) => setGreenInvoiceRemarks(e.target.value)}
+                  className="input min-h-[80px]"
+                  placeholder="הערות נוספות..."
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleGreenInvoiceSubmit}
+                  disabled={greenInvoiceMutation.isPending}
+                  className="btn-primary flex-1"
+                >
+                  {greenInvoiceMutation.isPending ? 'מפיק...' : 'הפק חשבונית'}
+                </button>
+                <button
+                  onClick={() => setIsGreenInvoiceModalOpen(false)}
+                  className="btn-secondary"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

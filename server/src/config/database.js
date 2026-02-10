@@ -416,6 +416,20 @@ const initializeDatabase = () => {
     // Column already exists, ignore
   }
 
+  // Activity logs table (for customer/lead activity tracking)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id TEXT PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      description TEXT,
+      user_id TEXT,
+      user_name TEXT,
+      created_at DATETIME DEFAULT (datetime('now'))
+    )
+  `);
+
   // Create indexes
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
@@ -424,6 +438,7 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date);
     CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+    CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_logs(entity_type, entity_id);
   `);
 
   // Create default admin user if not exists

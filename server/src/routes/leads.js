@@ -305,4 +305,37 @@ router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   }
 });
 
+// Get activities for lead
+router.get('/:id/activities', async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT * FROM activity_logs WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT 50',
+      ['lead', req.params.id]
+    );
+    res.json({ activities: result.rows });
+  } catch (error) {
+    console.error('Get activities error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פעולות' });
+  }
+});
+
+// Add activity to lead
+router.post('/:id/activities', async (req, res) => {
+  try {
+    const { action, description } = req.body;
+    if (!action) return res.status(400).json({ error: 'נדרש סוג פעולה' });
+
+    const activityId = db.generateUUID();
+    const result = await db.query(
+      `INSERT INTO activity_logs (id, entity_type, entity_id, action, description, user_id, user_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [activityId, 'lead', req.params.id, action, description || '', req.user?.id || '', (req.user?.firstName || '') + ' ' + (req.user?.lastName || '')]
+    );
+    res.status(201).json({ activity: result.rows[0] });
+  } catch (error) {
+    console.error('Add activity error:', error);
+    res.status(500).json({ error: 'שגיאה בהוספת פעולה' });
+  }
+});
+
 module.exports = router;

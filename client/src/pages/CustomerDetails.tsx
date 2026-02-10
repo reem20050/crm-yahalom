@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { customersApi } from '../services/api';
+import WhatsAppButton from '../components/WhatsAppButton';
+import ActivityLog from '../components/ActivityLog';
 
 const SERVICE_TYPE_OPTIONS = [
   { value: 'regular', label: 'שמירה רגילה' },
@@ -367,10 +369,13 @@ export default function CustomerDetails() {
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       {contact.phone && (
-                        <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-primary-600">
-                          <Phone className="w-4 h-4" />
-                          {contact.phone}
-                        </a>
+                        <div className="flex items-center gap-1">
+                          <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-primary-600">
+                            <Phone className="w-4 h-4" />
+                            {contact.phone}
+                          </a>
+                          <WhatsAppButton phone={contact.phone} name={contact.name} size="sm" />
+                        </div>
                       )}
                       {contact.email && (
                         <a href={`mailto:${contact.email}`} className="flex items-center gap-1 text-primary-600">
@@ -524,6 +529,9 @@ export default function CustomerDetails() {
               <p className="text-gray-500 text-center py-4">אין חוזים</p>
             )}
           </div>
+
+          {/* Activity Log */}
+          {id && <ActivityLog entityType="customer" entityId={id} />}
         </div>
 
         {/* Sidebar */}

@@ -165,4 +165,26 @@ export const searchApi = {
   search: (q: string) => api.get('/search', { params: { q } }),
 };
 
+// Integrations
+export const integrationsApi = {
+  getSettings: () => api.get('/integrations/settings'),
+  sendWhatsApp: (to: string, message: string) =>
+    api.post('/integrations/whatsapp/send', { to, message }),
+  createGreenInvoice: (data: Record<string, unknown>) =>
+    api.post('/integrations/green-invoice/create-invoice', data),
+  syncGreenInvoices: (fromDate?: string) =>
+    api.post('/integrations/green-invoice/sync', { fromDate }),
+  getSchedulerStatus: () => api.get('/integrations/scheduler/status'),
+};
+
+// Activities
+export const activitiesApi = {
+  getForLead: (leadId: string) => api.get(`/leads/${leadId}/activities`),
+  addToLead: (leadId: string, data: Record<string, unknown>) =>
+    api.post(`/leads/${leadId}/activities`, data),
+  getForCustomer: (customerId: string) => api.get(`/customers/${customerId}/activities`),
+  addToCustomer: (customerId: string, data: Record<string, unknown>) =>
+    api.post(`/customers/${customerId}/activities`, data),
+};
+
 export default api;

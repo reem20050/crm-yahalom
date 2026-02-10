@@ -6,8 +6,8 @@ import { z } from 'zod';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle } from 'lucide-react';
-import { shiftsApi, customersApi, sitesApi, employeesApi } from '../services/api';
+import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send } from 'lucide-react';
+import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi } from '../services/api';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,7 @@ interface ShiftAssignment {
   id: string;
   employee_id: string;
   employee_name: string;
+  employee_phone?: string;
   role: string;
   status: string;
   check_in_time?: string;
@@ -61,7 +62,7 @@ interface Employee {
 // ── Schema ──────────────────────────────────────────────────────────────────
 
 const shiftSchema = z.object({
-  site_id: z.string().min(1, 'נדרש לבחור אתר'),
+  site_id: z.string().optional(),
   customer_id: z.string().optional(),
   date: z.string().min(1, 'נדרש תאריך'),
   start_time: z.string().min(1, 'נדרשת שעת התחלה'),
@@ -95,6 +96,7 @@ function ShiftDetailModal({
   });
 
   const shift: ShiftDetail | undefined = shiftData?.shift ?? shiftData;
+  const assignments: ShiftAssignment[] = shiftData?.assignments ?? shift?.assignments ?? [];
 
   // Fetch active employees for the assign dropdown
   const { data: employeesData } = useQuery({
@@ -146,6 +148,31 @@ function ShiftDetailModal({
       toast.error('שגיאה במחיקת המשמרת');
     },
   });
+
+  // WhatsApp reminder mutation
+  const reminderMutation = useMutation({
+    mutationFn: ({ phone, name }: { phone: string; name: string }) => {
+      const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${shift?.date}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}`;
+      return integrationsApi.sendWhatsApp(phone, msg);
+    },
+    onSuccess: () => {
+      toast.success('תזכורת נשלחה בהצלחה');
+    },
+    onError: () => {
+      toast.error('שגיאה בשליחת תזכורת');
+    },
+  });
+
+  const sendReminderToAll = () => {
+    const withPhone = assignments.filter((a) => a.employee_phone);
+    if (withPhone.length === 0) {
+      toast.error('אין מספרי טלפון לעובדים המשובצים');
+      return;
+    }
+    withPhone.forEach((a) => {
+      reminderMutation.mutate({ phone: a.employee_phone!, name: a.employee_name });
+    });
+  };
 
   const handleAssign = () => {
     if (!selectedEmployeeId) {
@@ -240,14 +267,26 @@ function ShiftDetailModal({
 
             {/* Assigned Employees */}
             <div className="border-t pt-4">
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                עובדים משובצים ({shift.assignments?.length || 0}/{shift.required_employees})
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  עובדים משובצים ({assignments.length}/{shift.required_employees})
+                </h3>
+                {assignments.length > 0 && (
+                  <button
+                    onClick={sendReminderToAll}
+                    disabled={reminderMutation.isPending}
+                    className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    שלח תזכורת לכולם
+                  </button>
+                )}
+              </div>
 
-              {shift.assignments && shift.assignments.length > 0 ? (
+              {assignments.length > 0 ? (
                 <div className="space-y-2">
-                  {shift.assignments.map((assignment) => (
+                  {assignments.map((assignment) => (
                     <div
                       key={assignment.id}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -263,6 +302,16 @@ function ShiftDetailModal({
                       </div>
                       <div className="flex items-center gap-3">
                         {getStatusBadge(assignment.status)}
+                        {assignment.employee_phone && (
+                          <button
+                            onClick={() => reminderMutation.mutate({ phone: assignment.employee_phone!, name: assignment.employee_name })}
+                            disabled={reminderMutation.isPending}
+                            className="text-green-500 hover:text-green-700 hover:bg-green-50 p-1.5 rounded-lg transition-colors"
+                            title="שלח תזכורת WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => unassignMutation.mutate(assignment.id)}
                           disabled={unassignMutation.isPending}
@@ -600,19 +649,28 @@ export default function Shifts() {
 
               {/* Site Selection */}
               <div>
-                <label className="label">אתר *</label>
+                <label className="label">אתר</label>
                 <select
                   {...register('site_id')}
                   className="input"
                   disabled={!selectedCustomer}
                 >
-                  <option value="">בחר אתר...</option>
+                  <option value="">
+                    {!selectedCustomer
+                      ? 'יש לבחור לקוח תחילה...'
+                      : sitesData?.sites?.length === 0
+                        ? 'אין אתרים ללקוח זה'
+                        : 'בחר אתר...'}
+                  </option>
                   {sitesData?.sites?.map((site: { id: string; name: string; address: string }) => (
                     <option key={site.id} value={site.id}>
                       {site.name} - {site.address}
                     </option>
                   ))}
                 </select>
+                {!selectedCustomer && (
+                  <p className="text-sm text-gray-400 mt-1">בחר לקוח כדי לראות את רשימת האתרים</p>
+                )}
                 {errors.site_id && (
                   <p className="text-sm text-red-600 mt-1">{errors.site_id.message}</p>
                 )}

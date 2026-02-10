@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ArrowRight, Phone, Mail, Building2, MapPin, UserCheck, Edit, Save, X, Trash2 } from 'lucide-react';
+import { ArrowRight, Phone, Mail, Building2, MapPin, Edit, Save, X, Trash2, ArrowLeftRight, AlertTriangle } from 'lucide-react';
 import { leadsApi } from '../services/api';
+import WhatsAppButton from '../components/WhatsAppButton';
+import ActivityLog from '../components/ActivityLog';
 
 const statusOptions = [
   { value: 'new', label: 'חדש' },
@@ -45,6 +47,7 @@ export default function LeadDetails() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showConvertConfirm, setShowConvertConfirm] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({
     contact_name: '',
     company_name: '',
@@ -116,11 +119,13 @@ export default function LeadDetails() {
   const convertMutation = useMutation({
     mutationFn: () => leadsApi.convert(id!),
     onSuccess: (res) => {
-      toast.success('ליד הומר ללקוח בהצלחה');
+      queryClient.invalidateQueries({ queryKey: ['lead', id] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('הליד הומר ללקוח בהצלחה');
       navigate(`/customers/${res.data.customer.id}`);
     },
     onError: () => {
-      toast.error('שגיאה בהמרת ליד');
+      toast.error('שגיאה בהמרת הליד');
     },
   });
 
@@ -229,13 +234,13 @@ export default function LeadDetails() {
                 <Edit className="w-5 h-5" />
                 עריכה
               </button>
-              {lead?.status !== 'won' && lead?.status !== 'lost' && (
+              {lead?.status !== 'lost' && lead?.status !== 'converted' && (
                 <button
-                  onClick={() => convertMutation.mutate()}
+                  onClick={() => setShowConvertConfirm(true)}
                   disabled={convertMutation.isPending}
                   className="btn-success flex items-center gap-2"
                 >
-                  <UserCheck className="w-5 h-5" />
+                  <ArrowLeftRight className="w-5 h-5" />
                   המר ללקוח
                 </button>
               )}
@@ -278,6 +283,45 @@ export default function LeadDetails() {
               >
                 <Trash2 className="w-4 h-4" />
                 {deleteMutation.isPending ? 'מוחק...' : 'מחק'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to customer confirmation modal */}
+      {showConvertConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">המרת ליד ללקוח</h3>
+            </div>
+            <p className="text-gray-600">
+              האם אתה בטוח שברצונך להמר ליד זה ללקוח?
+            </p>
+            <p className="text-sm text-gray-500">
+              פעולה זו תיצור לקוח חדש מפרטי הליד
+            </p>
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => setShowConvertConfirm(false)}
+                className="btn-secondary"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={() => {
+                  convertMutation.mutate();
+                  setShowConvertConfirm(false);
+                }}
+                disabled={convertMutation.isPending}
+                className="btn-success flex items-center gap-2"
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+                {convertMutation.isPending ? 'ממיר...' : 'כן, המר'}
               </button>
             </div>
           </div>
@@ -328,9 +372,14 @@ export default function LeadDetails() {
                   <Phone className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">טלפון</p>
-                    <a href={`tel:${lead?.phone}`} className="text-primary-600 font-medium">
-                      {lead?.phone}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${lead?.phone}`} className="text-primary-600 font-medium">
+                        {lead?.phone}
+                      </a>
+                      {lead?.phone && (
+                        <WhatsAppButton phone={lead.phone} name={lead.contact_name} size="sm" />
+                      )}
+                    </div>
                   </div>
                 </div>
                 {lead?.email && (
@@ -378,26 +427,8 @@ export default function LeadDetails() {
             )
           )}
 
-          {/* Activity */}
-          <div className="card">
-            <h2 className="text-lg font-semibold mb-4">היסטוריה</h2>
-            {data?.activity?.length > 0 ? (
-              <div className="space-y-3">
-                {data.activity.map((item: { id: string; action: string; user_name: string; created_at: string }) => (
-                  <div key={item.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{item.action}</p>
-                      <p className="text-xs text-gray-500">
-                        {item.user_name} | {new Date(item.created_at).toLocaleString('he-IL')}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">אין היסטוריה</p>
-            )}
-          </div>
+          {/* Activity Log */}
+          {id && <ActivityLog entityType="lead" entityId={id} />}
         </div>
 
         {/* Sidebar */}

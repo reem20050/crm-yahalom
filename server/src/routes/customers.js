@@ -174,6 +174,20 @@ router.post('/:id/contacts', [
   }
 });
 
+// Get sites for customer
+router.get('/:id/sites', async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT * FROM sites WHERE customer_id = $1 ORDER BY name',
+      [req.params.id]
+    );
+    res.json({ sites: result.rows });
+  } catch (error) {
+    console.error('Get sites error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת אתרים' });
+  }
+});
+
 // Add site to customer
 router.post('/:id/sites', [
   body('name').notEmpty().withMessage('נדרש שם אתר'),
@@ -243,6 +257,39 @@ router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   } catch (error) {
     console.error('Delete customer error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת לקוח' });
+  }
+});
+
+// Get activities for customer
+router.get('/:id/activities', async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT * FROM activity_logs WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT 50',
+      ['customer', req.params.id]
+    );
+    res.json({ activities: result.rows });
+  } catch (error) {
+    console.error('Get activities error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פעולות' });
+  }
+});
+
+// Add activity to customer
+router.post('/:id/activities', async (req, res) => {
+  try {
+    const { action, description } = req.body;
+    if (!action) return res.status(400).json({ error: 'נדרש סוג פעולה' });
+
+    const activityId = db.generateUUID();
+    const result = await db.query(
+      `INSERT INTO activity_logs (id, entity_type, entity_id, action, description, user_id, user_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [activityId, 'customer', req.params.id, action, description || '', req.user?.id || '', (req.user?.firstName || '') + ' ' + (req.user?.lastName || '')]
+    );
+    res.status(201).json({ activity: result.rows[0] });
+  } catch (error) {
+    console.error('Add activity error:', error);
+    res.status(500).json({ error: 'שגיאה בהוספת פעולה' });
   }
 });
 

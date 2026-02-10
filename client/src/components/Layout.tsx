@@ -1,11 +1,13 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Users,
   Building2,
   UserCircle,
   Calendar,
+  CalendarDays,
   PartyPopper,
   Receipt,
   BarChart3,
@@ -16,10 +18,13 @@ import {
   ChevronDown,
   Settings,
   Search,
+  User,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { dashboardApi } from '../services/api';
 import { clsx } from 'clsx';
 import SearchCommand from './SearchCommand';
+import NotificationCenter from './NotificationCenter';
 
 const navigation = [
   { name: 'דשבורד', href: '/', icon: LayoutDashboard },
@@ -28,6 +33,7 @@ const navigation = [
   { name: 'עובדים', href: '/employees', icon: UserCircle },
   { name: 'משמרות', href: '/shifts', icon: Calendar },
   { name: 'אירועים', href: '/events', icon: PartyPopper },
+  { name: 'לוח שנה', href: '/calendar', icon: CalendarDays },
   { name: 'חשבוניות', href: '/invoices', icon: Receipt },
   { name: 'דוחות', href: '/reports', icon: BarChart3 },
   { name: 'הגדרות', href: '/settings', icon: Settings },
@@ -37,8 +43,20 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  // Fetch notifications for unread count badge
+  const { data: notificationsData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => dashboardApi.getNotifications().then((res) => res.data),
+    refetchInterval: 60000,
+  });
+
+  const unreadCount = (notificationsData?.notifications || []).filter(
+    (n: { is_read: number }) => !n.is_read
+  ).length;
 
   // Ctrl+K / Cmd+K keyboard shortcut to open search
   useEffect(() => {
@@ -131,6 +149,17 @@ export default function Layout() {
               {userMenuOpen && (
                 <div className="absolute bottom-full right-0 left-0 mb-2 bg-white rounded-lg shadow-lg border py-1">
                   <button
+                    onClick={() => {
+                      navigate('/profile');
+                      setUserMenuOpen(false);
+                      setSidebarOpen(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-gray-700 hover:bg-gray-50"
+                  >
+                    <User className="w-4 h-4" />
+                    <span>פרופיל</span>
+                  </button>
+                  <button
                     onClick={handleLogout}
                     className="flex items-center gap-2 w-full px-4 py-2 text-red-600 hover:bg-red-50"
                   >
@@ -168,10 +197,23 @@ export default function Layout() {
                   Ctrl+K
                 </kbd>
               </button>
-              <button className="relative p-2 rounded-lg hover:bg-gray-100">
-                <Bell className="w-6 h-6 text-gray-600" />
-                <span className="absolute top-1 left-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                  className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Bell className="w-6 h-6 text-gray-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 left-1 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                <NotificationCenter
+                  isOpen={isNotificationsOpen}
+                  onClose={() => setIsNotificationsOpen(false)}
+                />
+              </div>
             </div>
           </div>
         </header>
