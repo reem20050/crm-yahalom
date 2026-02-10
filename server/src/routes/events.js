@@ -73,6 +73,27 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get upcoming events (MUST be before /:id route)
+router.get('/upcoming/week', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT e.*,
+             c.company_name,
+             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
+      FROM events e
+      LEFT JOIN customers c ON e.customer_id = c.id
+      WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
+      AND e.status NOT IN ('completed', 'cancelled')
+      ORDER BY e.event_date, e.start_time
+    `);
+
+    res.json({ events: result.rows });
+  } catch (error) {
+    console.error('Get upcoming events error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת אירועים קרובים' });
+  }
+});
+
 // Get single event with assignments
 router.get('/:id', async (req, res) => {
   try {
@@ -129,23 +150,24 @@ router.post('/', [
       special_equipment, notes, price
     } = req.body;
 
+    const eventId = db.generateUUID();
     const result = await db.query(`
       INSERT INTO events (
-        customer_id, lead_id, event_name, event_type, event_date,
+        id, customer_id, lead_id, event_name, event_type, event_date,
         start_time, end_time, location, address, expected_attendance,
         required_guards, requires_weapon, requires_vehicle,
         special_equipment, notes, price
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
-    `, [customer_id, lead_id, event_name, event_type, event_date,
+    `, [eventId, customer_id, lead_id, event_name, event_type, event_date,
         start_time, end_time, location, address, expected_attendance,
-        required_guards, requires_weapon || false, requires_vehicle || false,
+        required_guards, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0,
         special_equipment, notes, price]);
 
     await db.query(`
-      INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
-      VALUES ($1, 'event', $2, 'create', $3)
-    `, [req.user.id, result.rows[0].id, JSON.stringify({ event_name })]);
+      INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
+      VALUES ($1, $2, 'event', $3, 'create', $4)
+    `, [db.generateUUID(), req.user.id, result.rows[0].id, JSON.stringify({ event_name })]);
 
     const createdEvent = result.rows[0];
 
@@ -234,11 +256,12 @@ router.post('/:id/assign', requireManager, [
       return res.status(400).json({ error: 'העובד כבר משובץ לאירוע זה' });
     }
 
+    const assignmentId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO event_assignments (event_id, employee_id, role)
-      VALUES ($1, $2, $3)
+      INSERT INTO event_assignments (id, event_id, employee_id, role)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [req.params.id, employee_id, role || 'guard']);
+    `, [assignmentId, req.params.id, employee_id, role || 'guard']);
 
     // Update event status if fully staffed
     const eventResult = await db.query('SELECT required_guards FROM events WHERE id = $1', [req.params.id]);
@@ -277,26 +300,7 @@ router.delete('/:id/assign/:assignmentId', requireManager, async (req, res) => {
   }
 });
 
-// Get upcoming events
-router.get('/upcoming/week', async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT e.*,
-             c.company_name,
-             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
-      FROM events e
-      LEFT JOIN customers c ON e.customer_id = c.id
-      WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
-      AND e.status NOT IN ('completed', 'cancelled')
-      ORDER BY e.event_date, e.start_time
-    `);
-
-    res.json({ events: result.rows });
-  } catch (error) {
-    console.error('Get upcoming events error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת אירועים קרובים' });
-  }
-});
+// Note: /upcoming/week route moved before /:id to prevent route shadowing
 
 // Mark event as completed
 router.post('/:id/complete', requireManager, async (req, res) => {
@@ -320,6 +324,28 @@ router.post('/:id/complete', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Complete event error:', error);
     res.status(500).json({ error: 'שגיאה בעדכון אירוע' });
+  }
+});
+
+// Delete event (admin/manager only)
+router.delete('/:id', requireManager, async (req, res) => {
+  try {
+    // Delete related assignments first
+    await db.query('DELETE FROM event_assignments WHERE event_id = $1', [req.params.id]);
+
+    const result = await db.query(
+      'DELETE FROM events WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'אירוע לא נמצא' });
+    }
+
+    res.json({ message: 'אירוע נמחק בהצלחה' });
+  } catch (error) {
+    console.error('Delete event error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת אירוע' });
   }
 });
 

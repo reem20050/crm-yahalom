@@ -99,16 +99,17 @@ router.post('/', [
 
     const { company_name, business_id, address, city, service_type, payment_terms, notes } = req.body;
 
+    const customerId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO customers (company_name, business_id, address, city, service_type, payment_terms, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO customers (id, company_name, business_id, address, city, service_type, payment_terms, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [company_name, business_id, address, city, service_type, payment_terms, notes]);
+    `, [customerId, company_name, business_id, address, city, service_type, payment_terms, notes]);
 
     await db.query(`
-      INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
-      VALUES ($1, 'customer', $2, 'create', $3)
-    `, [req.user.id, result.rows[0].id, JSON.stringify(result.rows[0])]);
+      INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
+      VALUES ($1, $2, 'customer', $3, 'create', $4)
+    `, [db.generateUUID(), req.user.id, result.rows[0].id, JSON.stringify(result.rows[0])]);
 
     res.status(201).json({ customer: result.rows[0] });
   } catch (error) {
@@ -159,11 +160,12 @@ router.post('/:id/contacts', [
       await db.query('UPDATE contacts SET is_primary = 0 WHERE customer_id = $1', [req.params.id]);
     }
 
+    const contactId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO contacts (customer_id, name, role, phone, email, is_primary)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO contacts (id, customer_id, name, role, phone, email, is_primary)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [req.params.id, name, role, phone, email, is_primary || false]);
+    `, [contactId, req.params.id, name, role, phone, email, is_primary ? 1 : 0]);
 
     res.status(201).json({ contact: result.rows[0] });
   } catch (error) {
@@ -185,11 +187,12 @@ router.post('/:id/sites', [
 
     const { name, address, city, requirements, requires_weapon, notes } = req.body;
 
+    const siteId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO sites (customer_id, name, address, city, requirements, requires_weapon, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO sites (id, customer_id, name, address, city, requirements, requires_weapon, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [req.params.id, name, address, city, requirements, requires_weapon || false, notes]);
+    `, [siteId, req.params.id, name, address, city, requirements, requires_weapon ? 1 : 0, notes]);
 
     res.status(201).json({ site: result.rows[0] });
   } catch (error) {
@@ -205,16 +208,41 @@ router.post('/:id/contracts', [
   try {
     const { start_date, end_date, monthly_value, terms, document_url, auto_renewal, renewal_reminder_days } = req.body;
 
+    const contractId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO contracts (customer_id, start_date, end_date, monthly_value, terms, document_url, auto_renewal, renewal_reminder_days)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO contracts (id, customer_id, start_date, end_date, monthly_value, terms, document_url, auto_renewal, renewal_reminder_days)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [req.params.id, start_date, end_date, monthly_value, terms, document_url, auto_renewal ?? true, renewal_reminder_days || 30]);
+    `, [contractId, req.params.id, start_date, end_date, monthly_value, terms, document_url, auto_renewal ?? true, renewal_reminder_days || 30]);
 
     res.status(201).json({ contract: result.rows[0] });
   } catch (error) {
     console.error('Add contract error:', error);
     res.status(500).json({ error: 'שגיאה בהוספת חוזה' });
+  }
+});
+
+// Delete customer (admin/manager only)
+router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    // Delete related data first
+    await db.query('DELETE FROM contacts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM sites WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM contracts WHERE customer_id = $1', [req.params.id]);
+
+    const result = await db.query(
+      'DELETE FROM customers WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'לקוח לא נמצא' });
+    }
+
+    res.json({ message: 'לקוח נמחק בהצלחה' });
+  } catch (error) {
+    console.error('Delete customer error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת לקוח' });
   }
 });
 

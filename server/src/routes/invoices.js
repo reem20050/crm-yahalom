@@ -80,6 +80,54 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get overdue invoices (MUST be before /:id route)
+router.get('/status/overdue', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT i.*,
+             c.company_name,
+             CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      WHERE i.status = 'sent'
+      AND i.due_date < date('now')
+      ORDER BY i.due_date
+    `);
+
+    res.json({ invoices: result.rows });
+  } catch (error) {
+    console.error('Get overdue invoices error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת חשבוניות באיחור' });
+  }
+});
+
+// Get invoice summary (MUST be before /:id route)
+router.get('/summary/monthly', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    const targetYear = year || new Date().getFullYear();
+    const targetMonth = month || new Date().getMonth() + 1;
+
+    const result = await db.query(`
+      SELECT
+        COUNT(*) as total_invoices,
+        COALESCE(SUM(total_amount), 0) as total_amount,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as paid_amount,
+        COALESCE(SUM(CASE WHEN status = 'sent' THEN total_amount ELSE 0 END), 0) as pending_amount,
+        SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) as paid_count,
+        SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as pending_count
+      FROM invoices
+      WHERE CAST(strftime('%Y', issue_date) AS INTEGER) = $1
+      AND CAST(strftime('%m', issue_date) AS INTEGER) = $2
+    `, [targetYear, targetMonth]);
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get invoice summary error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת סיכום חשבוניות' });
+  }
+});
+
 // Get single invoice
 router.get('/:id', async (req, res) => {
   try {
@@ -127,12 +175,13 @@ router.post('/', requireManager, [
     const vatCalc = vat_amount || (amount * 0.17);
     const totalCalc = total_amount || (amount + vatCalc);
 
+    const invoiceId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO invoices (customer_id, event_id, issue_date, due_date,
+      INSERT INTO invoices (id, customer_id, event_id, issue_date, due_date,
                            amount, vat_amount, total_amount, description)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [customer_id, event_id, issue_date, due_date,
+    `, [invoiceId, customer_id, event_id, issue_date, due_date,
         amount, vatCalc, totalCalc, description]);
 
     const invoice = result.rows[0];
@@ -236,51 +285,32 @@ router.patch('/:id/status', requireManager, [
   }
 });
 
-// Get overdue invoices
-router.get('/status/overdue', async (req, res) => {
+// Delete invoice (admin/manager only, draft status only)
+router.delete('/:id', requireManager, async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT i.*,
-             c.company_name,
-             CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
-      FROM invoices i
-      LEFT JOIN customers c ON i.customer_id = c.id
-      WHERE i.status = 'sent'
-      AND i.due_date < date('now')
-      ORDER BY i.due_date
-    `);
+    // Check if invoice is in draft status
+    const invoiceResult = await db.query(
+      'SELECT status FROM invoices WHERE id = $1',
+      [req.params.id]
+    );
 
-    res.json({ invoices: result.rows });
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'חשבונית לא נמצאה' });
+    }
+
+    if (invoiceResult.rows[0].status !== 'draft') {
+      return res.status(400).json({ error: 'ניתן למחוק רק חשבוניות בסטטוס טיוטה' });
+    }
+
+    const result = await db.query(
+      'DELETE FROM invoices WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
+    res.json({ message: 'חשבונית נמחקה בהצלחה' });
   } catch (error) {
-    console.error('Get overdue invoices error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת חשבוניות באיחור' });
-  }
-});
-
-// Get invoice summary
-router.get('/summary/monthly', async (req, res) => {
-  try {
-    const { year, month } = req.query;
-    const targetYear = year || new Date().getFullYear();
-    const targetMonth = month || new Date().getMonth() + 1;
-
-    const result = await db.query(`
-      SELECT
-        COUNT(*) as total_invoices,
-        COALESCE(SUM(total_amount), 0) as total_amount,
-        COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as paid_amount,
-        COALESCE(SUM(CASE WHEN status = 'sent' THEN total_amount ELSE 0 END), 0) as pending_amount,
-        SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) as paid_count,
-        SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as pending_count
-      FROM invoices
-      WHERE CAST(strftime('%Y', issue_date) AS INTEGER) = $1
-      AND CAST(strftime('%m', issue_date) AS INTEGER) = $2
-    `, [targetYear, targetMonth]);
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Get invoice summary error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת סיכום חשבוניות' });
+    console.error('Delete invoice error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת חשבונית' });
   }
 });
 

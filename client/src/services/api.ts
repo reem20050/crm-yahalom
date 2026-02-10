@@ -68,6 +68,7 @@ export const customersApi = {
   getOne: (id: string) => api.get(`/customers/${id}`),
   create: (data: Record<string, unknown>) => api.post('/customers', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/customers/${id}`, data),
+  delete: (id: string) => api.delete(`/customers/${id}`),
   addContact: (customerId: string, data: Record<string, unknown>) =>
     api.post(`/customers/${customerId}/contacts`, data),
   addSite: (customerId: string, data: Record<string, unknown>) =>
@@ -82,6 +83,7 @@ export const employeesApi = {
   getOne: (id: string) => api.get(`/employees/${id}`),
   create: (data: Record<string, unknown>) => api.post('/employees', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/employees/${id}`, data),
+  delete: (id: string) => api.delete(`/employees/${id}`),
   addDocument: (employeeId: string, data: Record<string, unknown>) =>
     api.post(`/employees/${employeeId}/documents`, data),
   setAvailability: (employeeId: string, availability: unknown[]) =>
@@ -106,6 +108,7 @@ export const sitesApi = {
 export const shiftsApi = {
   getAll: (params?: Record<string, unknown>) => api.get('/shifts', { params }),
   getOne: (id: string) => api.get(`/shifts/${id}`),
+  delete: (id: string) => api.delete(`/shifts/${id}`),
   create: (data: Record<string, unknown>) => api.post('/shifts', data),
   createRecurring: (data: Record<string, unknown>) => api.post('/shifts/recurring', data),
   assign: (shiftId: string, data: Record<string, unknown>) =>
@@ -125,6 +128,7 @@ export const eventsApi = {
   getOne: (id: string) => api.get(`/events/${id}`),
   create: (data: Record<string, unknown>) => api.post('/events', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/events/${id}`, data),
+  delete: (id: string) => api.delete(`/events/${id}`),
   assign: (eventId: string, data: Record<string, unknown>) =>
     api.post(`/events/${eventId}/assign`, data),
   unassign: (eventId: string, assignmentId: string) =>
@@ -138,6 +142,7 @@ export const eventsApi = {
 export const invoicesApi = {
   getAll: (params?: Record<string, unknown>) => api.get('/invoices', { params }),
   getOne: (id: string) => api.get(`/invoices/${id}`),
+  delete: (id: string) => api.delete(`/invoices/${id}`),
   create: (data: Record<string, unknown>) => api.post('/invoices', data),
   updateStatus: (id: string, status: string, paymentDate?: string) =>
     api.patch(`/invoices/${id}/status`, { status, payment_date: paymentDate }),

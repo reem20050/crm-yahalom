@@ -6,8 +6,59 @@ import { z } from 'zod';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car } from 'lucide-react';
-import { shiftsApi, customersApi, sitesApi } from '../services/api';
+import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle } from 'lucide-react';
+import { shiftsApi, customersApi, sitesApi, employeesApi } from '../services/api';
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+interface ShiftAssignment {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  role: string;
+  status: string;
+  check_in_time?: string;
+  check_out_time?: string;
+}
+
+interface ShiftSummary {
+  id: string;
+  company_name: string;
+  site_name: string;
+  start_time: string;
+  end_time: string;
+  assigned_count: number;
+  required_employees: number;
+  requires_weapon: boolean;
+  requires_vehicle: boolean;
+  status: string;
+}
+
+interface ShiftDetail {
+  id: string;
+  customer_id: string;
+  site_id: string;
+  company_name: string;
+  site_name: string;
+  site_address?: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  required_employees: number;
+  requires_weapon: boolean;
+  requires_vehicle: boolean;
+  notes?: string;
+  status: string;
+  assignments: ShiftAssignment[];
+}
+
+interface Employee {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
+// ── Schema ──────────────────────────────────────────────────────────────────
 
 const shiftSchema = z.object({
   site_id: z.string().min(1, 'נדרש לבחור אתר'),
@@ -23,9 +74,312 @@ const shiftSchema = z.object({
 
 type ShiftForm = z.infer<typeof shiftSchema>;
 
+// ── Shift Detail Modal Component ────────────────────────────────────────────
+
+function ShiftDetailModal({
+  shiftId,
+  onClose,
+}: {
+  shiftId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [assignRole, setAssignRole] = useState('מאבטח');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Fetch shift details (includes assignments)
+  const { data: shiftData, isLoading: isLoadingShift } = useQuery({
+    queryKey: ['shift-detail', shiftId],
+    queryFn: () => shiftsApi.getOne(shiftId).then((res) => res.data),
+  });
+
+  const shift: ShiftDetail | undefined = shiftData?.shift ?? shiftData;
+
+  // Fetch active employees for the assign dropdown
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees-active'],
+    queryFn: () => employeesApi.getAll({ status: 'active', limit: 200 }).then((res) => res.data),
+  });
+
+  const employees: Employee[] = employeesData?.employees ?? [];
+
+  // Assign employee mutation
+  const assignMutation = useMutation({
+    mutationFn: (data: { employee_id: string; role: string }) =>
+      shiftsApi.assign(shiftId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shift-detail', shiftId] });
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      toast.success('העובד שובץ בהצלחה');
+      setSelectedEmployeeId('');
+      setAssignRole('מאבטח');
+    },
+    onError: () => {
+      toast.error('שגיאה בשיבוץ העובד');
+    },
+  });
+
+  // Unassign employee mutation
+  const unassignMutation = useMutation({
+    mutationFn: (assignmentId: string) =>
+      shiftsApi.unassign(shiftId, assignmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shift-detail', shiftId] });
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      toast.success('העובד הוסר מהמשמרת');
+    },
+    onError: () => {
+      toast.error('שגיאה בהסרת העובד');
+    },
+  });
+
+  // Delete shift mutation
+  const deleteMutation = useMutation({
+    mutationFn: () => shiftsApi.delete(shiftId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      toast.success('המשמרת נמחקה בהצלחה');
+      onClose();
+    },
+    onError: () => {
+      toast.error('שגיאה במחיקת המשמרת');
+    },
+  });
+
+  const handleAssign = () => {
+    if (!selectedEmployeeId) {
+      toast.error('נא לבחור עובד');
+      return;
+    }
+    assignMutation.mutate({ employee_id: selectedEmployeeId, role: assignRole });
+  };
+
+  const handleDelete = () => {
+    deleteMutation.mutate();
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'checked_in':
+        return <span className="badge-success">נכנס</span>;
+      case 'checked_out':
+        return <span className="badge-info">יצא</span>;
+      case 'no_show':
+        return <span className="badge-danger">לא הגיע</span>;
+      default:
+        return <span className="badge-warning">משובץ</span>;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-bold">פרטי משמרת</h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {isLoadingShift ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+          </div>
+        ) : shift ? (
+          <div className="p-6 space-y-6">
+            {/* Shift Info */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="font-semibold text-lg">{shift.company_name}</p>
+                  <p className="text-gray-500">{shift.site_name}{shift.site_address ? ` - ${shift.site_address}` : ''}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-gray-700">
+                    {shift.date ? format(new Date(shift.date + 'T00:00:00'), 'EEEE, d MMMM yyyy', { locale: he }) : ''}
+                  </p>
+                  <p className="text-gray-500">{shift.start_time} - {shift.end_time}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-gray-400" />
+                  <span>נדרשים: {shift.required_employees} עובדים</span>
+                </div>
+                {shift.requires_weapon && (
+                  <div className="flex items-center gap-1 text-orange-600">
+                    <Shield className="w-4 h-4" />
+                    <span className="text-sm">נדרש נשק</span>
+                  </div>
+                )}
+                {shift.requires_vehicle && (
+                  <div className="flex items-center gap-1 text-blue-600">
+                    <Car className="w-4 h-4" />
+                    <span className="text-sm">נדרש רכב</span>
+                  </div>
+                )}
+              </div>
+
+              {shift.notes && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">{shift.notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Assigned Employees */}
+            <div className="border-t pt-4">
+              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                עובדים משובצים ({shift.assignments?.length || 0}/{shift.required_employees})
+              </h3>
+
+              {shift.assignments && shift.assignments.length > 0 ? (
+                <div className="space-y-2">
+                  {shift.assignments.map((assignment) => (
+                    <div
+                      key={assignment.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-medium">
+                          {assignment.employee_name?.charAt(0) || '?'}
+                        </div>
+                        <div>
+                          <p className="font-medium">{assignment.employee_name}</p>
+                          <p className="text-sm text-gray-500">{assignment.role}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {getStatusBadge(assignment.status)}
+                        <button
+                          onClick={() => unassignMutation.mutate(assignment.id)}
+                          disabled={unassignMutation.isPending}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg transition-colors text-sm"
+                          title="הסר מהמשמרת"
+                        >
+                          הסר
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm text-center py-4">
+                  אין עובדים משובצים למשמרת זו
+                </p>
+              )}
+            </div>
+
+            {/* Assign Employee Section */}
+            <div className="border-t pt-4">
+              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                <UserPlus className="w-5 h-5" />
+                שבץ עובד
+              </h3>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="label">עובד</label>
+                  <select
+                    value={selectedEmployeeId}
+                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                    className="input"
+                  >
+                    <option value="">בחר עובד...</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-40">
+                  <label className="label">תפקיד</label>
+                  <input
+                    type="text"
+                    value={assignRole}
+                    onChange={(e) => setAssignRole(e.target.value)}
+                    className="input"
+                    placeholder="מאבטח"
+                  />
+                </div>
+                <button
+                  onClick={handleAssign}
+                  disabled={assignMutation.isPending || !selectedEmployeeId}
+                  className="btn-primary whitespace-nowrap"
+                >
+                  {assignMutation.isPending ? 'משבץ...' : 'שבץ'}
+                </button>
+              </div>
+            </div>
+
+            {/* Delete Shift */}
+            <div className="border-t pt-4">
+              {!showDeleteConfirm ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="btn-danger flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  מחק משמרת
+                </button>
+              ) : (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                    <p className="font-medium text-red-800">
+                      האם אתה בטוח שברצונך למחוק משמרת זו?
+                    </p>
+                  </div>
+                  <p className="text-sm text-red-600 mb-3">
+                    פעולה זו תמחק את המשמרת ואת כל השיבוצים שלה. לא ניתן לבטל פעולה זו.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleteMutation.isPending}
+                      className="btn-danger"
+                    >
+                      {deleteMutation.isPending ? 'מוחק...' : 'כן, מחק'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="btn-secondary"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-48 text-gray-400">
+            לא נמצאו פרטי משמרת
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Shifts Page Component ──────────────────────────────────────────────
+
 export default function Shifts() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const queryClient = useQueryClient();
@@ -162,20 +516,10 @@ export default function Shifts() {
 
                 <div className="space-y-2">
                   {shifts.length > 0 ? (
-                    shifts.map((shift: {
-                      id: string;
-                      company_name: string;
-                      site_name: string;
-                      start_time: string;
-                      end_time: string;
-                      assigned_count: number;
-                      required_employees: number;
-                      requires_weapon: boolean;
-                      requires_vehicle: boolean;
-                      status: string;
-                    }) => (
+                    shifts.map((shift: ShiftSummary) => (
                       <div
                         key={shift.id}
+                        onClick={() => setSelectedShiftId(shift.id)}
                         className={`p-2 rounded text-xs cursor-pointer hover:shadow-md transition-shadow ${
                           shift.assigned_count >= shift.required_employees
                             ? 'bg-green-50 border border-green-200'
@@ -205,6 +549,14 @@ export default function Shifts() {
             );
           })}
         </div>
+      )}
+
+      {/* Shift Detail Modal */}
+      {selectedShiftId && (
+        <ShiftDetailModal
+          shiftId={selectedShiftId}
+          onClose={() => setSelectedShiftId(null)}
+        />
       )}
 
       {/* Create Shift Modal */}

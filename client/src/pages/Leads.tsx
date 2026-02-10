@@ -13,6 +13,7 @@ import {
   Calendar,
   X,
   Filter,
+  Trash2,
 } from 'lucide-react';
 import { leadsApi } from '../services/api';
 
@@ -71,6 +72,17 @@ export default function Leads() {
     },
     onError: () => {
       toast.error('שגיאה ביצירת ליד');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => leadsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('נמחק בהצלחה');
+    },
+    onError: () => {
+      toast.error('שגיאה במחיקה');
     },
   });
 
@@ -191,12 +203,26 @@ export default function Leads() {
                       </span>
                     </td>
                     <td>
-                      <Link
-                        to={`/leads/${lead.id}`}
-                        className="text-primary-600 hover:text-primary-700 font-medium"
-                      >
-                        צפייה
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/leads/${lead.id}`}
+                          className="text-primary-600 hover:text-primary-700 font-medium"
+                        >
+                          צפייה
+                        </Link>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (confirm('האם אתה בטוח שברצונך למחוק ליד זה?')) {
+                              deleteMutation.mutate(lead.id);
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="מחק"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

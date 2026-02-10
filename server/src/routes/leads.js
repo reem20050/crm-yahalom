@@ -83,6 +83,28 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get lead statistics (MUST be before /:id route)
+router.get('/stats/summary', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT
+        SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_leads,
+        SUM(CASE WHEN status = 'contacted' THEN 1 ELSE 0 END) as contacted,
+        SUM(CASE WHEN status = 'proposal_sent' THEN 1 ELSE 0 END) as proposals,
+        SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
+        SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END) as lost,
+        SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as this_month,
+        COALESCE(SUM(CASE WHEN status != 'lost' THEN expected_value ELSE 0 END), 0) as pipeline_value
+      FROM leads
+    `);
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get lead stats error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת סטטיסטיקות' });
+  }
+});
+
 // Get single lead
 router.get('/:id', async (req, res) => {
   try {
@@ -134,19 +156,20 @@ router.post('/', [
       service_type, location, description, assigned_to, expected_value
     } = req.body;
 
+    const leadId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO leads (company_name, contact_name, phone, email, source,
+      INSERT INTO leads (id, company_name, contact_name, phone, email, source,
                         service_type, location, description, assigned_to, expected_value)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [company_name, contact_name, phone, email, source,
+    `, [leadId, company_name, contact_name, phone, email, source,
         service_type, location, description, assigned_to, expected_value]);
 
     // Log activity
     await db.query(`
-      INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
-      VALUES ($1, 'lead', $2, 'create', $3)
-    `, [req.user.id, result.rows[0].id, JSON.stringify(result.rows[0])]);
+      INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
+      VALUES ($1, $2, 'lead', $3, 'create', $4)
+    `, [db.generateUUID(), req.user.id, result.rows[0].id, JSON.stringify(result.rows[0])]);
 
     // Send WhatsApp notification (non-blocking)
     whatsappHelper.notifyNewLead(result.rows[0]).catch(() => {});
@@ -194,9 +217,9 @@ router.put('/:id', async (req, res) => {
 
     // Log activity
     await db.query(`
-      INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
-      VALUES ($1, 'lead', $2, 'update', $3)
-    `, [req.user.id, req.params.id, JSON.stringify(req.body)]);
+      INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
+      VALUES ($1, $2, 'lead', $3, 'update', $4)
+    `, [db.generateUUID(), req.user.id, req.params.id, JSON.stringify(req.body)]);
 
     // Notify on status change via WhatsApp (non-blocking)
     if (status) {
@@ -228,19 +251,21 @@ router.post('/:id/convert', async (req, res) => {
     const lead = leadResult.rows[0];
 
     // Create customer
+    const newCustomerId = db.generateUUID();
     const customerResult = await db.query(`
-      INSERT INTO customers (company_name, service_type, lead_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO customers (id, company_name, service_type, lead_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [lead.company_name || lead.contact_name, lead.service_type, lead.id]);
+    `, [newCustomerId, lead.company_name || lead.contact_name, lead.service_type, lead.id]);
 
     const customer = customerResult.rows[0];
 
     // Create contact
+    const newContactId = db.generateUUID();
     await db.query(`
-      INSERT INTO contacts (customer_id, name, phone, email, is_primary)
-      VALUES ($1, $2, $3, $4, true)
-    `, [customer.id, lead.contact_name, lead.phone, lead.email]);
+      INSERT INTO contacts (id, customer_id, name, phone, email, is_primary)
+      VALUES ($1, $2, $3, $4, $5, 1)
+    `, [newContactId, customer.id, lead.contact_name, lead.phone, lead.email]);
 
     // Update lead status
     await db.query(
@@ -250,9 +275,9 @@ router.post('/:id/convert', async (req, res) => {
 
     // Log activity
     await db.query(`
-      INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
-      VALUES ($1, 'lead', $2, 'convert', $3)
-    `, [req.user.id, lead.id, JSON.stringify({ customer_id: customer.id })]);
+      INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
+      VALUES ($1, $2, 'lead', $3, 'convert', $4)
+    `, [db.generateUUID(), req.user.id, lead.id, JSON.stringify({ customer_id: customer.id })]);
 
     res.json({ customer, message: 'ליד הומר ללקוח בהצלחה' });
   } catch (error) {
@@ -277,28 +302,6 @@ router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   } catch (error) {
     console.error('Delete lead error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת ליד' });
-  }
-});
-
-// Get lead statistics
-router.get('/stats/summary', async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT
-        SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_leads,
-        SUM(CASE WHEN status = 'contacted' THEN 1 ELSE 0 END) as contacted,
-        SUM(CASE WHEN status = 'proposal_sent' THEN 1 ELSE 0 END) as proposals,
-        SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
-        SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END) as lost,
-        SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as this_month,
-        COALESCE(SUM(CASE WHEN status != 'lost' THEN expected_value ELSE 0 END), 0) as pipeline_value
-      FROM leads
-    `);
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Get lead stats error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת סטטיסטיקות' });
   }
 });
 

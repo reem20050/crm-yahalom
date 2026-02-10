@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Search, Building2, MapPin, Plus, X } from 'lucide-react';
+import { Search, Building2, MapPin, Plus, X, Trash2 } from 'lucide-react';
 import { customersApi } from '../services/api';
 
 const customerSchema = z.object({
@@ -45,6 +45,17 @@ export default function Customers() {
     },
     onError: () => {
       toast.error('שגיאה ביצירת לקוח');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => customersApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('נמחק בהצלחה');
+    },
+    onError: () => {
+      toast.error('שגיאה במחיקה');
     },
   });
 
@@ -105,32 +116,44 @@ export default function Customers() {
             sites_count: number;
             active_contracts: number;
           }) => (
-            <Link
+            <div
               key={customer.id}
-              to={`/customers/${customer.id}`}
               className="card hover:shadow-md transition-shadow"
             >
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-                  <Building2 className="w-6 h-6 text-primary-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{customer.company_name}</h3>
-                  {customer.city && (
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {customer.city}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className={`badge ${customer.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
-                      {customer.status === 'active' ? 'פעיל' : 'לא פעיל'}
-                    </span>
-                    <span className="text-sm text-gray-500">{customer.sites_count} אתרים</span>
+                <Link to={`/customers/${customer.id}`} className="flex items-start gap-4 flex-1">
+                  <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-primary-600" />
                   </div>
-                </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">{customer.company_name}</h3>
+                    {customer.city && (
+                      <p className="text-sm text-gray-500 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {customer.city}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className={`badge ${customer.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
+                        {customer.status === 'active' ? 'פעיל' : 'לא פעיל'}
+                      </span>
+                      <span className="text-sm text-gray-500">{customer.sites_count} אתרים</span>
+                    </div>
+                  </div>
+                </Link>
+                <button
+                  onClick={() => {
+                    if (confirm('האם אתה בטוח שברצונך למחוק לקוח זה?')) {
+                      deleteMutation.mutate(customer.id);
+                    }
+                  }}
+                  className="text-red-400 hover:text-red-600 p-1"
+                  title="מחק"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       ) : (

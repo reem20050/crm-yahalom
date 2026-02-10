@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Search, UserCircle, Phone, Shield, Plus, X } from 'lucide-react';
+import { Search, UserCircle, Phone, Shield, Plus, X, Trash2 } from 'lucide-react';
 import { employeesApi } from '../services/api';
 
 const employeeSchema = z.object({
@@ -48,6 +48,17 @@ export default function Employees() {
     },
     onError: () => {
       toast.error('שגיאה ביצירת עובד');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => employeesApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('נמחק בהצלחה');
+    },
+    onError: () => {
+      toast.error('שגיאה במחיקה');
     },
   });
 
@@ -111,37 +122,49 @@ export default function Employees() {
             has_weapon_license: boolean;
             employment_type: string;
           }) => (
-            <Link
+            <div
               key={employee.id}
-              to={`/employees/${employee.id}`}
               className="card hover:shadow-md transition-shadow"
             >
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                  <UserCircle className="w-8 h-8 text-gray-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">
-                    {employee.first_name} {employee.last_name}
-                  </h3>
-                  <p className="text-sm text-gray-500 flex items-center gap-1">
-                    <Phone className="w-3 h-3" />
-                    {employee.phone}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className={`badge ${employee.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
-                      {employee.status === 'active' ? 'פעיל' : 'לא פעיל'}
-                    </span>
-                    {employee.has_weapon_license && (
-                      <span className="badge badge-info flex items-center gap-1">
-                        <Shield className="w-3 h-3" />
-                        נשק
-                      </span>
-                    )}
+                <Link to={`/employees/${employee.id}`} className="flex items-start gap-4 flex-1">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                    <UserCircle className="w-8 h-8 text-gray-400" />
                   </div>
-                </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">
+                      {employee.first_name} {employee.last_name}
+                    </h3>
+                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                      <Phone className="w-3 h-3" />
+                      {employee.phone}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`badge ${employee.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
+                        {employee.status === 'active' ? 'פעיל' : 'לא פעיל'}
+                      </span>
+                      {employee.has_weapon_license && (
+                        <span className="badge badge-info flex items-center gap-1">
+                          <Shield className="w-3 h-3" />
+                          נשק
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+                <button
+                  onClick={() => {
+                    if (confirm('האם אתה בטוח שברצונך למחוק עובד זה?')) {
+                      deleteMutation.mutate(employee.id);
+                    }
+                  }}
+                  className="text-red-400 hover:text-red-600 p-1"
+                  title="מחק"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       ) : (

@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const { query } = require('../config/database');
 
 // Verify JWT token middleware
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -13,9 +13,9 @@ const authenticateToken = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from database (SQLite uses ? placeholder)
-    const result = query(
-      'SELECT id, email, first_name, last_name, role, is_active FROM users WHERE id = ?',
+    // Get user from database
+    const result = await query(
+      'SELECT id, email, first_name, last_name, role, is_active FROM users WHERE id = $1',
       [decoded.userId]
     );
 

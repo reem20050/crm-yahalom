@@ -78,6 +78,41 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get today's shifts summary (MUST be before /:id route)
+router.get('/summary/today', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT
+        COUNT(*) as total_shifts,
+        SUM(CASE WHEN s.status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
+        SUM(CASE WHEN s.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed,
+        (SELECT COUNT(*) FROM shift_assignments sa
+         JOIN shifts sh ON sa.shift_id = sh.id
+         WHERE sh.date = date('now') AND sa.status = 'no_show') as no_shows
+      FROM shifts s
+      WHERE s.date = date('now')
+    `);
+
+    const unassignedResult = await db.query(`
+      SELECT s.*, c.company_name, si.name as site_name
+      FROM shifts s
+      LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN sites si ON s.site_id = si.id
+      WHERE s.date = date('now')
+      AND (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) < s.required_employees
+    `);
+
+    res.json({
+      summary: result.rows[0],
+      unassignedShifts: unassignedResult.rows
+    });
+  } catch (error) {
+    console.error('Get today summary error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת סיכום יומי' });
+  }
+});
+
 // Get single shift
 router.get('/:id', async (req, res) => {
   try {
@@ -133,13 +168,14 @@ router.post('/', requireManager, [
       required_employees, requires_weapon, requires_vehicle, notes
     } = req.body;
 
+    const shiftId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO shifts (site_id, customer_id, date, start_time, end_time,
+      INSERT INTO shifts (id, site_id, customer_id, date, start_time, end_time,
                          required_employees, requires_weapon, requires_vehicle, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
-    `, [site_id, customer_id, date, start_time, end_time,
-        required_employees || 1, requires_weapon || false, requires_vehicle || false, notes]);
+    `, [shiftId, site_id, customer_id, date, start_time, end_time,
+        required_employees || 1, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, notes]);
 
     res.status(201).json({ shift: result.rows[0] });
   } catch (error) {
@@ -171,13 +207,14 @@ router.post('/recurring', requireManager, [
       if (days_of_week.includes(dayOfWeek)) {
         const dateStr = currentDate.toISOString().split('T')[0];
 
+        const recurringShiftId = db.generateUUID();
         const result = await db.query(`
-          INSERT INTO shifts (site_id, customer_id, date, start_time, end_time,
+          INSERT INTO shifts (id, site_id, customer_id, date, start_time, end_time,
                              required_employees, requires_weapon, requires_vehicle, notes)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING *
-        `, [site_id, customer_id, dateStr, start_time, end_time,
-            required_employees || 1, requires_weapon || false, requires_vehicle || false, notes]);
+        `, [recurringShiftId, site_id, customer_id, dateStr, start_time, end_time,
+            required_employees || 1, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, notes]);
 
         createdShifts.push(result.rows[0]);
       }
@@ -227,11 +264,12 @@ router.post('/:id/assign', requireManager, [
       return res.status(400).json({ error: 'לעובד יש משמרת חופפת' });
     }
 
+    const assignmentId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO shift_assignments (shift_id, employee_id, role)
-      VALUES ($1, $2, $3)
+      INSERT INTO shift_assignments (id, shift_id, employee_id, role)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [req.params.id, employee_id, role || 'guard']);
+    `, [assignmentId, req.params.id, employee_id, role || 'guard']);
 
     // Send WhatsApp assignment confirmation (non-blocking)
     whatsappHelper.sendAssignmentConfirmation(employee_id, req.params.id).catch(() => {});
@@ -336,38 +374,25 @@ router.post('/check-out/:assignmentId', async (req, res) => {
   }
 });
 
-// Get today's shifts summary
-router.get('/summary/today', async (req, res) => {
+// Delete shift (admin/manager only)
+router.delete('/:id', requireManager, async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT
-        COUNT(*) as total_shifts,
-        SUM(CASE WHEN s.status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
-        SUM(CASE WHEN s.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-        SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed,
-        (SELECT COUNT(*) FROM shift_assignments sa
-         JOIN shifts sh ON sa.shift_id = sh.id
-         WHERE sh.date = date('now') AND sa.status = 'no_show') as no_shows
-      FROM shifts s
-      WHERE s.date = date('now')
-    `);
+    // Delete related assignments first
+    await db.query('DELETE FROM shift_assignments WHERE shift_id = $1', [req.params.id]);
 
-    const unassignedResult = await db.query(`
-      SELECT s.*, c.company_name, si.name as site_name
-      FROM shifts s
-      LEFT JOIN customers c ON s.customer_id = c.id
-      LEFT JOIN sites si ON s.site_id = si.id
-      WHERE s.date = date('now')
-      AND (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) < s.required_employees
-    `);
+    const result = await db.query(
+      'DELETE FROM shifts WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
 
-    res.json({
-      summary: result.rows[0],
-      unassignedShifts: unassignedResult.rows
-    });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'משמרת לא נמצאה' });
+    }
+
+    res.json({ message: 'משמרת נמחקה בהצלחה' });
   } catch (error) {
-    console.error('Get today summary error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת סיכום יומי' });
+    console.error('Delete shift error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת משמרת' });
   }
 });
 

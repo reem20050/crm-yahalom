@@ -63,6 +63,42 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get available employees for a specific date/time (MUST be before /:id route)
+router.get('/available/:date', async (req, res) => {
+  try {
+    const { date } = req.params;
+    const { start_time, end_time, requires_weapon } = req.query;
+
+    let queryStr = `
+      SELECT e.* FROM employees e
+      WHERE e.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM shift_assignments sa
+        JOIN shifts s ON sa.shift_id = s.id
+        WHERE sa.employee_id = e.id
+        AND s.date = $1
+        AND (
+          (s.start_time < $3 AND s.end_time > $2)
+        )
+      )
+    `;
+    let params = [date, start_time, end_time];
+
+    if (requires_weapon === 'true') {
+      queryStr += ` AND e.has_weapon_license = 1 AND (e.weapon_license_expiry IS NULL OR e.weapon_license_expiry > $1)`;
+    }
+
+    queryStr += ` ORDER BY e.first_name, e.last_name`;
+
+    const result = await db.query(queryStr, params);
+
+    res.json({ employees: result.rows });
+  } catch (error) {
+    console.error('Get available employees error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת עובדים זמינים' });
+  }
+});
+
 // Get single employee with all details
 router.get('/:id', async (req, res) => {
   try {
@@ -120,23 +156,24 @@ router.post('/', requireManager, [
       emergency_contact_name, emergency_contact_phone, notes
     } = req.body;
 
+    const employeeId = db.generateUUID();
     const result = await db.query(`
       INSERT INTO employees (
-        first_name, last_name, id_number, phone, email, address, city,
+        id, first_name, last_name, id_number, phone, email, address, city,
         birth_date, hire_date, employment_type, hourly_rate, monthly_salary,
         has_weapon_license, weapon_license_expiry, has_driving_license, driving_license_type,
         emergency_contact_name, emergency_contact_phone, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *
-    `, [first_name, last_name, id_number, phone, email, address, city,
+    `, [employeeId, first_name, last_name, id_number, phone, email, address, city,
         birth_date, hire_date, employment_type || 'hourly', hourly_rate, monthly_salary,
-        has_weapon_license || false, weapon_license_expiry, has_driving_license || false, driving_license_type,
+        has_weapon_license ? 1 : 0, weapon_license_expiry, has_driving_license ? 1 : 0, driving_license_type,
         emergency_contact_name, emergency_contact_phone, notes]);
 
     await db.query(`
-      INSERT INTO activity_log (user_id, entity_type, entity_id, action, changes)
-      VALUES ($1, 'employee', $2, 'create', $3)
-    `, [req.user.id, result.rows[0].id, JSON.stringify({ name: `${first_name} ${last_name}` })]);
+      INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
+      VALUES ($1, $2, 'employee', $3, 'create', $4)
+    `, [db.generateUUID(), req.user.id, result.rows[0].id, JSON.stringify({ name: `${first_name} ${last_name}` })]);
 
     res.status(201).json({ employee: result.rows[0] });
   } catch (error) {
@@ -204,11 +241,12 @@ router.post('/:id/documents', requireManager, [
   try {
     const { document_type, document_url, expiry_date } = req.body;
 
+    const docId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO employee_documents (employee_id, document_type, document_url, expiry_date)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO employee_documents (id, employee_id, document_type, document_url, expiry_date)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [req.params.id, document_type, document_url, expiry_date]);
+    `, [docId, req.params.id, document_type, document_url, expiry_date]);
 
     res.status(201).json({ document: result.rows[0] });
   } catch (error) {
@@ -228,9 +266,9 @@ router.post('/:id/availability', async (req, res) => {
     // Insert new availability
     for (const av of availability) {
       await db.query(`
-        INSERT INTO employee_availability (employee_id, day_of_week, start_time, end_time, is_available)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [req.params.id, av.day_of_week, av.start_time, av.end_time, av.is_available ?? true]);
+        INSERT INTO employee_availability (id, employee_id, day_of_week, start_time, end_time, is_available)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [db.generateUUID(), req.params.id, av.day_of_week, av.start_time, av.end_time, av.is_available ?? true]);
     }
 
     const result = await db.query(
@@ -245,43 +283,7 @@ router.post('/:id/availability', async (req, res) => {
   }
 });
 
-// Get available employees for a specific date/time
-router.get('/available/:date', async (req, res) => {
-  try {
-    const { date } = req.params;
-    const { start_time, end_time, requires_weapon } = req.query;
-
-    const dayOfWeek = new Date(date).getDay();
-
-    let query = `
-      SELECT e.* FROM employees e
-      WHERE e.status = 'active'
-      AND NOT EXISTS (
-        SELECT 1 FROM shift_assignments sa
-        JOIN shifts s ON sa.shift_id = s.id
-        WHERE sa.employee_id = e.id
-        AND s.date = $1
-        AND (
-          (s.start_time < $3 AND s.end_time > $2)
-        )
-      )
-    `;
-    let params = [date, start_time, end_time];
-
-    if (requires_weapon === 'true') {
-      query += ` AND e.has_weapon_license = 1 AND (e.weapon_license_expiry IS NULL OR e.weapon_license_expiry > $1)`;
-    }
-
-    query += ` ORDER BY e.first_name, e.last_name`;
-
-    const result = await db.query(query, params);
-
-    res.json({ employees: result.rows });
-  } catch (error) {
-    console.error('Get available employees error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת עובדים זמינים' });
-  }
-});
+// Note: /available/:date route moved before /:id to prevent route shadowing
 
 // Get employee hours summary for a month
 router.get('/:id/hours/:year/:month', async (req, res) => {
@@ -323,6 +325,29 @@ router.get('/:id/hours/:year/:month', async (req, res) => {
   } catch (error) {
     console.error('Get employee hours error:', error);
     res.status(500).json({ error: 'שגיאה בטעינת שעות עבודה' });
+  }
+});
+
+// Delete employee (admin/manager only)
+router.delete('/:id', requireManager, async (req, res) => {
+  try {
+    // Delete related data first
+    await db.query('DELETE FROM employee_documents WHERE employee_id = $1', [req.params.id]);
+    await db.query('DELETE FROM employee_availability WHERE employee_id = $1', [req.params.id]);
+
+    const result = await db.query(
+      'DELETE FROM employees WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'עובד לא נמצא' });
+    }
+
+    res.json({ message: 'עובד נמחק בהצלחה' });
+  } catch (error) {
+    console.error('Delete employee error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת עובד' });
   }
 });
 
