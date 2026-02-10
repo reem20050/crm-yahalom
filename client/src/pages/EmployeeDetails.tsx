@@ -442,7 +442,7 @@ export default function EmployeeDetails() {
                         {employee?.phone}
                       </a>
                       {employee?.phone && (
-                        <WhatsAppButton phone={employee.phone} name={`${employee.first_name} ${employee.last_name}`} size="sm" />
+                        <WhatsAppButton phone={employee.phone} name={`${employee.first_name || ''} ${employee.last_name || ''}`.trim() || 'עובד'} size="sm" />
                       )}
                     </div>
                   </div>

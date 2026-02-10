@@ -21,7 +21,7 @@ export default function WhatsAppButton({ phone, name, size = 'md' }: WhatsAppBut
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sendMutation = useMutation({
-    mutationFn: () => integrationsApi.sendWhatsApp(phone, message),
+    mutationFn: () => integrationsApi.sendWhatsApp(cleanPhone(phone), message),
     onSuccess: () => {
       toast.success('ההודעה נשלחה בהצלחה');
       setMessage('');

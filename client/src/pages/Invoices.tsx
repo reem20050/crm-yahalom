@@ -91,6 +91,7 @@ export default function Invoices() {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
       toast.success('סטטוס עודכן בהצלחה');
+      setPaymentDateModal({ invoiceId: '', show: false });
     },
     onError: () => {
       toast.error('שגיאה בעדכון סטטוס');
@@ -164,7 +165,6 @@ export default function Invoices() {
       status: 'paid',
       paymentDate: paymentDate,
     });
-    setPaymentDateModal({ invoiceId: '', show: false });
   };
 
   const getEffectiveStatus = (invoice: Invoice) => invoice.computed_status || invoice.status;

@@ -9,6 +9,10 @@ import toast from 'react-hot-toast';
 import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send } from 'lucide-react';
 import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi } from '../services/api';
 
+function cleanPhone(phone: string): string {
+  return phone.replace(/[\s\-+]/g, '');
+}
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface ShiftAssignment {
@@ -153,7 +157,7 @@ function ShiftDetailModal({
   const reminderMutation = useMutation({
     mutationFn: ({ phone, name }: { phone: string; name: string }) => {
       const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${shift?.date}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}`;
-      return integrationsApi.sendWhatsApp(phone, msg);
+      return integrationsApi.sendWhatsApp(cleanPhone(phone), msg);
     },
     onSuccess: () => {
       toast.success('תזכורת נשלחה בהצלחה');
