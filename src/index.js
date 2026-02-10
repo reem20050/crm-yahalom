@@ -57,20 +57,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../public')));
+// Serve static files (frontend build)
+const publicDir = path.join(__dirname, '../public');
+const fs = require('fs');
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
 
   // Handle SPA routing - send all non-API requests to index.html
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(__dirname, '../public/index.html'));
+      res.sendFile(path.join(publicDir, 'index.html'));
     } else {
       res.status(404).json({ error: 'נתיב לא נמצא' });
     }
   });
 } else {
-  // 404 handler for development
+  // 404 handler when no frontend build
   app.use((req, res) => {
     res.status(404).json({ error: 'נתיב לא נמצא' });
   });

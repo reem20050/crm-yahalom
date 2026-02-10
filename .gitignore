@@ -6,6 +6,7 @@ server/node_modules/
 # Build outputs
 client/dist/
 server/dist/
+# Note: public/ is NOT ignored - it contains the frontend build for production
 
 # Environment files
 .env
