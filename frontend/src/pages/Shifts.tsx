@@ -601,19 +601,28 @@ export default function Shifts() {
 
               {/* Site Selection */}
               <div>
-                <label className="label">אתר *</label>
+                <label className="label">אתר</label>
                 <select
                   {...register('site_id')}
                   className="input"
                   disabled={!selectedCustomer}
                 >
-                  <option value="">בחר אתר...</option>
+                  <option value="">
+                    {!selectedCustomer
+                      ? 'יש לבחור לקוח תחילה...'
+                      : sitesData?.sites?.length === 0
+                        ? 'אין אתרים ללקוח זה'
+                        : 'בחר אתר...'}
+                  </option>
                   {sitesData?.sites?.map((site: { id: string; name: string; address: string }) => (
                     <option key={site.id} value={site.id}>
                       {site.name} - {site.address}
                     </option>
                   ))}
                 </select>
+                {!selectedCustomer && (
+                  <p className="text-sm text-gray-400 mt-1">בחר לקוח כדי לראות את רשימת האתרים</p>
+                )}
                 {errors.site_id && (
                   <p className="text-sm text-red-600 mt-1">{errors.site_id.message}</p>
                 )}

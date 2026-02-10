@@ -174,6 +174,20 @@ router.post('/:id/contacts', [
   }
 });
 
+// Get sites for customer
+router.get('/:id/sites', async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT * FROM sites WHERE customer_id = $1 ORDER BY name',
+      [req.params.id]
+    );
+    res.json({ sites: result.rows });
+  } catch (error) {
+    console.error('Get sites error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת אתרים' });
+  }
+});
+
 // Add site to customer
 router.post('/:id/sites', [
   body('name').notEmpty().withMessage('נדרש שם אתר'),
