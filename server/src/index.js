@@ -17,6 +17,7 @@ const reportsRoutes = require('./routes/reports');
 const dashboardRoutes = require('./routes/dashboard');
 const integrationsRoutes = require('./routes/integrations');
 const searchRoutes = require('./routes/search');
+const usersRoutes = require('./routes/users');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
@@ -42,6 +43,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/users', usersRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

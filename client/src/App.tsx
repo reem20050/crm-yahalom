@@ -19,6 +19,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Calendar from './pages/Calendar';
 import Profile from './pages/Profile';
+import Users from './pages/Users';
 import NotFound from './pages/NotFound';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ function App() {
           <Route path="events/:id" element={<EventDetails />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="users" element={<Users />} />
           <Route path="settings" element={<Settings />} />
           <Route path="profile" element={<Profile />} />
           <Route path="*" element={<NotFound />} />

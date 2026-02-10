@@ -177,6 +177,16 @@ export const integrationsApi = {
   getSchedulerStatus: () => api.get('/integrations/scheduler/status'),
 };
 
+// Users (admin only)
+export const usersApi = {
+  getAll: () => api.get('/users'),
+  create: (data: Record<string, unknown>) => api.post('/users', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/users/${id}`, data),
+  delete: (id: string) => api.delete(`/users/${id}`),
+  resetPassword: (id: string, new_password: string) =>
+    api.post(`/users/${id}/reset-password`, { new_password }),
+};
+
 // Activities
 export const activitiesApi = {
   getForLead: (leadId: string) => api.get(`/leads/${leadId}/activities`),
