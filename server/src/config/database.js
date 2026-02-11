@@ -430,6 +430,170 @@ const initializeDatabase = () => {
     )
   `);
 
+  // ===== Security Company Tables =====
+
+  // Incidents table - security incident reporting
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS incidents (
+      id TEXT PRIMARY KEY,
+      site_id TEXT REFERENCES sites(id),
+      customer_id TEXT REFERENCES customers(id),
+      shift_id TEXT REFERENCES shifts(id),
+      reported_by TEXT REFERENCES employees(id),
+      incident_type TEXT NOT NULL,
+      severity TEXT DEFAULT 'low',
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      location_details TEXT,
+      incident_date TEXT NOT NULL,
+      incident_time TEXT NOT NULL,
+      police_called INTEGER DEFAULT 0,
+      police_report_number TEXT,
+      ambulance_called INTEGER DEFAULT 0,
+      injuries_reported INTEGER DEFAULT 0,
+      property_damage INTEGER DEFAULT 0,
+      witnesses TEXT,
+      actions_taken TEXT,
+      resolution TEXT,
+      resolution_date TEXT,
+      status TEXT DEFAULT 'open',
+      customer_notified INTEGER DEFAULT 0,
+      customer_notification_date TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Incident updates timeline
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS incident_updates (
+      id TEXT PRIMARY KEY,
+      incident_id TEXT REFERENCES incidents(id) ON DELETE CASCADE,
+      user_id TEXT REFERENCES users(id),
+      update_text TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Guard certifications
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guard_certifications (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE,
+      cert_type TEXT NOT NULL,
+      cert_name TEXT NOT NULL,
+      cert_number TEXT,
+      issuing_authority TEXT,
+      issue_date TEXT,
+      expiry_date TEXT,
+      status TEXT DEFAULT 'active',
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Guard weapons tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guard_weapons (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT REFERENCES employees(id),
+      weapon_type TEXT NOT NULL,
+      manufacturer TEXT,
+      model TEXT,
+      serial_number TEXT UNIQUE NOT NULL,
+      license_number TEXT,
+      license_expiry TEXT,
+      status TEXT DEFAULT 'assigned',
+      assigned_date TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Guard equipment tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guard_equipment (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT REFERENCES employees(id),
+      item_type TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      serial_number TEXT,
+      condition TEXT DEFAULT 'good',
+      assigned_date TEXT,
+      return_date TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Shift templates
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shift_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      customer_id TEXT REFERENCES customers(id),
+      site_id TEXT REFERENCES sites(id),
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      required_employees INTEGER DEFAULT 1,
+      requires_weapon INTEGER DEFAULT 0,
+      requires_vehicle INTEGER DEFAULT 0,
+      days_of_week TEXT,
+      shift_type TEXT DEFAULT 'regular',
+      default_notes TEXT,
+      preferred_employees TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Site checkpoints for patrols
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS site_checkpoints (
+      id TEXT PRIMARY KEY,
+      site_id TEXT REFERENCES sites(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      location_notes TEXT,
+      check_interval_minutes INTEGER,
+      is_active INTEGER DEFAULT 1,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Patrol logs
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS patrol_logs (
+      id TEXT PRIMARY KEY,
+      shift_assignment_id TEXT REFERENCES shift_assignments(id),
+      employee_id TEXT REFERENCES employees(id),
+      checkpoint_id TEXT REFERENCES site_checkpoints(id),
+      site_id TEXT REFERENCES sites(id),
+      checked_at TEXT NOT NULL DEFAULT (datetime('now')),
+      status TEXT DEFAULT 'ok',
+      observation TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Guard ratings / performance
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guard_ratings (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE,
+      rated_by TEXT REFERENCES users(id),
+      rating_type TEXT NOT NULL,
+      rating INTEGER NOT NULL,
+      shift_id TEXT REFERENCES shifts(id),
+      event_id TEXT REFERENCES events(id),
+      comments TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Create indexes
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
@@ -439,6 +603,14 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
     CREATE INDEX IF NOT EXISTS idx_activity_entity ON activity_logs(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
+    CREATE INDEX IF NOT EXISTS idx_incidents_date ON incidents(incident_date);
+    CREATE INDEX IF NOT EXISTS idx_incidents_severity ON incidents(severity);
+    CREATE INDEX IF NOT EXISTS idx_guard_certs_employee ON guard_certifications(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_guard_certs_expiry ON guard_certifications(expiry_date);
+    CREATE INDEX IF NOT EXISTS idx_guard_weapons_employee ON guard_weapons(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_patrol_logs_shift ON patrol_logs(shift_assignment_id);
+    CREATE INDEX IF NOT EXISTS idx_guard_ratings_employee ON guard_ratings(employee_id);
   `);
 
   // Create default admin user if not exists

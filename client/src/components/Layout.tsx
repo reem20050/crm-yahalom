@@ -20,6 +20,7 @@ import {
   Search,
   User,
   ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { dashboardApi } from '../services/api';
@@ -35,6 +36,7 @@ const navigation = [
   { name: 'משמרות', href: '/shifts', icon: Calendar },
   { name: 'אירועים', href: '/events', icon: PartyPopper },
   { name: 'לוח שנה', href: '/calendar', icon: CalendarDays },
+  { name: 'אירועי אבטחה', href: '/incidents', icon: AlertTriangle },
   { name: 'חשבוניות', href: '/invoices', icon: Receipt },
   { name: 'דוחות', href: '/reports', icon: BarChart3 },
   { name: 'משתמשים', href: '/users', icon: ShieldCheck },

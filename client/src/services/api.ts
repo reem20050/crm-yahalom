@@ -43,6 +43,7 @@ export const authApi = {
 // Dashboard
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
+  getOperations: () => api.get('/dashboard/operations'),
   getNotifications: (unreadOnly = false) =>
     api.get('/dashboard/notifications', { params: { unread_only: unreadOnly } }),
   markNotificationRead: (id: string) =>
@@ -185,6 +186,72 @@ export const usersApi = {
   delete: (id: string) => api.delete(`/users/${id}`),
   resetPassword: (id: string, new_password: string) =>
     api.post(`/users/${id}/reset-password`, { new_password }),
+};
+
+// Incidents (security incidents)
+export const incidentsApi = {
+  getAll: (params?: Record<string, unknown>) => api.get('/incidents', { params }),
+  getOne: (id: string) => api.get(`/incidents/${id}`),
+  create: (data: Record<string, unknown>) => api.post('/incidents', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/incidents/${id}`, data),
+  getStats: () => api.get('/incidents/stats'),
+  addUpdate: (id: string, update_text: string) =>
+    api.post(`/incidents/${id}/updates`, { update_text }),
+  resolve: (id: string, resolution: string) =>
+    api.patch(`/incidents/${id}/resolve`, { resolution }),
+};
+
+// Certifications
+export const certificationsApi = {
+  getExpiring: () => api.get('/certifications/expiring'),
+  getByEmployee: (employeeId: string) => api.get(`/certifications/employee/${employeeId}`),
+  create: (data: Record<string, unknown>) => api.post('/certifications', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/certifications/${id}`, data),
+  delete: (id: string) => api.delete(`/certifications/${id}`),
+};
+
+// Weapons
+export const weaponsApi = {
+  getAll: () => api.get('/weapons'),
+  getAvailable: () => api.get('/weapons/available'),
+  getByEmployee: (employeeId: string) => api.get(`/weapons/employee/${employeeId}`),
+  create: (data: Record<string, unknown>) => api.post('/weapons', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/weapons/${id}`, data),
+  transfer: (id: string, new_employee_id: string | null) =>
+    api.post(`/weapons/${id}/transfer`, { new_employee_id }),
+  delete: (id: string) => api.delete(`/weapons/${id}`),
+};
+
+// Shift Templates
+export const shiftTemplatesApi = {
+  getAll: () => api.get('/shift-templates'),
+  getOne: (id: string) => api.get(`/shift-templates/${id}`),
+  create: (data: Record<string, unknown>) => api.post('/shift-templates', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/shift-templates/${id}`, data),
+  delete: (id: string) => api.delete(`/shift-templates/${id}`),
+  generate: (id: string, start_date: string, end_date: string) =>
+    api.post(`/shift-templates/${id}/generate`, { start_date, end_date }),
+};
+
+// Patrols
+export const patrolsApi = {
+  getCheckpoints: (siteId: string) => api.get(`/patrols/sites/${siteId}/checkpoints`),
+  createCheckpoint: (siteId: string, data: Record<string, unknown>) =>
+    api.post(`/patrols/sites/${siteId}/checkpoints`, data),
+  updateCheckpoint: (id: string, data: Record<string, unknown>) =>
+    api.put(`/patrols/checkpoints/${id}`, data),
+  deleteCheckpoint: (id: string) => api.delete(`/patrols/checkpoints/${id}`),
+  log: (data: Record<string, unknown>) => api.post('/patrols/log', data),
+  getShiftLogs: (assignmentId: string) => api.get(`/patrols/shift/${assignmentId}`),
+  getSiteToday: (siteId: string) => api.get(`/patrols/site/${siteId}/today`),
+  getStats: (params?: Record<string, unknown>) => api.get('/patrols/stats', { params }),
+};
+
+// Performance
+export const performanceApi = {
+  getEmployee: (employeeId: string) => api.get(`/performance/employee/${employeeId}`),
+  rate: (data: Record<string, unknown>) => api.post('/performance/rate', data),
+  getRankings: () => api.get('/performance/rankings'),
 };
 
 // Activities
