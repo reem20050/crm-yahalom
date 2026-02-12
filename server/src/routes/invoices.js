@@ -169,7 +169,8 @@ router.post('/', requireManager, [
 
     const {
       customer_id, event_id, issue_date, due_date,
-      amount, vat_amount, total_amount, description
+      amount, vat_amount, total_amount, description,
+      payment_type // 1=cash, 2=check, 3=credit card, 4=bank transfer
     } = req.body;
 
     const vatCalc = vat_amount || (amount * 0.17);
@@ -209,7 +210,8 @@ router.post('/', requireManager, [
             },
             [{ description: description || 'שירותי אבטחה', price: amount, quantity: 1 }],
             due_date,
-            description
+            description,
+            payment_type || 4
           );
 
           // Update our invoice with Green Invoice ID

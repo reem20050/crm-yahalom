@@ -34,9 +34,17 @@ const app = express();
 // Middleware
 app.use(helmet());
 app.use(cors());
-app.use(morgan('dev'));
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Compression for production
+try {
+  const compression = require('compression');
+  app.use(compression());
+} catch (e) { /* compression not installed, skip */ }
 
 // API Routes
 app.use('/api/auth', authRoutes);

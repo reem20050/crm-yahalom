@@ -123,10 +123,14 @@ router.post('/google/disconnect', async (req, res) => {
 // WHATSAPP INTEGRATION
 // ====================
 
-// Save WhatsApp settings
+// Save WhatsApp settings (with validation)
 router.post('/whatsapp/settings', async (req, res) => {
   try {
     const { phoneNumberId, accessToken, phoneDisplay } = req.body;
+
+    if (!phoneNumberId || !accessToken) {
+      return res.status(400).json({ message: 'נדרש Phone Number ID ו-Access Token' });
+    }
 
     const existingSettings = query(`SELECT * FROM integration_settings WHERE id = 'main'`);
 
@@ -143,10 +147,33 @@ router.post('/whatsapp/settings', async (req, res) => {
       `, [phoneNumberId, accessToken, phoneDisplay]);
     }
 
+    // Update service credentials in memory
+    whatsappService.phoneNumberId = phoneNumberId;
+    whatsappService.accessToken = accessToken;
+
     res.json({ message: 'הגדרות WhatsApp נשמרו בהצלחה' });
   } catch (error) {
     console.error('WhatsApp settings error:', error);
     res.status(500).json({ message: 'שגיאה בשמירת הגדרות WhatsApp' });
+  }
+});
+
+// Test WhatsApp connection
+router.post('/whatsapp/test', async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) {
+      return res.status(400).json({ message: 'נדרש מספר טלפון לבדיקה' });
+    }
+    const result = await whatsappService.sendMessage(to, 'בדיקת חיבור WhatsApp - צוות יהלום ✅');
+    if (result.success) {
+      res.json({ message: 'הודעת בדיקה נשלחה בהצלחה!' });
+    } else {
+      res.status(400).json({ message: result.error || 'שגיאה בשליחת הודעת בדיקה' });
+    }
+  } catch (error) {
+    console.error('WhatsApp test error:', error);
+    res.status(500).json({ message: 'שגיאה בבדיקת חיבור WhatsApp' });
   }
 });
 
@@ -166,11 +193,26 @@ router.post('/whatsapp/disconnect', async (req, res) => {
   }
 });
 
-// Send WhatsApp message
+// Send WhatsApp message (with logging)
 router.post('/whatsapp/send', async (req, res) => {
   try {
     const { to, message } = req.body;
+
+    if (!to || !message) {
+      return res.status(400).json({ message: 'נדרש מספר טלפון והודעה' });
+    }
+
     const result = await whatsappService.sendMessage(to, message);
+
+    // Log to activity_log
+    try {
+      const logId = generateUUID();
+      query(`INSERT INTO activity_log (id, action, entity_type, details, user_id, created_at)
+        VALUES (?, 'whatsapp_sent', 'whatsapp', ?, ?, datetime('now'))`,
+        [logId, JSON.stringify({ to, success: result.success, messageId: result.messageId }), req.user?.id]);
+    } catch (logErr) {
+      // Don't fail the request if logging fails
+    }
 
     if (result.success) {
       res.json({ message: 'הודעה נשלחה בהצלחה', messageId: result.messageId });
@@ -183,21 +225,53 @@ router.post('/whatsapp/send', async (req, res) => {
   }
 });
 
-// WhatsApp webhook (for receiving messages)
+// WhatsApp webhook (for receiving messages + delivery tracking)
 router.post('/whatsapp/webhook', async (req, res) => {
   try {
+    // Verify webhook signature if app secret is configured
+    const appSecret = process.env.WHATSAPP_APP_SECRET;
+    if (appSecret) {
+      const crypto = require('crypto');
+      const signature = req.headers['x-hub-signature-256'];
+      if (signature) {
+        const expectedSig = 'sha256=' + crypto.createHmac('sha256', appSecret)
+          .update(JSON.stringify(req.body)).digest('hex');
+        if (signature !== expectedSig) {
+          console.warn('WhatsApp webhook: invalid signature');
+          return res.sendStatus(403);
+        }
+      }
+    }
+
     const result = await whatsappService.handleWebhook(req.body);
 
     if (result && result.type === 'message') {
-      // Log and auto-reply to incoming message
-      console.log('Incoming WhatsApp message:', result);
+      console.log('Incoming WhatsApp message from:', result.from);
+      // Log incoming message
+      try {
+        const logId = generateUUID();
+        query(`INSERT INTO activity_log (id, action, entity_type, details, created_at)
+          VALUES (?, 'whatsapp_received', 'whatsapp', ?, datetime('now'))`,
+          [logId, JSON.stringify({ from: result.from, text: result.text?.substring(0, 200) })]);
+      } catch (logErr) { /* non-blocking */ }
+
       await whatsappHelper.handleIncomingMessage(result.from, result.text, result.timestamp);
+    }
+
+    if (result && result.type === 'status') {
+      // Log delivery status (sent/delivered/read)
+      try {
+        const logId = generateUUID();
+        query(`INSERT INTO activity_log (id, action, entity_type, details, created_at)
+          VALUES (?, 'whatsapp_status', 'whatsapp', ?, datetime('now'))`,
+          [logId, JSON.stringify({ messageId: result.messageId, status: result.status })]);
+      } catch (logErr) { /* non-blocking */ }
     }
 
     res.sendStatus(200);
   } catch (error) {
     console.error('WhatsApp webhook error:', error);
-    res.sendStatus(500);
+    res.sendStatus(200); // Always return 200 to prevent Meta from retrying
   }
 });
 
@@ -340,13 +414,40 @@ router.post('/green-invoice/create-invoice', async (req, res) => {
 router.post('/green-invoice/sync', async (req, res) => {
   try {
     const fromDate = req.body.fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const count = await greenInvoiceService.syncInvoices({ query }, fromDate);
+    const count = await greenInvoiceService.syncInvoices({ query: query }, fromDate);
 
-    res.json({ message: `${count} חשבוניות סונכרנו בהצלחה` });
+    res.json({ message: `סונכרנו ${count} חשבוניות בהצלחה`, count });
   } catch (error) {
     console.error('Sync invoices error:', error);
     res.status(500).json({ message: 'שגיאה בסנכרון חשבוניות' });
   }
+});
+
+// ====================
+// INTEGRATION HEALTH CHECK
+// ====================
+
+router.get('/health', async (req, res) => {
+  const health = {
+    google: { configured: !!process.env.GOOGLE_CLIENT_ID, connected: false },
+    whatsapp: { configured: !!(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN), connected: false },
+    greenInvoice: { configured: !!(process.env.GREEN_INVOICE_API_KEY && process.env.GREEN_INVOICE_API_SECRET), connected: false },
+  };
+
+  // Check DB settings
+  try {
+    const settings = query(`SELECT * FROM integration_settings WHERE id = 'main'`);
+    if (settings.rows.length > 0) {
+      const s = settings.rows[0];
+      health.google.connected = !!s.google_tokens;
+      health.whatsapp.configured = health.whatsapp.configured || !!s.whatsapp_phone_id;
+      health.whatsapp.connected = !!s.whatsapp_phone_id;
+      health.greenInvoice.configured = health.greenInvoice.configured || !!s.green_invoice_api_key;
+      health.greenInvoice.connected = !!s.green_invoice_api_key;
+    }
+  } catch (err) { /* ignore */ }
+
+  res.json(health);
 });
 
 // ====================

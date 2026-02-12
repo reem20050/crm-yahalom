@@ -197,4 +197,13 @@ router.post('/google', async (req, res) => {
   }
 });
 
+// Get Google Client ID (public endpoint for frontend)
+router.get('/google/client-id', (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    return res.status(404).json({ error: 'Google Login לא מוגדר' });
+  }
+  res.json({ clientId });
+});
+
 module.exports = router;

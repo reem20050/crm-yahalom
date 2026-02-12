@@ -8,8 +8,7 @@ import { Shield, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
-// Google Client ID
-const GOOGLE_CLIENT_ID = '46942876627-akhltgi9p3objsd3maj79kftd1u7b7j9.apps.googleusercontent.com';
+// Google Client ID loaded from backend
 
 // Google types for GSI library (fallback)
 declare global {
@@ -53,9 +52,17 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [gsiError, setGsiError] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
   const gsiCheckCount = useRef(0);
+
+  // Fetch Google Client ID from backend
+  useEffect(() => {
+    authApi.getGoogleClientId()
+      .then(res => setGoogleClientId(res.data.clientId))
+      .catch(() => setGsiError(true)); // No Google login configured
+  }, []);
 
   const {
     register,
@@ -82,12 +89,14 @@ export default function Login() {
     }
   }, [login, navigate]);
 
-  // Initialize Google Sign-In with GSI library
+  // Initialize Google Sign-In with GSI library (only when clientId is loaded)
   useEffect(() => {
+    if (!googleClientId) return;
+
     const initializeGoogleSignIn = () => {
       if (window.google?.accounts?.id) {
         window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
+          client_id: googleClientId,
           callback: handleGoogleResponse,
           auto_select: false,
         });
@@ -117,13 +126,11 @@ export default function Login() {
           clearInterval(checkGoogleLoaded);
           initializeGoogleSignIn();
         } else if (gsiCheckCount.current >= 50) {
-          // After 5 seconds, show custom button
           clearInterval(checkGoogleLoaded);
           setGsiError(true);
         }
       }, 100);
 
-      // Clear interval after 5 seconds
       setTimeout(() => {
         clearInterval(checkGoogleLoaded);
         if (!window.google?.accounts?.id) {
@@ -131,25 +138,27 @@ export default function Login() {
         }
       }, 5000);
     }
-  }, [handleGoogleResponse]);
+  }, [googleClientId, handleGoogleResponse]);
 
   // Custom Google OAuth using redirect (fallback when GSI fails)
   const handleCustomGoogleLogin = () => {
+    if (!googleClientId) {
+      toast.error('Google Login לא מוגדר במערכת');
+      return;
+    }
     setIsGoogleLoading(true);
 
-    // Save state to localStorage to verify after redirect
     const state = Math.random().toString(36).substring(2);
     const nonce = Math.random().toString(36).substring(2);
     localStorage.setItem('google_oauth_state', state);
     localStorage.setItem('google_oauth_nonce', nonce);
 
-    // Build OAuth URL - using redirect mode (not popup)
     const redirectUri = `${window.location.origin}/auth/google/callback`;
     const scope = 'openid email profile';
     const responseType = 'id_token';
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+    authUrl.searchParams.set('client_id', googleClientId);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('response_type', responseType);
     authUrl.searchParams.set('scope', scope);
@@ -157,7 +166,6 @@ export default function Login() {
     authUrl.searchParams.set('nonce', nonce);
     authUrl.searchParams.set('prompt', 'select_account');
 
-    // Redirect to Google (not popup)
     window.location.href = authUrl.toString();
   };
 

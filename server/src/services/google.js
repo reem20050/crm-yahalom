@@ -14,12 +14,12 @@ class GoogleService {
     );
   }
 
-  // Generate auth URL
+  // Generate auth URL (only basic profile scopes for login)
   getAuthUrl() {
     const scopes = [
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/gmail.send',
+      'openid',
+      'email',
+      'profile',
     ];
 
     return this.oauth2Client.generateAuthUrl({

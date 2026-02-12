@@ -35,6 +35,7 @@ export const authApi = {
     api.post('/auth/login', { email, password }),
   loginWithGoogle: (credential: string) =>
     api.post('/auth/google', { credential }),
+  getGoogleClientId: () => api.get('/auth/google/client-id'),
   me: () => api.get('/auth/me'),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post('/auth/change-password', { currentPassword, newPassword }),
