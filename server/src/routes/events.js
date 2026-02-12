@@ -129,7 +129,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create event
-router.post('/', [
+router.post('/', requireManager, [
   body('event_name').notEmpty().withMessage('נדרש שם אירוע'),
   body('event_date').isDate().withMessage('נדרש תאריך'),
   body('start_time').notEmpty().withMessage('נדרשת שעת התחלה'),
@@ -186,7 +186,7 @@ router.post('/', [
 });
 
 // Update event
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireManager, async (req, res) => {
   try {
     const {
       event_name, event_type, event_date, start_time, end_time,

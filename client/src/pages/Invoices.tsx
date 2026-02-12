@@ -6,6 +6,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw } from 'lucide-react';
 import { invoicesApi, customersApi, integrationsApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 const statusLabels: Record<string, { label: string; class: string }> = {
   draft: { label: 'טיוטה', class: 'badge-gray' },
@@ -52,6 +53,7 @@ export default function Invoices() {
   const [greenInvoiceDueDate, setGreenInvoiceDueDate] = useState(new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]);
   const [greenInvoiceRemarks, setGreenInvoiceRemarks] = useState('');
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   // Queries
   const { data, isLoading } = useQuery({
@@ -189,29 +191,35 @@ export default function Invoices() {
           <p className="text-gray-500">ניהול חשבוניות ותשלומים</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className="btn-secondary flex items-center gap-2"
-          >
-            <RefreshCw className={`w-5 h-5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-            סנכרן
-          </button>
-          <button
-            onClick={() => setIsGreenInvoiceModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <FileCheck className="w-5 h-5" />
-            חשבונית ירוקה
-          </button>
+          {can('invoices:create') && (
+            <button
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <RefreshCw className={`w-5 h-5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+              סנכרן
+            </button>
+          )}
+          {can('invoices:create') && (
+            <button
+              onClick={() => setIsGreenInvoiceModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <FileCheck className="w-5 h-5" />
+              חשבונית ירוקה
+            </button>
+          )}
           <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2 no-print">
             <Printer className="w-5 h-5" />
             הדפס
           </button>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            חשבונית חדשה
-          </button>
+          {can('invoices:create') && (
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              חשבונית חדשה
+            </button>
+          )}
         </div>
       </div>
 
@@ -297,7 +305,7 @@ export default function Invoices() {
                       <td>
                         <div className="flex items-center gap-2">
                           {/* Status update dropdown - only show for non-paid and non-cancelled */}
-                          {effectiveStatus !== 'paid' && effectiveStatus !== 'cancelled' && (
+                          {can('invoices:status') && effectiveStatus !== 'paid' && effectiveStatus !== 'cancelled' && (
                             <select
                               className="input py-1 px-2 text-sm w-auto"
                               value=""
@@ -318,7 +326,7 @@ export default function Invoices() {
                           )}
 
                           {/* Delete button - only for draft status */}
-                          {effectiveStatus === 'draft' && (
+                          {can('invoices:delete') && effectiveStatus === 'draft' && (
                             <button
                               onClick={() => {
                                 if (confirm('האם אתה בטוח שברצונך למחוק חשבונית זו?')) {

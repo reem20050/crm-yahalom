@@ -7,6 +7,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Search, PartyPopper, Calendar, MapPin, Users, Plus, X, Shield, Car } from 'lucide-react';
 import { eventsApi, customersApi, leadsApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 const eventSchema = z.object({
   event_name: z.string().min(1, 'נדרש שם אירוע'),
@@ -54,6 +55,7 @@ export default function Events() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sourceType, setSourceType] = useState<'customer' | 'lead' | 'new'>('new');
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data, isLoading } = useQuery({
     queryKey: ['events', { status: statusFilter }],
@@ -112,10 +114,12 @@ export default function Events() {
           <h1 className="text-2xl font-bold text-gray-900">אירועים</h1>
           <p className="text-gray-500">ניהול אירועים חד-פעמיים</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          אירוע חדש
-        </button>
+        {can('events:create') && (
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            אירוע חדש
+          </button>
+        )}
       </div>
 
       <div className="card">

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Search, Building2, MapPin, Plus, X, Trash2 } from 'lucide-react';
 import { customersApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'נדרש שם חברה'),
@@ -72,6 +73,8 @@ export default function Customers() {
     },
   });
 
+  const { can } = usePermissions();
+
   const onSubmit = (data: CustomerForm) => {
     createMutation.mutate(data);
   };
@@ -83,10 +86,12 @@ export default function Customers() {
           <h1 className="text-2xl font-bold text-gray-900">לקוחות</h1>
           <p className="text-gray-500">ניהול לקוחות וחוזים</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          לקוח חדש
-        </button>
+        {can('customers:create') && (
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            לקוח חדש
+          </button>
+        )}
       </div>
 
       <div className="card">
@@ -141,17 +146,19 @@ export default function Customers() {
                     </div>
                   </div>
                 </Link>
-                <button
-                  onClick={() => {
-                    if (confirm('האם אתה בטוח שברצונך למחוק לקוח זה?')) {
-                      deleteMutation.mutate(customer.id);
-                    }
-                  }}
-                  className="text-red-400 hover:text-red-600 p-1"
-                  title="מחק"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {can('customers:delete') && (
+                  <button
+                    onClick={() => {
+                      if (confirm('האם אתה בטוח שברצונך למחוק לקוח זה?')) {
+                        deleteMutation.mutate(customer.id);
+                      }
+                    }}
+                    className="text-red-400 hover:text-red-600 p-1"
+                    title="מחק"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))}

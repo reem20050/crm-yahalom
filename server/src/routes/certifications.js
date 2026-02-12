@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireManager, requireAdmin } = require('../middleware/auth');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -51,7 +51,7 @@ router.get('/employee/:employeeId', async (req, res) => {
 });
 
 // Create certification
-router.post('/', async (req, res) => {
+router.post('/', requireManager, async (req, res) => {
   try {
     const id = crypto.randomUUID();
     const { employee_id, cert_type, cert_name, cert_number, issuing_authority, issue_date, expiry_date, notes } = req.body;
@@ -70,7 +70,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update certification
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireManager, async (req, res) => {
   try {
     const { cert_type, cert_name, cert_number, issuing_authority, issue_date, expiry_date, status, notes } = req.body;
 
@@ -90,7 +90,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete certification
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     db.query('DELETE FROM guard_certifications WHERE id = ?', [req.params.id]);
     res.json({ message: 'הסמכה נמחקה' });

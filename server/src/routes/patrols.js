@@ -41,7 +41,7 @@ router.post('/sites/:siteId/checkpoints', requireAdmin, async (req, res) => {
 });
 
 // Update checkpoint
-router.put('/checkpoints/:id', async (req, res) => {
+router.put('/checkpoints/:id', requireAdmin, async (req, res) => {
   try {
     const { name, description, location_notes, check_interval_minutes, sort_order, is_active } = req.body;
 

@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -88,7 +88,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create customer
-router.post('/', [
+router.post('/', requireManager, [
   body('company_name').notEmpty().withMessage('נדרש שם חברה')
 ], async (req, res) => {
   try {
@@ -119,7 +119,7 @@ router.post('/', [
 });
 
 // Update customer
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireManager, async (req, res) => {
   try {
     const { company_name, business_id, address, city, service_type, status, payment_terms, notes } = req.body;
 
@@ -150,7 +150,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Add contact to customer
-router.post('/:id/contacts', [
+router.post('/:id/contacts', requireManager, [
   body('name').notEmpty().withMessage('נדרש שם')
 ], async (req, res) => {
   try {
@@ -189,7 +189,7 @@ router.get('/:id/sites', async (req, res) => {
 });
 
 // Add site to customer
-router.post('/:id/sites', [
+router.post('/:id/sites', requireManager, [
   body('name').notEmpty().withMessage('נדרש שם אתר'),
   body('address').notEmpty().withMessage('נדרשת כתובת')
 ], async (req, res) => {
@@ -216,7 +216,7 @@ router.post('/:id/sites', [
 });
 
 // Add contract to customer
-router.post('/:id/contracts', [
+router.post('/:id/contracts', requireManager, [
   body('start_date').isDate().withMessage('נדרש תאריך התחלה')
 ], async (req, res) => {
   try {

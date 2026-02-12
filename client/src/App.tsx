@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import { usePermissions } from './hooks/usePermissions';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -40,6 +41,11 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 }
 
+function RoleRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
+  const { can } = usePermissions();
+  return can(permission) ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -56,22 +62,22 @@ function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="leads" element={<Leads />} />
-            <Route path="leads/:id" element={<LeadDetails />} />
-            <Route path="customers" element={<Customers />} />
-            <Route path="customers/:id" element={<CustomerDetails />} />
-            <Route path="employees" element={<Employees />} />
-            <Route path="employees/:id" element={<EmployeeDetails />} />
+            <Route path="leads" element={<RoleRoute permission="page:leads"><Leads /></RoleRoute>} />
+            <Route path="leads/:id" element={<RoleRoute permission="page:leads"><LeadDetails /></RoleRoute>} />
+            <Route path="customers" element={<RoleRoute permission="page:customers"><Customers /></RoleRoute>} />
+            <Route path="customers/:id" element={<RoleRoute permission="page:customers"><CustomerDetails /></RoleRoute>} />
+            <Route path="employees" element={<RoleRoute permission="page:employees"><Employees /></RoleRoute>} />
+            <Route path="employees/:id" element={<RoleRoute permission="page:employees"><EmployeeDetails /></RoleRoute>} />
             <Route path="shifts" element={<Shifts />} />
             <Route path="calendar" element={<Calendar />} />
             <Route path="events" element={<Events />} />
             <Route path="events/:id" element={<EventDetails />} />
             <Route path="incidents" element={<Incidents />} />
-            <Route path="weapons" element={<WeaponsEquipment />} />
-            <Route path="invoices" element={<Invoices />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="users" element={<Users />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="weapons" element={<RoleRoute permission="page:weapons"><WeaponsEquipment /></RoleRoute>} />
+            <Route path="invoices" element={<RoleRoute permission="page:invoices"><Invoices /></RoleRoute>} />
+            <Route path="reports" element={<RoleRoute permission="page:reports"><Reports /></RoleRoute>} />
+            <Route path="users" element={<RoleRoute permission="page:users"><Users /></RoleRoute>} />
+            <Route path="settings" element={<RoleRoute permission="page:settings"><Settings /></RoleRoute>} />
             <Route path="profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Route>

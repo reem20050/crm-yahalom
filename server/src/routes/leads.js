@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 const whatsappHelper = require('../utils/whatsappHelper');
 
 const router = express.Router();
@@ -141,7 +141,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create lead
-router.post('/', [
+router.post('/', requireManager, [
   body('contact_name').notEmpty().withMessage('נדרש שם איש קשר'),
   body('phone').notEmpty().withMessage('נדרש מספר טלפון')
 ], async (req, res) => {
@@ -182,7 +182,7 @@ router.post('/', [
 });
 
 // Update lead
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireManager, async (req, res) => {
   try {
     const {
       company_name, contact_name, phone, email, source,
@@ -236,7 +236,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Convert lead to customer
-router.post('/:id/convert', async (req, res) => {
+router.post('/:id/convert', requireManager, async (req, res) => {
   try {
     // Get lead
     const leadResult = await db.query(

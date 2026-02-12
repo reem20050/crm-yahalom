@@ -7,6 +7,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Search, UserCircle, Phone, Shield, Plus, X, Trash2 } from 'lucide-react';
 import { employeesApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 const employeeSchema = z.object({
   first_name: z.string().min(1, 'נדרש שם פרטי'),
@@ -77,6 +78,8 @@ export default function Employees() {
     },
   });
 
+  const { can } = usePermissions();
+
   const onSubmit = (data: EmployeeForm) => {
     createMutation.mutate(data);
   };
@@ -88,10 +91,12 @@ export default function Employees() {
           <h1 className="text-2xl font-bold text-gray-900">עובדים</h1>
           <p className="text-gray-500">ניהול עובדים ומסמכים</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          עובד חדש
-        </button>
+        {can('employees:create') && (
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            עובד חדש
+          </button>
+        )}
       </div>
 
       <div className="card">
@@ -152,17 +157,19 @@ export default function Employees() {
                     </div>
                   </div>
                 </Link>
-                <button
-                  onClick={() => {
-                    if (confirm('האם אתה בטוח שברצונך למחוק עובד זה?')) {
-                      deleteMutation.mutate(employee.id);
-                    }
-                  }}
-                  className="text-red-400 hover:text-red-600 p-1"
-                  title="מחק"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {can('employees:delete') && (
+                  <button
+                    onClick={() => {
+                      if (confirm('האם אתה בטוח שברצונך למחוק עובד זה?')) {
+                        deleteMutation.mutate(employee.id);
+                      }
+                    }}
+                    className="text-red-400 hover:text-red-600 p-1"
+                    title="מחק"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))}

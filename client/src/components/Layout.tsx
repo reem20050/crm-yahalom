@@ -24,25 +24,26 @@ import {
   Crosshair,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { usePermissions } from '../hooks/usePermissions';
 import { dashboardApi } from '../services/api';
 import { clsx } from 'clsx';
 import SearchCommand from './SearchCommand';
 import NotificationCenter from './NotificationCenter';
 
 const navigation = [
-  { name: 'דשבורד', href: '/', icon: LayoutDashboard },
-  { name: 'לידים', href: '/leads', icon: Users },
-  { name: 'לקוחות', href: '/customers', icon: Building2 },
-  { name: 'עובדים', href: '/employees', icon: UserCircle },
-  { name: 'משמרות', href: '/shifts', icon: Calendar },
-  { name: 'אירועים', href: '/events', icon: PartyPopper },
-  { name: 'לוח שנה', href: '/calendar', icon: CalendarDays },
-  { name: 'אירועי אבטחה', href: '/incidents', icon: AlertTriangle },
-  { name: 'נשק וציוד', href: '/weapons', icon: Crosshair },
-  { name: 'חשבוניות', href: '/invoices', icon: Receipt },
-  { name: 'דוחות', href: '/reports', icon: BarChart3 },
-  { name: 'משתמשים', href: '/users', icon: ShieldCheck },
-  { name: 'הגדרות', href: '/settings', icon: Settings },
+  { name: 'דשבורד', href: '/', icon: LayoutDashboard, permission: 'page:dashboard' },
+  { name: 'לידים', href: '/leads', icon: Users, permission: 'page:leads' },
+  { name: 'לקוחות', href: '/customers', icon: Building2, permission: 'page:customers' },
+  { name: 'עובדים', href: '/employees', icon: UserCircle, permission: 'page:employees' },
+  { name: 'משמרות', href: '/shifts', icon: Calendar, permission: 'page:shifts' },
+  { name: 'אירועים', href: '/events', icon: PartyPopper, permission: 'page:events' },
+  { name: 'לוח שנה', href: '/calendar', icon: CalendarDays, permission: 'page:calendar' },
+  { name: 'אירועי אבטחה', href: '/incidents', icon: AlertTriangle, permission: 'page:incidents' },
+  { name: 'נשק וציוד', href: '/weapons', icon: Crosshair, permission: 'page:weapons' },
+  { name: 'חשבוניות', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
+  { name: 'דוחות', href: '/reports', icon: BarChart3, permission: 'page:reports' },
+  { name: 'משתמשים', href: '/users', icon: ShieldCheck, permission: 'page:users' },
+  { name: 'הגדרות', href: '/settings', icon: Settings, permission: 'page:settings' },
 ];
 
 export default function Layout() {
@@ -51,7 +52,10 @@ export default function Layout() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { user, logout } = useAuthStore();
+  const { can } = usePermissions();
   const navigate = useNavigate();
+
+  const filteredNavigation = navigation.filter((item) => can(item.permission));
 
   // Fetch notifications for unread count badge
   const { data: notificationsData } = useQuery({
@@ -112,7 +116,7 @@ export default function Layout() {
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            {navigation.map((item) => (
+            {filteredNavigation.map((item) => (
               <NavLink
                 key={item.name}
                 to={item.href}
@@ -146,7 +150,7 @@ export default function Layout() {
                     {user?.firstName} {user?.lastName}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {user?.role === 'admin' ? 'מנהל' : user?.role}
+                    {user?.role === 'admin' ? 'מנהל' : user?.role === 'manager' ? 'מנהל משמרות' : 'עובד'}
                   </p>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400" />

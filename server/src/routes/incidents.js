@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireManager } = require('../middleware/auth');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -173,7 +173,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update incident
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireManager, async (req, res) => {
   try {
     const {
       incident_type, severity, title, description,
@@ -233,7 +233,7 @@ router.post('/:id/updates', async (req, res) => {
 });
 
 // Resolve incident
-router.patch('/:id/resolve', async (req, res) => {
+router.patch('/:id/resolve', requireManager, async (req, res) => {
   try {
     const { resolution } = req.body;
 

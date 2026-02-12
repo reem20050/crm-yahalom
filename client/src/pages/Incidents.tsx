@@ -12,6 +12,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { incidentsApi, customersApi, sitesApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 const incidentTypes: Record<string, string> = {
   theft: 'גניבה',
@@ -57,6 +58,7 @@ const statusColors: Record<string, string> = {
 
 export default function Incidents() {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [severityFilter, setSeverityFilter] = useState('');
@@ -161,10 +163,12 @@ export default function Incidents() {
           </h1>
           <p className="text-gray-500">ניהול ותיעוד אירועי אבטחה</p>
         </div>
-        <button onClick={() => { resetForm(); setEditingId(null); setShowModal(true); }} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          דיווח חדש
-        </button>
+        {can('incidents:create') && (
+          <button onClick={() => { resetForm(); setEditingId(null); setShowModal(true); }} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            דיווח חדש
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -463,7 +467,7 @@ export default function Incidents() {
               </div>
 
               {/* Resolve */}
-              {detailData.incident?.status !== 'resolved' && detailData.incident?.status !== 'closed' && (
+              {can('incidents:resolve') && detailData.incident?.status !== 'resolved' && detailData.incident?.status !== 'closed' && (
                 <div className="border-t pt-4">
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-green-500" />

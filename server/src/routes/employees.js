@@ -256,7 +256,7 @@ router.post('/:id/documents', requireManager, [
 });
 
 // Set employee availability
-router.post('/:id/availability', async (req, res) => {
+router.post('/:id/availability', requireManager, async (req, res) => {
   try {
     const { availability } = req.body; // Array of { day_of_week, start_time, end_time, is_available }
 

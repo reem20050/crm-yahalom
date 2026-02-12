@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { leadsApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 const leadSchema = z.object({
   company_name: z.string().optional(),
@@ -95,6 +96,8 @@ export default function Leads() {
     resolver: zodResolver(leadSchema),
   });
 
+  const { can } = usePermissions();
+
   const onSubmit = (data: LeadForm) => {
     createMutation.mutate(data);
   };
@@ -106,10 +109,12 @@ export default function Leads() {
           <h1 className="text-2xl font-bold text-gray-900">לידים</h1>
           <p className="text-gray-500">ניהול לידים ומעקב מכירות</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          ליד חדש
-        </button>
+        {can('leads:create') && (
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            ליד חדש
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -210,18 +215,20 @@ export default function Leads() {
                         >
                           צפייה
                         </Link>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (confirm('האם אתה בטוח שברצונך למחוק ליד זה?')) {
-                              deleteMutation.mutate(lead.id);
-                            }
-                          }}
-                          className="text-red-500 hover:text-red-700 p-1"
-                          title="מחק"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {can('leads:delete') && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (confirm('האם אתה בטוח שברצונך למחוק ליד זה?')) {
+                                deleteMutation.mutate(lead.id);
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="מחק"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

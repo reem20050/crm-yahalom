@@ -10,6 +10,7 @@ import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, 
 import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi, shiftTemplatesApi } from '../services/api';
 import ShiftTemplateModal, { GenerateFromTemplateModal } from '../components/ShiftTemplateModal';
 import PatrolLogView from '../components/PatrolLogView';
+import { usePermissions } from '../hooks/usePermissions';
 
 function cleanPhone(phone: string): string {
   return phone.replace(/[\s\-+]/g, '');
@@ -91,6 +92,7 @@ function ShiftDetailModal({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const [assignRole, setAssignRole] = useState('מאבטח');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -375,14 +377,16 @@ function ShiftDetailModal({
                             <MessageCircle className="w-4 h-4" />
                           </button>
                         )}
-                        <button
-                          onClick={() => unassignMutation.mutate(assignment.id)}
-                          disabled={unassignMutation.isPending}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg transition-colors text-sm"
-                          title="הסר מהמשמרת"
-                        >
-                          הסר
-                        </button>
+                        {can('shifts:assign') && (
+                          <button
+                            onClick={() => unassignMutation.mutate(assignment.id)}
+                            disabled={unassignMutation.isPending}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg transition-colors text-sm"
+                            title="הסר מהמשמרת"
+                          >
+                            הסר
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -406,49 +410,51 @@ function ShiftDetailModal({
             )}
 
             {/* Assign Employee Section */}
-            <div className="border-t pt-4">
-              <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <UserPlus className="w-5 h-5" />
-                שבץ עובד
-              </h3>
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <label className="label">עובד</label>
-                  <select
-                    value={selectedEmployeeId}
-                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                    className="input"
+            {can('shifts:assign') && (
+              <div className="border-t pt-4">
+                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                  <UserPlus className="w-5 h-5" />
+                  שבץ עובד
+                </h3>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="label">עובד</label>
+                    <select
+                      value={selectedEmployeeId}
+                      onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                      className="input"
+                    >
+                      <option value="">בחר עובד...</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.first_name} {emp.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-40">
+                    <label className="label">תפקיד</label>
+                    <input
+                      type="text"
+                      value={assignRole}
+                      onChange={(e) => setAssignRole(e.target.value)}
+                      className="input"
+                      placeholder="מאבטח"
+                    />
+                  </div>
+                  <button
+                    onClick={handleAssign}
+                    disabled={assignMutation.isPending || !selectedEmployeeId}
+                    className="btn-primary whitespace-nowrap"
                   >
-                    <option value="">בחר עובד...</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.first_name} {emp.last_name}
-                      </option>
-                    ))}
-                  </select>
+                    {assignMutation.isPending ? 'משבץ...' : 'שבץ'}
+                  </button>
                 </div>
-                <div className="w-40">
-                  <label className="label">תפקיד</label>
-                  <input
-                    type="text"
-                    value={assignRole}
-                    onChange={(e) => setAssignRole(e.target.value)}
-                    className="input"
-                    placeholder="מאבטח"
-                  />
-                </div>
-                <button
-                  onClick={handleAssign}
-                  disabled={assignMutation.isPending || !selectedEmployeeId}
-                  className="btn-primary whitespace-nowrap"
-                >
-                  {assignMutation.isPending ? 'משבץ...' : 'שבץ'}
-                </button>
               </div>
-            </div>
+            )}
 
             {/* Delete Shift */}
-            <div className="border-t pt-4">
+            {can('shifts:delete') && <div className="border-t pt-4">
               {!showDeleteConfirm ? (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
@@ -485,7 +491,7 @@ function ShiftDetailModal({
                   </div>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
         ) : (
           <div className="flex items-center justify-center h-48 text-gray-400">
@@ -509,6 +515,7 @@ export default function Shifts() {
   const [generateTemplate, setGenerateTemplate] = useState<{ id: string; name: string } | null>(null);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data, isLoading } = useQuery({
     queryKey: ['shifts', format(weekStart, 'yyyy-MM-dd')],
@@ -605,14 +612,18 @@ export default function Shifts() {
           <p className="text-gray-500">לוח משמרות שבועי</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowTemplates(!showTemplates)} className="btn-secondary flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            תבניות
-          </button>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            משמרת חדשה
-          </button>
+          {can('shifts:create') && (
+            <button onClick={() => setShowTemplates(!showTemplates)} className="btn-secondary flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              תבניות
+            </button>
+          )}
+          {can('shifts:create') && (
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              משמרת חדשה
+            </button>
+          )}
         </div>
       </div>
 
