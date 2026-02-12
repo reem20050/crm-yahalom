@@ -212,7 +212,7 @@ export default function Incidents() {
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
       ) : incidents.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
@@ -268,8 +268,8 @@ export default function Incidents() {
 
       {/* Create/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up m-4">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-lg font-bold">{editingId ? 'עריכת אירוע' : 'דיווח אירוע אבטחה'}</h2>
               <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -366,7 +366,7 @@ export default function Incidents() {
 
       {/* Detail Modal */}
       {showDetail && detailData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto m-4">
             <div className="flex items-center justify-between p-6 border-b">
               <div className="flex items-center gap-3">

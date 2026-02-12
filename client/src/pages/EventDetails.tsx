@@ -216,7 +216,7 @@ export default function EventDetails() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
       </div>
     );
   }
@@ -302,7 +302,7 @@ export default function EventDetails() {
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
             <h3 className="text-lg font-bold text-gray-900">מחיקת אירוע</h3>
             <p className="text-gray-600">

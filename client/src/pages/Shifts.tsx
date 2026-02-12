@@ -223,8 +223,8 @@ function ShiftDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-bold">פרטי משמרת</h2>
@@ -238,7 +238,7 @@ function ShiftDetailModal({
 
         {isLoadingShift ? (
           <div className="flex items-center justify-center h-48">
-            <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
           </div>
         ) : shift ? (
           <div className="p-6 space-y-6">
@@ -595,21 +595,21 @@ export default function Shifts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">משמרות</h1>
-          <p className="text-gray-500">לוח משמרות שבועי</p>
+          <p className="text-sm text-gray-500 mt-0.5">לוח משמרות שבועי</p>
         </div>
         <div className="flex items-center gap-2">
           {can('shifts:create') && (
             <button onClick={() => setShowTemplates(!showTemplates)} className="btn-secondary flex items-center gap-2">
-              <FileText className="w-5 h-5" />
+              <FileText className="w-4 h-4" />
               תבניות
             </button>
           )}
           {can('shifts:create') && (
             <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               משמרת חדשה
             </button>
           )}
@@ -683,33 +683,33 @@ export default function Shifts() {
       )}
 
       {/* Week navigation */}
-      <div className="card">
+      <div className="card !p-4">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setCurrentDate(addDays(currentDate, -7))}
-            className="btn-secondary p-2"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 h-4" />
           </button>
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-sm font-semibold text-gray-900">
             {format(weekStart, 'd MMMM', { locale: he })} -{' '}
             {format(addDays(weekStart, 6), 'd MMMM yyyy', { locale: he })}
           </h2>
           <button
             onClick={() => setCurrentDate(addDays(currentDate, 7))}
-            className="btn-secondary p-2"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-7 gap-4">
+        <div className="grid grid-cols-7 gap-3">
           {days.map((day) => {
             const shifts = getShiftsForDay(day);
             const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
@@ -717,13 +717,13 @@ export default function Shifts() {
             return (
               <div
                 key={day.toISOString()}
-                className={`card p-3 min-h-[200px] ${isToday ? 'ring-2 ring-primary-500' : ''}`}
+                className={`card !p-3 min-h-[200px] ${isToday ? 'ring-2 ring-primary-500/40 !shadow-sm' : ''}`}
               >
                 <div className="text-center mb-3">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs text-gray-400 font-medium">
                     {format(day, 'EEEE', { locale: he })}
                   </p>
-                  <p className={`text-lg font-bold ${isToday ? 'text-primary-600' : ''}`}>
+                  <p className={`text-lg font-bold mt-0.5 ${isToday ? 'text-primary-600' : 'text-gray-900'}`}>
                     {format(day, 'd')}
                   </p>
                 </div>
@@ -734,29 +734,29 @@ export default function Shifts() {
                       <div
                         key={shift.id}
                         onClick={() => setSelectedShiftId(shift.id)}
-                        className={`p-2 rounded text-xs cursor-pointer hover:shadow-md transition-shadow ${
+                        className={`p-2 rounded-lg text-xs cursor-pointer hover:shadow-sm transition-all ${
                           shift.assigned_count >= shift.required_employees
-                            ? 'bg-green-50 border border-green-200'
-                            : 'bg-yellow-50 border border-yellow-200'
+                            ? 'bg-emerald-50/80 border border-emerald-100'
+                            : 'bg-amber-50/80 border border-amber-100'
                         }`}
                       >
-                        <p className="font-medium truncate">{shift.company_name}</p>
+                        <p className="font-medium truncate text-gray-900">{shift.company_name}</p>
                         <p className="text-gray-500 truncate">{shift.site_name}</p>
-                        <p className="text-gray-500">
+                        <p className="text-gray-400 mt-0.5 font-mono">
                           {shift.start_time} - {shift.end_time}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <div className="flex items-center gap-1 text-gray-500">
                             <Users className="w-3 h-3" />
                             <span>{shift.assigned_count}/{shift.required_employees}</span>
                           </div>
-                          {shift.requires_weapon && <Shield className="w-3 h-3 text-orange-500" />}
-                          {shift.requires_vehicle && <Car className="w-3 h-3 text-blue-500" />}
+                          {shift.requires_weapon && <Shield className="w-3 h-3 text-amber-500" />}
+                          {shift.requires_vehicle && <Car className="w-3 h-3 text-sky-500" />}
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-gray-400 text-center">אין משמרות</p>
+                    <p className="text-xs text-gray-300 text-center py-4">—</p>
                   )}
                 </div>
               </div>
@@ -775,7 +775,7 @@ export default function Shifts() {
 
       {/* Create Shift Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">משמרת חדשה</h2>

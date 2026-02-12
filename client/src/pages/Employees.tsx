@@ -87,38 +87,36 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">עובדים</h1>
-          <p className="text-gray-500">ניהול עובדים ומסמכים</p>
+          <p className="text-sm text-gray-500 mt-0.5">ניהול עובדים ומסמכים</p>
         </div>
         {can('employees:create') && (
           <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             עובד חדש
           </button>
         )}
       </div>
 
-      <div className="card">
-        <div className="relative">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="חיפוש עובדים..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input pr-10"
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          placeholder="חיפוש עובדים..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="input pr-11"
+        />
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
       ) : data?.employees?.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {data.employees.map((employee: {
             id: string;
             first_name: string;
@@ -130,23 +128,25 @@ export default function Employees() {
           }) => (
             <div
               key={employee.id}
-              className="card hover:shadow-md transition-shadow"
+              className="card hover:shadow-elevated transition-all duration-200"
             >
-              <div className="flex items-start gap-4">
-                <Link to={`/employees/${employee.id}`} className="flex items-start gap-4 flex-1">
-                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                    <UserCircle className="w-8 h-8 text-gray-400" />
+              <div className="flex items-start gap-3.5">
+                <Link to={`/employees/${employee.id}`} className="flex items-start gap-3.5 flex-1 min-w-0">
+                  <div className="w-11 h-11 bg-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary-700 font-semibold text-sm">
+                      {employee.first_name?.[0]}{employee.last_name?.[0]}
+                    </span>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 text-sm">
                       {employee.first_name} {employee.last_name}
                     </h3>
-                    <p className="text-sm text-gray-500 flex items-center gap-2">
-                      <Phone className="w-3 h-3" />
-                      {employee.phone}
+                    <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1">
+                      <Phone className="w-3 h-3 flex-shrink-0" />
+                      <span dir="ltr">{employee.phone}</span>
                       <WhatsAppIcon phone={employee.phone} message={`שלום ${employee.first_name}, \n\nצוות יהלום`} />
                     </p>
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-1.5 mt-2">
                       <span className={`badge ${employee.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
                         {employee.status === 'active' ? 'פעיל' : 'לא פעיל'}
                       </span>
@@ -166,7 +166,7 @@ export default function Employees() {
                         deleteMutation.mutate(employee.id);
                       }
                     }}
-                    className="text-red-400 hover:text-red-600 p-1"
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                     title="מחק"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -177,9 +177,11 @@ export default function Employees() {
           ))}
         </div>
       ) : (
-        <div className="card text-center py-12">
-          <UserCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">לא נמצאו עובדים</p>
+        <div className="card text-center py-16">
+          <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <UserCircle className="w-8 h-8 text-gray-300" />
+          </div>
+          <p className="text-gray-500 text-sm mb-4">לא נמצאו עובדים</p>
           <button onClick={() => setIsModalOpen(true)} className="btn-primary">
             הוסף עובד ראשון
           </button>
@@ -188,28 +190,28 @@ export default function Employees() {
 
       {/* Create Employee Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-bold">עובד חדש</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">עובד חדש</h2>
               <button
                 onClick={() => {
                   setIsModalOpen(false);
                   reset();
                 }}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="label">שם פרטי *</label>
                   <input {...register('first_name')} className="input" />
                   {errors.first_name && (
-                    <p className="text-sm text-red-600 mt-1">{errors.first_name.message}</p>
+                    <p className="text-xs text-red-600 mt-1">{errors.first_name.message}</p>
                   )}
                 </div>
 
@@ -217,7 +219,7 @@ export default function Employees() {
                   <label className="label">שם משפחה *</label>
                   <input {...register('last_name')} className="input" />
                   {errors.last_name && (
-                    <p className="text-sm text-red-600 mt-1">{errors.last_name.message}</p>
+                    <p className="text-xs text-red-600 mt-1">{errors.last_name.message}</p>
                   )}
                 </div>
 
@@ -225,7 +227,7 @@ export default function Employees() {
                   <label className="label">ת.ז *</label>
                   <input {...register('id_number')} className="input" dir="ltr" />
                   {errors.id_number && (
-                    <p className="text-sm text-red-600 mt-1">{errors.id_number.message}</p>
+                    <p className="text-xs text-red-600 mt-1">{errors.id_number.message}</p>
                   )}
                 </div>
 
@@ -233,7 +235,7 @@ export default function Employees() {
                   <label className="label">טלפון *</label>
                   <input {...register('phone')} className="input" dir="ltr" />
                   {errors.phone && (
-                    <p className="text-sm text-red-600 mt-1">{errors.phone.message}</p>
+                    <p className="text-xs text-red-600 mt-1">{errors.phone.message}</p>
                   )}
                 </div>
 
@@ -246,7 +248,7 @@ export default function Employees() {
                   <label className="label">תאריך תחילת עבודה *</label>
                   <input {...register('hire_date')} type="date" className="input" />
                   {errors.hire_date && (
-                    <p className="text-sm text-red-600 mt-1">{errors.hire_date.message}</p>
+                    <p className="text-xs text-red-600 mt-1">{errors.hire_date.message}</p>
                   )}
                 </div>
 
@@ -280,31 +282,31 @@ export default function Employees() {
                   />
                 </div>
 
-                <div className="col-span-2 border-t pt-4">
-                  <h3 className="font-medium mb-3">רישיונות</h3>
+                <div className="col-span-1 sm:col-span-2 border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">רישיונות</h3>
                   <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         {...register('has_weapon_license')}
                         type="checkbox"
-                        className="w-4 h-4 text-primary-600 rounded"
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300"
                       />
-                      <span>רישיון נשק</span>
+                      <span className="text-sm text-gray-700">רישיון נשק</span>
                     </label>
-                    <label className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         {...register('has_driving_license')}
                         type="checkbox"
-                        className="w-4 h-4 text-primary-600 rounded"
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300"
                       />
-                      <span>רישיון נהיגה</span>
+                      <span className="text-sm text-gray-700">רישיון נהיגה</span>
                     </label>
                   </div>
                 </div>
 
-                <div className="col-span-2 border-t pt-4">
-                  <h3 className="font-medium mb-3">איש קשר לחירום</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-1 sm:col-span-2 border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">איש קשר לחירום</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="label">שם</label>
                       <input {...register('emergency_contact_name')} className="input" />
@@ -317,13 +319,18 @@ export default function Employees() {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="submit"
                   disabled={createMutation.isPending}
                   className="btn-primary flex-1"
                 >
-                  {createMutation.isPending ? 'שומר...' : 'שמור'}
+                  {createMutation.isPending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      שומר...
+                    </span>
+                  ) : 'שמור'}
                 </button>
                 <button
                   type="button"

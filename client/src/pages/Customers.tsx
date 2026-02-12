@@ -81,38 +81,36 @@ export default function Customers() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">לקוחות</h1>
-          <p className="text-gray-500">ניהול לקוחות וחוזים</p>
+          <p className="text-sm text-gray-500 mt-0.5">ניהול לקוחות וחוזים</p>
         </div>
         {can('customers:create') && (
           <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             לקוח חדש
           </button>
         )}
       </div>
 
-      <div className="card">
-        <div className="relative">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="חיפוש לקוחות..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input pr-10"
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          placeholder="חיפוש לקוחות..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="input pr-11"
+        />
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
       ) : data?.customers?.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {data.customers.map((customer: {
             id: string;
             company_name: string;
@@ -123,26 +121,26 @@ export default function Customers() {
           }) => (
             <div
               key={customer.id}
-              className="card hover:shadow-md transition-shadow"
+              className="card hover:shadow-elevated transition-all duration-200"
             >
-              <div className="flex items-start gap-4">
-                <Link to={`/customers/${customer.id}`} className="flex items-start gap-4 flex-1">
-                  <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-6 h-6 text-primary-600" />
+              <div className="flex items-start gap-3.5">
+                <Link to={`/customers/${customer.id}`} className="flex items-start gap-3.5 flex-1 min-w-0">
+                  <div className="w-11 h-11 bg-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-5 h-5 text-primary-600" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{customer.company_name}</h3>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm text-gray-900 truncate">{customer.company_name}</h3>
                     {customer.city && (
-                      <p className="text-sm text-gray-500 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
                         {customer.city}
                       </p>
                     )}
-                    <div className="flex items-center gap-3 mt-2">
+                    <div className="flex items-center gap-2 mt-2">
                       <span className={`badge ${customer.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
                         {customer.status === 'active' ? 'פעיל' : 'לא פעיל'}
                       </span>
-                      <span className="text-sm text-gray-500">{customer.sites_count} אתרים</span>
+                      <span className="text-xs text-gray-400">{customer.sites_count} אתרים</span>
                     </div>
                   </div>
                 </Link>
@@ -153,7 +151,7 @@ export default function Customers() {
                         deleteMutation.mutate(customer.id);
                       }
                     }}
-                    className="text-red-400 hover:text-red-600 p-1"
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                     title="מחק"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -175,8 +173,8 @@ export default function Customers() {
 
       {/* Create Customer Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">לקוח חדש</h2>
               <button

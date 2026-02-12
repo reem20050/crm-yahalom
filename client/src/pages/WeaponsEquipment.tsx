@@ -311,7 +311,7 @@ export default function WeaponsEquipment() {
 
       {/* Transfer Modal */}
       {transferWeapon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-bold mb-4">העברת נשק: {transferWeapon.name}</h3>
             <div className="space-y-4">
@@ -342,7 +342,7 @@ export default function WeaponsEquipment() {
       {/* Content */}
       {isLoading ? (
         <div className="flex items-center justify-center h-48">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-500 border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
         </div>
       ) : activeTab === 'weapons' ? (
         <div className="space-y-3">

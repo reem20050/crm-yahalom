@@ -63,7 +63,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-500 border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
       </div>
     );
   }
@@ -74,7 +74,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">דשבורד</h1>
-          <p className="text-gray-500">ברוך הבא למערכת צוות יהלום</p>
+          <p className="text-sm text-gray-500 mt-0.5">ברוך הבא למערכת צוות יהלום</p>
         </div>
         <EmployeeView data={empData} />
       </div>
@@ -83,33 +83,33 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">דשבורד</h1>
-          <p className="text-gray-500">ברוך הבא למערכת צוות יהלום</p>
+          <p className="text-sm text-gray-500 mt-0.5">ברוך הבא למערכת צוות יהלום</p>
         </div>
         {/* View Toggle */}
-        <div className="flex bg-gray-100 rounded-lg p-1">
+        <div className="flex bg-gray-100/80 rounded-xl p-1 gap-0.5">
           <button
             onClick={() => setViewMode('operations')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
               viewMode === 'operations'
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <Shield className="w-4 h-4 inline-block ml-1" />
+            <Shield className="w-4 h-4" />
             תפעולי
           </button>
           <button
             onClick={() => setViewMode('business')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
               viewMode === 'business'
-                ? 'bg-primary-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <TrendingUp className="w-4 h-4 inline-block ml-1" />
+            <TrendingUp className="w-4 h-4" />
             עסקי
           </button>
         </div>
@@ -134,15 +134,15 @@ function EmployeeView({ data }: { data: any }) {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="stat-card-value">{myShifts.length}</p>
               <p className="stat-card-label">משמרות היום</p>
             </div>
-            <div className="p-3 rounded-lg bg-blue-500">
-              <Shield className="w-6 h-6 text-white" />
+            <div className="w-11 h-11 rounded-xl bg-sky-50 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-sky-600" />
             </div>
           </div>
         </div>
@@ -152,8 +152,8 @@ function EmployeeView({ data }: { data: any }) {
               <p className="stat-card-value">{myEvents.length}</p>
               <p className="stat-card-label">אירועים ב-7 ימים</p>
             </div>
-            <div className="p-3 rounded-lg bg-orange-500">
-              <PartyPopper className="w-6 h-6 text-white" />
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center">
+              <PartyPopper className="w-5 h-5 text-amber-600" />
             </div>
           </div>
         </div>
@@ -163,8 +163,8 @@ function EmployeeView({ data }: { data: any }) {
               <p className="stat-card-value">{myEquipment.length}</p>
               <p className="stat-card-label">פריטי ציוד</p>
             </div>
-            <div className="p-3 rounded-lg bg-purple-500">
-              <Package className="w-6 h-6 text-white" />
+            <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center">
+              <Package className="w-5 h-5 text-violet-600" />
             </div>
           </div>
         </div>
@@ -174,8 +174,8 @@ function EmployeeView({ data }: { data: any }) {
               <p className="stat-card-value">{myRecent.length}</p>
               <p className="stat-card-label">משמרות אחרונות</p>
             </div>
-            <div className="p-3 rounded-lg bg-green-500">
-              <Clock className="w-6 h-6 text-white" />
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-emerald-600" />
             </div>
           </div>
         </div>
@@ -184,23 +184,25 @@ function EmployeeView({ data }: { data: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* My Shifts Today */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-sky-600" />
+            </div>
             המשמרות שלי היום
           </h3>
           {myShifts.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {myShifts.map((shift: any) => (
                 <div
                   key={shift.id}
-                  className="p-3 rounded-lg bg-blue-50 border border-blue-100"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-sm text-gray-900">
                         {shift.site_name || shift.company_name}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs text-gray-500 mt-0.5">
                         {shift.start_time} - {shift.end_time}
                       </p>
                     </div>
@@ -224,55 +226,65 @@ function EmployeeView({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">אין משמרות היום</p>
+            <div className="text-center py-10">
+              <Shield className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">אין משמרות היום</p>
+            </div>
           )}
         </div>
 
         {/* My Upcoming Events */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <PartyPopper className="w-5 h-5 text-orange-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <PartyPopper className="w-4 h-4 text-amber-600" />
+            </div>
             אירועים קרובים שלי
           </h3>
           {myEvents.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {myEvents.map((event: any) => (
                 <div
                   key={event.id}
-                  className="p-3 rounded-lg bg-orange-50 border border-orange-100"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
                 >
-                  <p className="font-medium text-gray-900">{event.event_name}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="font-medium text-sm text-gray-900">{event.event_name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
                     {event.event_date} | {event.start_time} | {event.location || event.company_name}
                   </p>
                   {event.role && (
-                    <p className="text-xs text-orange-600 mt-1">תפקיד: {event.role}</p>
+                    <p className="text-xs text-amber-600 mt-1.5 font-medium">תפקיד: {event.role}</p>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">אין אירועים קרובים</p>
+            <div className="text-center py-10">
+              <PartyPopper className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">אין אירועים קרובים</p>
+            </div>
           )}
         </div>
 
         {/* My Equipment */}
         {myEquipment.length > 0 && (
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Package className="w-5 h-5 text-purple-500" />
+            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                <Package className="w-4 h-4 text-violet-600" />
+              </div>
               הציוד שלי
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {myEquipment.map((item: any, index: number) => (
-                <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div className="flex items-center gap-2">
+                <div key={index} className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg">
+                  <div className="flex items-center gap-2.5">
                     <Package className="w-4 h-4 text-gray-400" />
-                    <span className="font-medium text-sm">{item.item_name}</span>
+                    <span className="font-medium text-sm text-gray-900">{item.item_name}</span>
                     <span className="text-xs text-gray-500">{item.item_type}</span>
                   </div>
                   {item.serial_number && (
-                    <span className="text-xs text-gray-400 dir-ltr">{item.serial_number}</span>
+                    <span className="text-xs text-gray-400 font-mono" dir="ltr">{item.serial_number}</span>
                   )}
                 </div>
               ))}
@@ -282,30 +294,35 @@ function EmployeeView({ data }: { data: any }) {
 
         {/* Recent Shifts */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-green-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-emerald-600" />
+            </div>
             היסטוריית משמרות אחרונות
           </h3>
           {myRecent.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {myRecent.map((shift: any, index: number) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
+                  className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg text-sm"
                 >
                   <div>
-                    <span className="font-medium">{shift.site_name || shift.company_name}</span>
-                    <span className="text-gray-400 mx-2">|</span>
+                    <span className="font-medium text-gray-900">{shift.site_name || shift.company_name}</span>
+                    <span className="text-gray-300 mx-2">·</span>
                     <span className="text-gray-500">{shift.date}</span>
                   </div>
-                  <span className="text-gray-500">
+                  <span className="text-gray-500 font-mono text-xs">
                     {shift.start_time} - {shift.end_time}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">אין היסטוריה</p>
+            <div className="text-center py-10">
+              <Clock className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">אין היסטוריה</p>
+            </div>
           )}
         </div>
       </div>
@@ -320,33 +337,37 @@ function OperationsView({ data }: { data: any }) {
       name: 'מאבטחים בשטח',
       value: `${data?.guards_on_duty || 0}/${data?.guards_expected_today || 0}`,
       icon: Shield,
-      color: 'bg-blue-500',
+      iconColor: 'text-sky-600',
+      bgColor: 'bg-sky-50',
     },
     {
       name: 'אתרים מכוסים',
       value: data?.sites_with_coverage || 0,
       icon: MapPin,
-      color: 'bg-green-500',
+      iconColor: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
     },
     {
       name: 'אירועי אבטחה פתוחים',
       value: data?.open_incidents?.count || 0,
       icon: AlertTriangle,
-      color: data?.open_incidents?.critical > 0 ? 'bg-red-600' : 'bg-red-500',
+      iconColor: data?.open_incidents?.critical > 0 ? 'text-red-600' : 'text-red-500',
+      bgColor: data?.open_incidents?.critical > 0 ? 'bg-red-100' : 'bg-red-50',
       href: '/incidents',
     },
     {
       name: 'רישיונות שפגים',
       value: data?.expiring_licenses?.length || 0,
       icon: FileWarning,
-      color: 'bg-yellow-500',
+      iconColor: 'text-amber-600',
+      bgColor: 'bg-amber-50',
     },
   ];
 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {stats.map((stat) => {
           const Wrapper = stat.href ? Link : 'div';
           const wrapperProps = stat.href ? { to: stat.href } : {};
@@ -354,15 +375,15 @@ function OperationsView({ data }: { data: any }) {
             <Wrapper
               key={stat.name}
               {...(wrapperProps as any)}
-              className="stat-card hover:shadow-md transition-shadow"
+              className="stat-card hover:shadow-elevated transition-all duration-200"
             >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="stat-card-value">{stat.value}</p>
                   <p className="stat-card-label">{stat.name}</p>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.color}`}>
-                  <stat.icon className="w-6 h-6 text-white" />
+                <div className={`w-11 h-11 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                  <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
                 </div>
               </div>
             </Wrapper>
@@ -372,14 +393,16 @@ function OperationsView({ data }: { data: any }) {
 
       {/* Critical alerts row */}
       {data?.open_incidents?.critical > 0 && (
-        <div className="bg-red-100 border border-red-300 rounded-lg p-4 flex items-center gap-3">
-          <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 animate-fade-in">
+          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
           <div>
-            <p className="font-bold text-red-800">
+            <p className="font-semibold text-red-800 text-sm">
               {data.open_incidents.critical} אירועי אבטחה קריטיים פתוחים!
             </p>
-            <Link to="/incidents?severity=critical" className="text-red-700 underline text-sm">
-              צפה באירועים
+            <Link to="/incidents?severity=critical" className="text-red-600 hover:text-red-700 text-sm font-medium hover:underline">
+              צפה באירועים ←
             </Link>
           </div>
         </div>
@@ -388,60 +411,67 @@ function OperationsView({ data }: { data: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Guards Not Checked In */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+            </div>
             מאבטחים שלא עשו צ'ק-אין
           </h3>
           {data?.guards_not_checked_in?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.guards_not_checked_in.map((guard: any) => (
                 <div
                   key={guard.id}
-                  className="p-3 rounded-lg bg-red-50 border border-red-100 flex items-center justify-between"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-sm text-gray-900">
                       {guard.first_name} {guard.last_name}
                     </p>
-                    <p className="text-sm text-gray-500">
-                      {guard.site_name || guard.company_name} | {guard.start_time} - {guard.end_time}
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {guard.site_name || guard.company_name} · {guard.start_time} - {guard.end_time}
                     </p>
                   </div>
                   {guard.phone && (
                     <a
                       href={`tel:${guard.phone}`}
-                      className="p-2 rounded-lg bg-red-100 hover:bg-red-200 transition-colors"
+                      className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors"
                       title="התקשר"
                     >
-                      <Phone className="w-4 h-4 text-red-600" />
+                      <Phone className="w-3.5 h-3.5 text-red-600" />
                     </a>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-green-600 text-center py-8 font-medium">
-              &#10003; כל המאבטחים עשו צ'ק-אין
-            </p>
+            <div className="text-center py-10">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
+              </div>
+              <p className="text-sm text-emerald-600 font-medium">כל המאבטחים עשו צ'ק-אין</p>
+            </div>
           )}
         </div>
 
         {/* Sites Without Coverage */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-orange-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <MapPin className="w-4 h-4 text-amber-600" />
+            </div>
             אתרים ללא כיסוי
           </h3>
           {data?.sites_without_coverage?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.sites_without_coverage.map((site: any) => (
                 <div
                   key={site.id}
-                  className="p-3 rounded-lg bg-orange-50 border border-orange-100"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
                 >
-                  <p className="font-medium text-gray-900">{site.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {site.company_name} | {site.start_time} - {site.end_time}
+                  <p className="font-medium text-sm text-gray-900">{site.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {site.company_name} · {site.start_time} - {site.end_time}
                   </p>
                   {site.address && (
                     <p className="text-xs text-gray-400 mt-1">{site.address}</p>
@@ -450,31 +480,36 @@ function OperationsView({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-green-600 text-center py-8 font-medium">
-              &#10003; כל האתרים מכוסים
-            </p>
+            <div className="text-center py-10">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
+              </div>
+              <p className="text-sm text-emerald-600 font-medium">כל האתרים מכוסים</p>
+            </div>
           )}
         </div>
 
         {/* Upcoming Shift Changes */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <ArrowLeftRight className="w-5 h-5 text-blue-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+              <ArrowLeftRight className="w-4 h-4 text-sky-600" />
+            </div>
             החלפות משמרות בשעתיים הקרובות
           </h3>
           {data?.upcoming_shift_changes?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.upcoming_shift_changes.map((shift: any) => (
                 <div
                   key={shift.id}
-                  className="p-3 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-between"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-sm text-gray-900">
                       {shift.site_name || shift.company_name}
                     </p>
-                    <p className="text-sm text-gray-500">
-                      {shift.start_time} - {shift.end_time} | {shift.assigned_count}/{shift.required_employees} משובצים
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {shift.start_time} - {shift.end_time} · {shift.assigned_count}/{shift.required_employees} משובצים
                     </p>
                   </div>
                   <span
@@ -488,30 +523,35 @@ function OperationsView({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">אין החלפות קרובות</p>
+            <div className="text-center py-10">
+              <ArrowLeftRight className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">אין החלפות קרובות</p>
+            </div>
           )}
         </div>
 
         {/* Expiring Licenses */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FileWarning className="w-5 h-5 text-yellow-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <FileWarning className="w-4 h-4 text-amber-600" />
+            </div>
             רישיונות והסמכות שפגים ב-7 ימים
           </h3>
           {data?.expiring_licenses?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.expiring_licenses.map((cert: any) => (
                 <div
                   key={cert.id}
-                  className="p-3 rounded-lg bg-yellow-50 border border-yellow-100"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">{cert.employee_name}</p>
-                      <p className="text-sm text-gray-500">{cert.cert_name}</p>
+                      <p className="font-medium text-sm text-gray-900">{cert.employee_name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{cert.cert_name}</p>
                     </div>
-                    <span className={`text-sm font-bold ${
-                      cert.days_left <= 3 ? 'text-red-600' : 'text-yellow-600'
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
+                      cert.days_left <= 3 ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
                     }`}>
                       {cert.days_left} ימים
                     </span>
@@ -520,26 +560,31 @@ function OperationsView({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-green-600 text-center py-8 font-medium">
-              &#10003; אין רישיונות שפגים בקרוב
-            </p>
+            <div className="text-center py-10">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
+              </div>
+              <p className="text-sm text-emerald-600 font-medium">אין רישיונות שפגים בקרוב</p>
+            </div>
           )}
         </div>
 
         {/* Today's Incidents */}
         {data?.today_incidents?.length > 0 && (
           <div className="card lg:col-span-2">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+              </div>
               אירועי אבטחה היום
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.today_incidents.map((inc: any) => {
                 const severityColors: Record<string, string> = {
-                  critical: 'bg-red-100 border-red-300 text-red-800',
-                  high: 'bg-orange-100 border-orange-300 text-orange-800',
-                  medium: 'bg-yellow-100 border-yellow-300 text-yellow-800',
-                  low: 'bg-green-100 border-green-300 text-green-800',
+                  critical: 'bg-red-50 text-red-700 border-red-200',
+                  high: 'bg-orange-50 text-orange-700 border-orange-200',
+                  medium: 'bg-amber-50 text-amber-700 border-amber-200',
+                  low: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                 };
                 const severityLabels: Record<string, string> = {
                   critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך',
@@ -548,19 +593,17 @@ function OperationsView({ data }: { data: any }) {
                   <Link
                     key={inc.id}
                     to="/incidents"
-                    className="block p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                    className="block p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className={`px-2 py-1 rounded text-xs font-bold border ${severityColors[inc.severity] || severityColors.low}`}>
-                          {severityLabels[inc.severity] || inc.severity}
-                        </span>
-                        <div>
-                          <p className="font-medium text-gray-900">{inc.title}</p>
-                          <p className="text-sm text-gray-500">
-                            {inc.site_name || inc.company_name} | {inc.incident_time}
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${severityColors[inc.severity] || severityColors.low}`}>
+                        {severityLabels[inc.severity] || inc.severity}
+                      </span>
+                      <div>
+                        <p className="font-medium text-sm text-gray-900">{inc.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {inc.site_name || inc.company_name} · {inc.incident_time}
+                        </p>
                       </div>
                     </div>
                   </Link>
@@ -581,28 +624,32 @@ function BusinessView({ data }: { data: any }) {
       name: 'לידים חדשים',
       value: data?.leads?.new_leads || 0,
       icon: Users,
-      color: 'bg-blue-500',
+      iconColor: 'text-sky-600',
+      bgColor: 'bg-sky-50',
       href: '/leads?status=new',
     },
     {
       name: 'לקוחות פעילים',
       value: data?.customers?.active_customers || 0,
       icon: Building2,
-      color: 'bg-green-500',
+      iconColor: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
       href: '/customers',
     },
     {
       name: 'משמרות היום',
       value: data?.shiftsToday?.total || 0,
       icon: Calendar,
-      color: 'bg-purple-500',
+      iconColor: 'text-violet-600',
+      bgColor: 'bg-violet-50',
       href: '/shifts',
     },
     {
       name: 'אירועים השבוע',
       value: data?.upcomingEvents?.length || 0,
       icon: PartyPopper,
-      color: 'bg-orange-500',
+      iconColor: 'text-amber-600',
+      bgColor: 'bg-amber-50',
       href: '/events',
     },
   ];
@@ -610,20 +657,20 @@ function BusinessView({ data }: { data: any }) {
   return (
     <>
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {stats.map((stat) => (
           <Link
             key={stat.name}
             to={stat.href}
-            className="stat-card hover:shadow-md transition-shadow"
+            className="stat-card hover:shadow-elevated transition-all duration-200"
           >
             <div className="flex items-center justify-between">
               <div>
                 <p className="stat-card-value">{stat.value}</p>
                 <p className="stat-card-label">{stat.name}</p>
               </div>
-              <div className={`p-3 rounded-lg ${stat.color}`}>
-                <stat.icon className="w-6 h-6 text-white" />
+              <div className={`w-11 h-11 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
               </div>
             </div>
           </Link>
@@ -633,24 +680,34 @@ function BusinessView({ data }: { data: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue chart */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-primary-600" />
+            </div>
             הכנסות - 6 חודשים אחרונים
           </h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data?.monthlyRevenue || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
                 <Tooltip
                   formatter={(value: number) => [`₪${value?.toLocaleString()}`, 'הכנסות']}
+                  contentStyle={{
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 4px 16px -2px rgba(0,0,0,0.08)',
+                    fontSize: '13px',
+                  }}
                 />
                 <Line
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#0ea5e9"
-                  strokeWidth={2}
+                  stroke="#0070cc"
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: '#0070cc', strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -659,23 +716,25 @@ function BusinessView({ data }: { data: any }) {
 
         {/* Upcoming events */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <PartyPopper className="w-5 h-5 text-orange-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <PartyPopper className="w-4 h-4 text-amber-600" />
+            </div>
             אירועים קרובים
           </h3>
           {data?.upcomingEvents?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.upcomingEvents.map((event: any) => (
                 <Link
                   key={event.id}
                   to={`/events/${event.id}`}
-                  className="block p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="block p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">{event.event_name}</p>
-                      <p className="text-sm text-gray-500">
-                        {event.event_date} | {event.start_time} | {event.company_name}
+                      <p className="font-medium text-sm text-gray-900">{event.event_name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {event.event_date} · {event.start_time} · {event.company_name}
                       </p>
                     </div>
                     <span
@@ -685,73 +744,83 @@ function BusinessView({ data }: { data: any }) {
                           : 'badge-warning'
                       }`}
                     >
-                      {event.assigned_count}/{event.required_guards} משובצים
+                      {event.assigned_count}/{event.required_guards}
                     </span>
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">אין אירועים קרובים</p>
+            <div className="text-center py-10">
+              <PartyPopper className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">אין אירועים קרובים</p>
+            </div>
           )}
         </div>
 
         {/* Unassigned shifts */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+            </div>
             משמרות לא מאוישות היום
           </h3>
           {data?.unassignedShifts?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.unassignedShifts.map((shift: any) => (
                 <div
                   key={shift.id}
-                  className="p-3 rounded-lg bg-red-50 border border-red-100"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
                 >
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium text-sm text-gray-900">
                     {shift.company_name} - {shift.site_name}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs text-gray-500 mt-0.5">
                     {shift.start_time} - {shift.end_time}
                   </p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-green-600 text-center py-8">
-              &#10003; כל המשמרות מאוישות
-            </p>
+            <div className="text-center py-10">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
+              </div>
+              <p className="text-sm text-emerald-600 font-medium">כל המשמרות מאוישות</p>
+            </div>
           )}
         </div>
 
         {/* Overdue invoices */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FileWarning className="w-5 h-5 text-yellow-500" />
+          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <FileWarning className="w-4 h-4 text-amber-600" />
+            </div>
             חשבוניות באיחור
           </h3>
           {data?.overdueInvoices?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.overdueInvoices.map((invoice: any) => (
                 <div
                   key={invoice.id}
-                  className="p-3 rounded-lg bg-yellow-50 border border-yellow-100"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-sm text-gray-900">
                         {invoice.company_name}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs text-gray-500 mt-0.5">
                         חשבונית #{invoice.invoice_number}
                       </p>
                     </div>
                     <div className="text-left">
-                      <p className="font-bold text-gray-900">
+                      <p className="font-bold text-sm text-gray-900">
                         ₪{invoice.total_amount?.toLocaleString()}
                       </p>
-                      <p className="text-sm text-red-600">
+                      <p className="text-xs text-red-500 font-medium">
                         {invoice.days_overdue} ימים באיחור
                       </p>
                     </div>
@@ -760,29 +829,34 @@ function BusinessView({ data }: { data: any }) {
               ))}
             </div>
           ) : (
-            <p className="text-green-600 text-center py-8">
-              &#10003; אין חשבוניות באיחור
-            </p>
+            <div className="text-center py-10">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
+              </div>
+              <p className="text-sm text-emerald-600 font-medium">אין חשבוניות באיחור</p>
+            </div>
           )}
         </div>
 
         {/* Contracts expiring */}
         {data?.contractsExpiring?.length > 0 && (
           <div className="card lg:col-span-2">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-500" />
+            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+                <Clock className="w-4 h-4 text-sky-600" />
+              </div>
               חוזים לחידוש בקרוב
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {data.contractsExpiring.map((contract: any) => (
                 <Link
                   key={contract.id}
                   to={`/customers/${contract.customer_id}`}
-                  className="p-3 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors"
+                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
-                  <p className="font-medium text-gray-900">{contract.company_name}</p>
-                  <p className="text-sm text-gray-500">
-                    תום חוזה: {contract.end_date} | ₪{contract.monthly_value?.toLocaleString()}/חודש
+                  <p className="font-medium text-sm text-gray-900">{contract.company_name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    תום חוזה: {contract.end_date} · ₪{contract.monthly_value?.toLocaleString()}/חודש
                   </p>
                 </Link>
               ))}
