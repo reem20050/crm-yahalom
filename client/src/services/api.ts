@@ -159,6 +159,7 @@ export const reportsApi = {
   employees: (params?: Record<string, unknown>) => api.get('/reports/employees', { params }),
   events: (params?: Record<string, unknown>) => api.get('/reports/events', { params }),
   financial: (params?: Record<string, unknown>) => api.get('/reports/financial', { params }),
+  profitLoss: (params?: Record<string, unknown>) => api.get('/reports/profit-loss', { params }),
 };
 
 // Search

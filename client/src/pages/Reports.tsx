@@ -23,12 +23,15 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
+  Legend,
 } from 'recharts';
 import { reportsApi, performanceApi, incidentsApi } from '../services/api';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-type ReportTab = 'sales' | 'customers' | 'employees' | 'financial' | 'performance';
+type ReportTab = 'sales' | 'customers' | 'employees' | 'financial' | 'profitloss' | 'performance';
 
 function exportToCSV(data: Record<string, unknown>[], headers: Record<string, string>, filename: string) {
   if (!data || data.length === 0) return;
@@ -80,6 +83,12 @@ export default function Reports() {
     enabled: activeTab === 'financial',
   });
 
+  const { data: profitLossData } = useQuery({
+    queryKey: ['reports', 'profit-loss'],
+    queryFn: () => reportsApi.profitLoss().then((res) => res.data),
+    enabled: activeTab === 'profitloss',
+  });
+
   const { data: rankingsData } = useQuery({
     queryKey: ['reports', 'performance-rankings'],
     queryFn: () => performanceApi.getRankings().then((res) => res.data),
@@ -97,6 +106,7 @@ export default function Reports() {
     { id: 'customers' as const, label: 'לקוחות', icon: Building2 },
     { id: 'employees' as const, label: 'עובדים', icon: Users },
     { id: 'financial' as const, label: 'כספים', icon: DollarSign },
+    { id: 'profitloss' as const, label: 'רווח והפסד', icon: BarChart3 },
     { id: 'performance' as const, label: 'ביצועי מאבטחים', icon: Shield },
   ];
 
@@ -120,6 +130,14 @@ export default function Reports() {
       case 'financial':
         if (financialData?.revenueByCustomer) {
           exportToCSV(financialData.revenueByCustomer, { company_name: 'לקוח', paid: 'שולם', pending: 'ממתין' }, 'financial-revenue.csv');
+        }
+        break;
+      case 'profitloss':
+        if (profitLossData?.customerProfitability) {
+          exportToCSV(profitLossData.customerProfitability, {
+            company_name: 'לקוח', revenue: 'הכנסות', labor_cost: 'עלות עבודה',
+            profit: 'רווח', margin: 'מרווח %', hours: 'שעות'
+          }, 'profit-loss-by-customer.csv');
         }
         break;
       case 'performance':
@@ -358,6 +376,173 @@ export default function Reports() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profit & Loss Report */}
+      {activeTab === 'profitloss' && profitLossData && (
+        <div className="space-y-6">
+          {/* Totals KPI */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="card text-center">
+              <p className="text-sm text-gray-500">הכנסות (שנתי)</p>
+              <p className="text-2xl font-bold text-green-600">
+                ₪{(profitLossData.totals?.revenue || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="card text-center">
+              <p className="text-sm text-gray-500">עלות עבודה</p>
+              <p className="text-2xl font-bold text-red-600">
+                ₪{(profitLossData.totals?.labor_cost || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="card text-center">
+              <p className="text-sm text-gray-500">רווח נקי</p>
+              <p className={`text-2xl font-bold ${(profitLossData.totals?.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ₪{(profitLossData.totals?.profit || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="card text-center">
+              <p className="text-sm text-gray-500">מרווח רווח</p>
+              <p className={`text-2xl font-bold ${(profitLossData.totals?.margin || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                {profitLossData.totals?.margin || 0}%
+              </p>
+            </div>
+          </div>
+
+          {/* Monthly P&L Chart */}
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4">רווח והפסד חודשי</h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={profitLossData.monthly || []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value: number) => `₪${value?.toLocaleString()}`} />
+                  <Legend />
+                  <Bar dataKey="revenue" fill="#22c55e" name="הכנסות" />
+                  <Bar dataKey="labor_cost" fill="#ef4444" name="עלות עבודה" />
+                  <Bar dataKey="profit" fill="#3b82f6" name="רווח" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Profit Margin Trend */}
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4">מגמת מרווח רווח</h3>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={profitLossData.monthly || []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis unit="%" />
+                  <Tooltip formatter={(value: number) => `${value}%`} />
+                  <Line type="monotone" dataKey="margin" stroke="#8b5cf6" strokeWidth={2} name="מרווח %" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Monthly Breakdown Table */}
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4">פירוט חודשי</h3>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>חודש</th>
+                    <th>הכנסות</th>
+                    <th>עלות עבודה</th>
+                    <th>רווח</th>
+                    <th>מרווח</th>
+                    <th>שעות</th>
+                    <th>עובדים</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {(profitLossData.monthly || []).map((m: {
+                    month: string; revenue: number; labor_cost: number;
+                    profit: number; margin: number; total_hours: number; unique_employees: number;
+                  }) => (
+                    <tr key={m.month}>
+                      <td className="font-medium">{m.month}</td>
+                      <td className="text-green-600">₪{(m.revenue || 0).toLocaleString()}</td>
+                      <td className="text-red-600">₪{(m.labor_cost || 0).toLocaleString()}</td>
+                      <td className={m.profit >= 0 ? 'text-green-700 font-bold' : 'text-red-700 font-bold'}>
+                        ₪{(m.profit || 0).toLocaleString()}
+                      </td>
+                      <td>
+                        <span className={`badge ${m.margin >= 30 ? 'badge-green' : m.margin >= 10 ? 'badge-yellow' : 'badge-red'}`}>
+                          {m.margin}%
+                        </span>
+                      </td>
+                      <td>{(m.total_hours || 0).toLocaleString()}</td>
+                      <td>{m.unique_employees || 0}</td>
+                    </tr>
+                  ))}
+                  {/* Totals row */}
+                  {profitLossData.monthly?.length > 0 && (
+                    <tr className="bg-gray-50 font-bold">
+                      <td>סה"כ</td>
+                      <td className="text-green-600">₪{(profitLossData.totals?.revenue || 0).toLocaleString()}</td>
+                      <td className="text-red-600">₪{(profitLossData.totals?.labor_cost || 0).toLocaleString()}</td>
+                      <td className={profitLossData.totals?.profit >= 0 ? 'text-green-700' : 'text-red-700'}>
+                        ₪{(profitLossData.totals?.profit || 0).toLocaleString()}
+                      </td>
+                      <td>{profitLossData.totals?.margin || 0}%</td>
+                      <td></td>
+                      <td></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Customer Profitability */}
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4">רווחיות לפי לקוח</h3>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>לקוח</th>
+                    <th>הכנסות</th>
+                    <th>עלות עבודה</th>
+                    <th>רווח</th>
+                    <th>מרווח</th>
+                    <th>שעות</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {(profitLossData.customerProfitability || []).map((c: {
+                    company_name: string; revenue: number; labor_cost: number;
+                    profit: number; margin: number; hours: number;
+                  }) => (
+                    <tr key={c.company_name}>
+                      <td className="font-medium">{c.company_name}</td>
+                      <td className="text-green-600">₪{(c.revenue || 0).toLocaleString()}</td>
+                      <td className="text-red-600">₪{(c.labor_cost || 0).toLocaleString()}</td>
+                      <td className={c.profit >= 0 ? 'text-green-700 font-bold' : 'text-red-700 font-bold'}>
+                        ₪{(c.profit || 0).toLocaleString()}
+                      </td>
+                      <td>
+                        <span className={`badge ${c.margin >= 30 ? 'badge-green' : c.margin >= 10 ? 'badge-yellow' : 'badge-red'}`}>
+                          {c.margin}%
+                        </span>
+                      </td>
+                      <td>{(c.hours || 0).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {(!profitLossData.customerProfitability || profitLossData.customerProfitability.length === 0) && (
+              <p className="text-gray-400 text-center py-8">אין נתוני רווחיות</p>
+            )}
           </div>
         </div>
       )}
