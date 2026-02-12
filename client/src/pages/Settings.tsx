@@ -47,6 +47,8 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const [showWhatsAppForm, setShowWhatsAppForm] = useState(false);
   const [showGreenInvoiceForm, setShowGreenInvoiceForm] = useState(false);
+  const [testPhone, setTestPhone] = useState('');
+  const [showWhatsAppGuide, setShowWhatsAppGuide] = useState(false);
 
   // Fetch integration settings
   const { data: settings, isLoading } = useQuery<IntegrationSettings>({
@@ -105,6 +107,18 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
       toast.success('WhatsApp נותק בהצלחה');
+    },
+  });
+
+  // WhatsApp test mutation
+  const whatsAppTestMutation = useMutation({
+    mutationFn: (to: string) => api.post('/integrations/whatsapp/test', { to }),
+    onSuccess: () => {
+      toast.success('הודעת בדיקה נשלחה בהצלחה! ✅');
+      setTestPhone('');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'שגיאה בשליחת הודעת בדיקה');
     },
   });
 
@@ -231,18 +245,43 @@ export default function Settings() {
               </div>
 
               {settings?.whatsapp.connected && !showWhatsAppForm ? (
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    מספר: <span className="font-medium">{settings.whatsapp.phoneNumber}</span>
-                  </p>
-                  <button
-                    onClick={() => whatsAppDisconnectMutation.mutate()}
-                    disabled={whatsAppDisconnectMutation.isPending}
-                    className="btn-secondary text-red-600 hover:bg-red-50 flex items-center gap-2"
-                  >
-                    <Unlink className="w-4 h-4" />
-                    נתק
-                  </button>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-600">
+                      מספר: <span className="font-medium">{settings.whatsapp.phoneNumber}</span>
+                    </p>
+                    <button
+                      onClick={() => whatsAppDisconnectMutation.mutate()}
+                      disabled={whatsAppDisconnectMutation.isPending}
+                      className="btn-secondary text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <Unlink className="w-4 h-4" />
+                      נתק
+                    </button>
+                  </div>
+                  {/* Test connection */}
+                  <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                    <input
+                      type="text"
+                      value={testPhone}
+                      onChange={(e) => setTestPhone(e.target.value)}
+                      placeholder="מספר טלפון לבדיקה (050...)"
+                      className="input flex-1 text-sm"
+                      dir="ltr"
+                    />
+                    <button
+                      onClick={() => { if (testPhone) whatsAppTestMutation.mutate(testPhone); }}
+                      disabled={whatsAppTestMutation.isPending || !testPhone}
+                      className="btn-success text-sm px-3 py-2 flex items-center gap-1"
+                    >
+                      {whatsAppTestMutation.isPending ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <MessageCircle className="w-4 h-4" />
+                      )}
+                      בדוק חיבור
+                    </button>
+                  </div>
                 </div>
               ) : showWhatsAppForm ? (
                 <form
@@ -295,17 +334,46 @@ export default function Settings() {
                       ביטול
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    <a
-                      href="https://business.facebook.com/settings/whatsapp-business-accounts"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-600 hover:underline flex items-center gap-1"
-                    >
-                      איך להשיג את הפרטים
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowWhatsAppGuide(!showWhatsAppGuide)}
+                    className="text-primary-600 hover:underline text-sm flex items-center gap-1"
+                  >
+                    {showWhatsAppGuide ? '▲ הסתר מדריך' : '▼ איך להשיג את הפרטים?'}
+                  </button>
+                  {showWhatsAppGuide && (
+                    <div className="bg-blue-50 rounded-lg p-4 text-sm space-y-2 border border-blue-200">
+                      <h4 className="font-bold text-blue-900">מדריך הגדרת WhatsApp Business API</h4>
+                      <ol className="list-decimal list-inside space-y-1 text-blue-800">
+                        <li>
+                          היכנס ל-
+                          <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">Meta Business Suite</a>
+                          {' '}עם חשבון הפייסבוק שלך
+                        </li>
+                        <li>
+                          ודא שיש לך WhatsApp Business Account (אם אין - צור חדש דרך ההגדרות)
+                        </li>
+                        <li>
+                          היכנס ל-
+                          <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">Meta Developer Console</a>
+                        </li>
+                        <li>לחץ על <span className="font-bold">"Create App"</span> → בחר סוג <span className="font-bold">"Business"</span></li>
+                        <li>הוסף את מוצר <span className="font-bold">"WhatsApp"</span> לאפליקציה (לחץ "Set up")</li>
+                        <li>
+                          בתפריט WhatsApp → API Setup:
+                          <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
+                            <li>העתק את <span className="font-bold">Phone Number ID</span> (מספר ארוך)</li>
+                            <li>לחץ <span className="font-bold">"Generate"</span> ליצירת Access Token זמני (24 שעות)</li>
+                            <li>ל-Token קבוע: System Users → Generate Token עם הרשאות whatsapp_business_messaging</li>
+                          </ul>
+                        </li>
+                        <li>הכנס את הפרטים למעלה ולחץ "שמור"</li>
+                      </ol>
+                      <p className="text-xs text-blue-600 mt-2">
+                        💡 מומלץ ליצור Token קבוע (System User) כדי שלא יפוג כל 24 שעות
+                      </p>
+                    </div>
+                  )}
                 </form>
               ) : (
                 <div className="mt-4">

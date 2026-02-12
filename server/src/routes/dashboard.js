@@ -8,6 +8,72 @@ router.use(authenticateToken);
 // Get main dashboard data
 router.get('/', async (req, res) => {
   try {
+    // Employee-specific dashboard: only their own data
+    if (req.user.role === 'employee' && req.user.employeeId) {
+      const empId = req.user.employeeId;
+      const [myShiftsToday, myUpcomingEvents, myRecentShifts, myEquipment] = await Promise.all([
+        // My shifts today
+        db.query(`
+          SELECT s.id, s.date, s.start_time, s.end_time, s.status as shift_status,
+                 c.company_name, si.name as site_name, si.address as site_address,
+                 sa.id as assignment_id, sa.status as assignment_status,
+                 sa.check_in_time, sa.check_out_time, sa.role as assignment_role
+          FROM shift_assignments sa
+          JOIN shifts s ON sa.shift_id = s.id
+          LEFT JOIN customers c ON s.customer_id = c.id
+          LEFT JOIN sites si ON s.site_id = si.id
+          WHERE sa.employee_id = $1 AND s.date = date('now')
+          ORDER BY s.start_time
+        `, [empId]),
+
+        // My upcoming events (next 7 days)
+        db.query(`
+          SELECT e.id, e.event_name, e.event_date, e.start_time, e.end_time,
+                 e.location, e.status, c.company_name,
+                 ea.role as assignment_role
+          FROM event_assignments ea
+          JOIN events e ON ea.event_id = e.id
+          LEFT JOIN customers c ON e.customer_id = c.id
+          WHERE ea.employee_id = $1
+            AND e.event_date BETWEEN date('now') AND date('now', '+7 days')
+            AND e.status NOT IN ('completed', 'cancelled')
+          ORDER BY e.event_date, e.start_time
+        `, [empId]),
+
+        // My recent shifts (last 10)
+        db.query(`
+          SELECT s.date, s.start_time, s.end_time,
+                 c.company_name, si.name as site_name,
+                 sa.status as assignment_status, sa.actual_hours,
+                 sa.check_in_time, sa.check_out_time
+          FROM shift_assignments sa
+          JOIN shifts s ON sa.shift_id = s.id
+          LEFT JOIN customers c ON s.customer_id = c.id
+          LEFT JOIN sites si ON s.site_id = si.id
+          WHERE sa.employee_id = $1
+          ORDER BY s.date DESC, s.start_time DESC
+          LIMIT 10
+        `, [empId]),
+
+        // My equipment
+        db.query(`
+          SELECT item_type, item_name, serial_number, condition
+          FROM guard_equipment
+          WHERE employee_id = $1 AND return_date IS NULL
+          ORDER BY assigned_date DESC
+        `, [empId])
+      ]);
+
+      return res.json({
+        isEmployee: true,
+        myShiftsToday: myShiftsToday.rows,
+        myUpcomingEvents: myUpcomingEvents.rows,
+        myRecentShifts: myRecentShifts.rows,
+        myEquipment: myEquipment.rows
+      });
+    }
+
+    // Admin/Manager dashboard - full data
     // Run all queries in parallel
     const [
       leadsStats,

@@ -15,8 +15,12 @@ import {
   AlertTriangle,
   Phone,
   ArrowLeftRight,
+  CheckCircle,
+  Package,
+  Crosshair,
 } from 'lucide-react';
 import { dashboardApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   LineChart,
   Line,
@@ -31,26 +35,48 @@ type ViewMode = 'business' | 'operations';
 
 export default function Dashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>('operations');
+  const { isEmployee } = usePermissions();
+
+  // Employee dashboard - single query
+  const { data: empData, isLoading: empLoading } = useQuery({
+    queryKey: ['dashboard-employee'],
+    queryFn: () => dashboardApi.get().then((res) => res.data),
+    enabled: isEmployee,
+    refetchInterval: 60000,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => dashboardApi.get().then((res) => res.data),
-    enabled: viewMode === 'business',
+    enabled: !isEmployee && viewMode === 'business',
   });
 
   const { data: opsData, isLoading: opsLoading } = useQuery({
     queryKey: ['dashboard-operations'],
     queryFn: () => dashboardApi.getOperations().then((res) => res.data),
-    enabled: viewMode === 'operations',
+    enabled: !isEmployee && viewMode === 'operations',
     refetchInterval: 60000,
   });
 
-  const loading = viewMode === 'business' ? isLoading : opsLoading;
+  const loading = isEmployee ? empLoading : (viewMode === 'business' ? isLoading : opsLoading);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  // Employee view - no toggle needed
+  if (isEmployee) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">דשבורד</h1>
+          <p className="text-gray-500">ברוך הבא למערכת צוות יהלום</p>
+        </div>
+        <EmployeeView data={empData} />
       </div>
     );
   }
@@ -94,6 +120,195 @@ export default function Dashboard() {
       ) : (
         <BusinessView data={data} />
       )}
+    </div>
+  );
+}
+
+/* ======== EMPLOYEE VIEW ======== */
+function EmployeeView({ data }: { data: any }) {
+  const myShifts = data?.myShiftsToday || [];
+  const myEvents = data?.myUpcomingEvents || [];
+  const myRecent = data?.myRecentShifts || [];
+  const myEquipment = data?.myEquipment || [];
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="stat-card-value">{myShifts.length}</p>
+              <p className="stat-card-label">משמרות היום</p>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-500">
+              <Shield className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="stat-card-value">{myEvents.length}</p>
+              <p className="stat-card-label">אירועים ב-7 ימים</p>
+            </div>
+            <div className="p-3 rounded-lg bg-orange-500">
+              <PartyPopper className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="stat-card-value">{myEquipment.length}</p>
+              <p className="stat-card-label">פריטי ציוד</p>
+            </div>
+            <div className="p-3 rounded-lg bg-purple-500">
+              <Package className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="stat-card-value">{myRecent.length}</p>
+              <p className="stat-card-label">משמרות אחרונות</p>
+            </div>
+            <div className="p-3 rounded-lg bg-green-500">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* My Shifts Today */}
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-blue-500" />
+            המשמרות שלי היום
+          </h3>
+          {myShifts.length > 0 ? (
+            <div className="space-y-3">
+              {myShifts.map((shift: any) => (
+                <div
+                  key={shift.id}
+                  className="p-3 rounded-lg bg-blue-50 border border-blue-100"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {shift.site_name || shift.company_name}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {shift.start_time} - {shift.end_time}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {shift.check_in_time ? (
+                        <span className="badge badge-success flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          צ'ק-אין {shift.check_in_time}
+                        </span>
+                      ) : (
+                        <span className="badge badge-warning">ממתין לצ'ק-אין</span>
+                      )}
+                      {shift.check_out_time && (
+                        <span className="badge badge-gray">
+                          צ'ק-אאוט {shift.check_out_time}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">אין משמרות היום</p>
+          )}
+        </div>
+
+        {/* My Upcoming Events */}
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <PartyPopper className="w-5 h-5 text-orange-500" />
+            אירועים קרובים שלי
+          </h3>
+          {myEvents.length > 0 ? (
+            <div className="space-y-3">
+              {myEvents.map((event: any) => (
+                <div
+                  key={event.id}
+                  className="p-3 rounded-lg bg-orange-50 border border-orange-100"
+                >
+                  <p className="font-medium text-gray-900">{event.event_name}</p>
+                  <p className="text-sm text-gray-500">
+                    {event.event_date} | {event.start_time} | {event.location || event.company_name}
+                  </p>
+                  {event.role && (
+                    <p className="text-xs text-orange-600 mt-1">תפקיד: {event.role}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">אין אירועים קרובים</p>
+          )}
+        </div>
+
+        {/* My Equipment */}
+        {myEquipment.length > 0 && (
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Package className="w-5 h-5 text-purple-500" />
+              הציוד שלי
+            </h3>
+            <div className="space-y-2">
+              {myEquipment.map((item: any, index: number) => (
+                <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-gray-400" />
+                    <span className="font-medium text-sm">{item.item_name}</span>
+                    <span className="text-xs text-gray-500">{item.item_type}</span>
+                  </div>
+                  {item.serial_number && (
+                    <span className="text-xs text-gray-400 dir-ltr">{item.serial_number}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Shifts */}
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-green-500" />
+            היסטוריית משמרות אחרונות
+          </h3>
+          {myRecent.length > 0 ? (
+            <div className="space-y-2">
+              {myRecent.map((shift: any, index: number) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
+                >
+                  <div>
+                    <span className="font-medium">{shift.site_name || shift.company_name}</span>
+                    <span className="text-gray-400 mx-2">|</span>
+                    <span className="text-gray-500">{shift.date}</span>
+                  </div>
+                  <span className="text-gray-500">
+                    {shift.start_time} - {shift.end_time}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">אין היסטוריה</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

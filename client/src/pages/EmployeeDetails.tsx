@@ -236,6 +236,15 @@ export default function EmployeeDetails() {
     onError: () => toast.error('שגיאה בהוספת מסמך'),
   });
 
+  const deleteDocumentMutation = useMutation({
+    mutationFn: (docId: string) => employeesApi.deleteDocument(id!, docId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee', id] });
+      toast.success('מסמך נמחק בהצלחה');
+    },
+    onError: () => toast.error('שגיאה במחיקת מסמך'),
+  });
+
   // --- Handlers ---
 
   const handleSave = () => {
@@ -1058,9 +1067,18 @@ export default function EmployeeDetails() {
                       <FileText className="w-4 h-4 text-gray-400" />
                       <span>{DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type}</span>
                     </div>
-                    {doc.expiry_date && (
-                      <span className="text-gray-500">{doc.expiry_date}</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {doc.expiry_date && (
+                        <span className="text-gray-500">{doc.expiry_date}</span>
+                      )}
+                      <button
+                        onClick={() => { if (confirm('למחוק מסמך זה?')) deleteDocumentMutation.mutate(doc.id); }}
+                        className="text-red-400 hover:text-red-600 p-1"
+                        title="מחק מסמך"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

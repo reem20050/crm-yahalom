@@ -1,23 +1,47 @@
 const axios = require('axios');
 require('dotenv').config();
 
+const DEFAULT_API_URL = 'https://graph.facebook.com/v17.0';
+
 class WhatsAppService {
   constructor() {
-    this.apiUrl = process.env.WHATSAPP_API_URL;
+    this.apiUrl = process.env.WHATSAPP_API_URL || DEFAULT_API_URL;
     this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   }
 
+  // Load credentials from DB if not in memory/env
+  _ensureCredentials() {
+    if (this.phoneNumberId && this.accessToken) return true;
+    try {
+      const { query } = require('../config/database');
+      const result = query("SELECT whatsapp_phone_id, whatsapp_access_token FROM integration_settings WHERE id = 'main'");
+      if (result.rows.length > 0 && result.rows[0].whatsapp_phone_id) {
+        this.phoneNumberId = result.rows[0].whatsapp_phone_id;
+        this.accessToken = result.rows[0].whatsapp_access_token;
+        return true;
+      }
+    } catch (e) {
+      // DB not ready yet
+    }
+    return false;
+  }
+
   async sendMessage(to, message) {
     try {
+      if (!this._ensureCredentials()) {
+        return { success: false, error: 'WhatsApp לא מוגדר. הגדר את הפרטים בדף ההגדרות.' };
+      }
+
       // Format phone number (remove leading 0, add country code)
       let formattedPhone = to.replace(/[^0-9]/g, '');
       if (formattedPhone.startsWith('0')) {
         formattedPhone = '972' + formattedPhone.slice(1);
       }
 
+      const apiUrl = this.apiUrl || DEFAULT_API_URL;
       const response = await axios.post(
-        `${this.apiUrl}/${this.phoneNumberId}/messages`,
+        `${apiUrl}/${this.phoneNumberId}/messages`,
         {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',

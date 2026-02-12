@@ -28,6 +28,22 @@ const authenticateToken = async (req, res, next) => {
     }
 
     req.user = result.rows[0];
+
+    // Look up linked employee record for employee users
+    try {
+      const empResult = query(
+        'SELECT id FROM employees WHERE user_id = $1',
+        [decoded.userId]
+      );
+      if (empResult.rows.length > 0) {
+        req.user.employeeId = empResult.rows[0].id;
+      } else {
+        req.user.employeeId = null;
+      }
+    } catch (e) {
+      req.user.employeeId = null;
+    }
+
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

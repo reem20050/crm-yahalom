@@ -13,7 +13,7 @@ const permissions: Record<string, UserRole[]> = {
   'page:calendar': ['admin', 'manager', 'employee'],
   'page:events': ['admin', 'manager', 'employee'],
   'page:incidents': ['admin', 'manager', 'employee'],
-  'page:weapons': ['admin'],
+  'page:weapons': ['admin', 'manager', 'employee'],
   'page:invoices': ['admin', 'manager'],
   'page:reports': ['admin', 'manager'],
   'page:users': ['admin'],
@@ -61,8 +61,8 @@ const permissions: Record<string, UserRole[]> = {
   'invoices:status': ['admin', 'manager'],
 
   // Actions - Weapons & Equipment
-  'weapons:manage': ['admin'],
-  'equipment:manage': ['admin'],
+  'weapons:manage': ['admin', 'manager'],
+  'equipment:manage': ['admin', 'manager'],
 
   // Actions - Reports
   'reports:view': ['admin', 'manager'],

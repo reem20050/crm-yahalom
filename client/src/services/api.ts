@@ -88,6 +88,8 @@ export const employeesApi = {
   delete: (id: string) => api.delete(`/employees/${id}`),
   addDocument: (employeeId: string, data: Record<string, unknown>) =>
     api.post(`/employees/${employeeId}/documents`, data),
+  deleteDocument: (employeeId: string, docId: string) =>
+    api.delete(`/employees/${employeeId}/documents/${docId}`),
   setAvailability: (employeeId: string, availability: unknown[]) =>
     api.post(`/employees/${employeeId}/availability`, { availability }),
   getAvailable: (date: string, params?: Record<string, unknown>) =>

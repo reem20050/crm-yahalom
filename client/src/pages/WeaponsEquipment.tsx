@@ -11,6 +11,8 @@ import {
   Search,
 } from 'lucide-react';
 import { weaponsApi, equipmentApi, employeesApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
+import { useAuthStore } from '../stores/authStore';
 
 type TabType = 'weapons' | 'equipment';
 
@@ -24,6 +26,9 @@ const CONDITION_OPTIONS = [
 ];
 
 export default function WeaponsEquipment() {
+  const { isEmployee, can } = usePermissions();
+  const user = useAuthStore((s) => s.user);
+  const employeeId = user?.employeeId;
   const [activeTab, setActiveTab] = useState<TabType>('weapons');
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,16 +48,20 @@ export default function WeaponsEquipment() {
     condition: 'good', employee_id: '', notes: '',
   });
 
-  // Queries
+  // Queries - employees see only their own items
   const { data: weaponsData, isLoading: loadingWeapons } = useQuery({
-    queryKey: ['all-weapons'],
-    queryFn: () => weaponsApi.getAll().then((r) => r.data),
+    queryKey: ['all-weapons', isEmployee ? employeeId : 'all'],
+    queryFn: () => (isEmployee && employeeId
+      ? weaponsApi.getByEmployee(employeeId).then((r) => r.data)
+      : weaponsApi.getAll().then((r) => r.data)),
     enabled: activeTab === 'weapons',
   });
 
   const { data: equipmentData, isLoading: loadingEquipment } = useQuery({
-    queryKey: ['all-equipment'],
-    queryFn: () => equipmentApi.getAll().then((r) => r.data),
+    queryKey: ['all-equipment', isEmployee ? employeeId : 'all'],
+    queryFn: () => (isEmployee && employeeId
+      ? equipmentApi.getByEmployee(employeeId).then((r) => r.data)
+      : equipmentApi.getAll().then((r) => r.data)),
     enabled: activeTab === 'equipment',
   });
 
@@ -147,10 +156,12 @@ export default function WeaponsEquipment() {
           <h1 className="text-2xl font-bold text-gray-900">נשק וציוד</h1>
           <p className="text-gray-500">ניהול נשק, ציוד ומלאי</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
-          {showForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-          {showForm ? 'ביטול' : activeTab === 'weapons' ? 'הוסף נשק' : 'הוסף ציוד'}
-        </button>
+        {can('weapons:manage') && (
+          <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+            {showForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+            {showForm ? 'ביטול' : activeTab === 'weapons' ? 'הוסף נשק' : 'הוסף ציוד'}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -370,20 +381,24 @@ export default function WeaponsEquipment() {
                   }`}>
                     {w.status === 'assigned' ? 'מוקצה' : w.status === 'maintenance' ? 'בתחזוקה' : 'במחסן'}
                   </span>
-                  <button
-                    onClick={() => setTransferWeapon({ id: w.id, name: `${w.weapon_type} ${w.serial_number}` })}
-                    className="btn-secondary text-xs px-2 py-1 flex items-center gap-1"
-                    title="העבר"
-                  >
-                    <ArrowLeftRight className="w-3.5 h-3.5" />
-                    העבר
-                  </button>
-                  <button
-                    onClick={() => { if (confirm('למחוק נשק זה?')) deleteWeaponMutation.mutate(w.id); }}
-                    className="text-red-400 hover:text-red-600 p-1"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {can('weapons:manage') && (
+                    <>
+                      <button
+                        onClick={() => setTransferWeapon({ id: w.id, name: `${w.weapon_type} ${w.serial_number}` })}
+                        className="btn-secondary text-xs px-2 py-1 flex items-center gap-1"
+                        title="העבר"
+                      >
+                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                        העבר
+                      </button>
+                      <button
+                        onClick={() => { if (confirm('למחוק נשק זה?')) deleteWeaponMutation.mutate(w.id); }}
+                        className="text-red-400 hover:text-red-600 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -428,20 +443,24 @@ export default function WeaponsEquipment() {
                     }`}>
                       {condLabel[e.condition] || e.condition}
                     </span>
-                    {isAssigned && (
-                      <button
-                        onClick={() => returnEquipMutation.mutate(e.id)}
-                        className="btn-secondary text-xs px-2 py-1"
-                      >
-                        החזר
-                      </button>
+                    {can('equipment:manage') && (
+                      <>
+                        {isAssigned && (
+                          <button
+                            onClick={() => returnEquipMutation.mutate(e.id)}
+                            className="btn-secondary text-xs px-2 py-1"
+                          >
+                            החזר
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { if (confirm('למחוק ציוד זה?')) deleteEquipMutation.mutate(e.id); }}
+                          className="text-red-400 hover:text-red-600 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={() => { if (confirm('למחוק ציוד זה?')) deleteEquipMutation.mutate(e.id); }}
-                      className="text-red-400 hover:text-red-600 p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
               </div>

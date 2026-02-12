@@ -42,6 +42,13 @@ router.get('/', async (req, res) => {
       params.push(customer_id);
     }
 
+    // Employee: only see events they are assigned to
+    if (req.user.role === 'employee' && req.user.employeeId) {
+      paramCount++;
+      whereClause.push(`id IN (SELECT event_id FROM event_assignments WHERE employee_id = $${paramCount})`);
+      params.push(req.user.employeeId);
+    }
+
     const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
 
     const countResult = await db.query(`SELECT COUNT(*) as count FROM events ${whereString}`, params);

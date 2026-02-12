@@ -46,6 +46,13 @@ router.get('/', async (req, res) => {
       params.push(status);
     }
 
+    // Employee: only see shifts they are assigned to
+    if (req.user.role === 'employee' && req.user.employeeId) {
+      paramCount++;
+      whereClause.push(`s.id IN (SELECT shift_id FROM shift_assignments WHERE employee_id = $${paramCount})`);
+      params.push(req.user.employeeId);
+    }
+
     const result = await db.query(`
       SELECT s.*,
              c.company_name,

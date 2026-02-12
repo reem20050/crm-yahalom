@@ -235,8 +235,7 @@ router.put('/:id', requireManager, async (req, res) => {
 
 // Add document to employee
 router.post('/:id/documents', requireManager, [
-  body('document_type').notEmpty().withMessage('נדרש סוג מסמך'),
-  body('document_url').notEmpty().withMessage('נדרש קישור למסמך')
+  body('document_type').notEmpty().withMessage('נדרש סוג מסמך')
 ], async (req, res) => {
   try {
     const { document_type, document_url, expiry_date } = req.body;
@@ -246,12 +245,23 @@ router.post('/:id/documents', requireManager, [
       INSERT INTO employee_documents (id, employee_id, document_type, document_url, expiry_date)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [docId, req.params.id, document_type, document_url, expiry_date]);
+    `, [docId, req.params.id, document_type, document_url || '', expiry_date || null]);
 
     res.status(201).json({ document: result.rows[0] });
   } catch (error) {
     console.error('Add document error:', error);
     res.status(500).json({ error: 'שגיאה בהוספת מסמך' });
+  }
+});
+
+// Delete document from employee
+router.delete('/:id/documents/:docId', requireManager, async (req, res) => {
+  try {
+    await db.query('DELETE FROM employee_documents WHERE id = $1 AND employee_id = $2', [req.params.docId, req.params.id]);
+    res.json({ message: 'מסמך נמחק' });
+  } catch (error) {
+    console.error('Delete document error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת מסמך' });
   }
 });
 
