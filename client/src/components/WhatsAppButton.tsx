@@ -1,36 +1,45 @@
 import { useState, useRef, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { MessageCircle, X, Send, ExternalLink, Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { integrationsApi } from '../services/api';
+import { MessageCircle, X, Send, ExternalLink } from 'lucide-react';
 
 interface WhatsAppButtonProps {
   phone: string;
   name: string;
   size?: 'sm' | 'md';
+  defaultMessage?: string;
 }
 
-function cleanPhone(phone: string): string {
-  return phone.replace(/[\s\-+]/g, '');
+function formatPhoneForWhatsApp(phone: string): string {
+  if (!phone) return '';
+  let formatted = phone.replace(/[^0-9]/g, '');
+  if (formatted.startsWith('0')) {
+    formatted = '972' + formatted.slice(1);
+  }
+  if (formatted.length === 9) {
+    formatted = '972' + formatted;
+  }
+  return formatted;
 }
 
-export default function WhatsAppButton({ phone, name, size = 'md' }: WhatsAppButtonProps) {
+function openWhatsApp(phone: string, message?: string): void {
+  const formattedPhone = formatPhoneForWhatsApp(phone);
+  if (!formattedPhone) return;
+  let url = `https://wa.me/${formattedPhone}`;
+  if (message) {
+    url += `?text=${encodeURIComponent(message)}`;
+  }
+  window.open(url, '_blank');
+}
+
+export default function WhatsAppButton({ phone, name, size = 'md', defaultMessage }: WhatsAppButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(defaultMessage || '');
   const popupRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const sendMutation = useMutation({
-    mutationFn: () => integrationsApi.sendWhatsApp(cleanPhone(phone), message),
-    onSuccess: () => {
-      toast.success('ההודעה נשלחה בהצלחה');
-      setMessage('');
-      setIsOpen(false);
-    },
-    onError: () => {
-      toast.error('שגיאה בשליחת ההודעה');
-    },
-  });
+  // Update message when defaultMessage changes
+  useEffect(() => {
+    if (defaultMessage) setMessage(defaultMessage);
+  }, [defaultMessage]);
 
   // Focus textarea when popup opens
   useEffect(() => {
@@ -75,16 +84,19 @@ export default function WhatsAppButton({ phone, name, size = 'md' }: WhatsAppBut
 
   const handleSend = () => {
     if (!message.trim()) return;
-    sendMutation.mutate();
+    openWhatsApp(phone, message);
+    setIsOpen(false);
   };
 
-  const handleOpenWhatsAppWeb = () => {
-    const cleaned = cleanPhone(phone);
-    window.open(`https://wa.me/${cleaned}`, '_blank');
+  const handleOpenDirect = () => {
+    openWhatsApp(phone);
+    setIsOpen(false);
   };
 
   const iconSize = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5';
   const buttonSize = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10';
+
+  if (!phone) return null;
 
   return (
     <div className="relative inline-block" ref={popupRef}>
@@ -136,22 +148,18 @@ export default function WhatsAppButton({ phone, name, size = 'md' }: WhatsAppBut
           <div className="flex items-center gap-2 px-4 pb-4">
             <button
               onClick={handleSend}
-              disabled={sendMutation.isPending || !message.trim()}
+              disabled={!message.trim()}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {sendMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              <span>שלח</span>
+              <Send className="w-4 h-4" />
+              <span>שלח עם הודעה</span>
             </button>
             <button
-              onClick={handleOpenWhatsAppWeb}
+              onClick={handleOpenDirect}
               className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <ExternalLink className="w-4 h-4" />
-              <span>פתח ב-WhatsApp Web</span>
+              <span>פתח צ'אט</span>
             </button>
           </div>
         </div>
@@ -159,3 +167,20 @@ export default function WhatsAppButton({ phone, name, size = 'md' }: WhatsAppBut
     </div>
   );
 }
+
+// Simple inline WhatsApp icon (for tables and compact views)
+export function WhatsAppIcon({ phone, message, size = 14 }: { phone: string; message?: string; size?: number }) {
+  if (!phone) return null;
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); openWhatsApp(phone, message); }}
+      title="שלח WhatsApp"
+      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-500 hover:bg-green-600 text-white transition-colors"
+    >
+      <MessageCircle size={size} />
+    </button>
+  );
+}
+
+// Export utility for other components
+export { openWhatsApp, formatPhoneForWhatsApp };

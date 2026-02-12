@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { Search, UserCircle, Phone, Shield, Plus, X, Trash2 } from 'lucide-react';
 import { employeesApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { WhatsAppIcon } from '../components/WhatsAppButton';
 
 const employeeSchema = z.object({
   first_name: z.string().min(1, 'נדרש שם פרטי'),
@@ -140,9 +141,10 @@ export default function Employees() {
                     <h3 className="font-semibold text-gray-900">
                       {employee.first_name} {employee.last_name}
                     </h3>
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                    <p className="text-sm text-gray-500 flex items-center gap-2">
                       <Phone className="w-3 h-3" />
                       {employee.phone}
+                      <WhatsAppIcon phone={employee.phone} message={`שלום ${employee.first_name}, \n\nצוות יהלום`} />
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className={`badge ${employee.status === 'active' ? 'badge-success' : 'badge-gray'}`}>

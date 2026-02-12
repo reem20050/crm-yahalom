@@ -7,14 +7,11 @@ import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText, LogIn, LogOut } from 'lucide-react';
-import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi, shiftTemplatesApi } from '../services/api';
+import { shiftsApi, customersApi, sitesApi, employeesApi, shiftTemplatesApi } from '../services/api';
 import ShiftTemplateModal, { GenerateFromTemplateModal } from '../components/ShiftTemplateModal';
 import PatrolLogView from '../components/PatrolLogView';
 import { usePermissions } from '../hooks/usePermissions';
-
-function cleanPhone(phone: string): string {
-  return phone.replace(/[\s\-+]/g, '');
-}
+import { openWhatsApp, formatPhoneForWhatsApp } from '../components/WhatsAppButton';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -157,19 +154,11 @@ function ShiftDetailModal({
     },
   });
 
-  // WhatsApp reminder mutation
-  const reminderMutation = useMutation({
-    mutationFn: ({ phone, name }: { phone: string; name: string }) => {
-      const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${shift?.date}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}`;
-      return integrationsApi.sendWhatsApp(cleanPhone(phone), msg);
-    },
-    onSuccess: () => {
-      toast.success('תזכורת נשלחה בהצלחה');
-    },
-    onError: () => {
-      toast.error('שגיאה בשליחת תזכורת');
-    },
-  });
+  // WhatsApp reminder - opens WhatsApp Web with pre-filled message
+  const sendReminder = (phone: string, name: string) => {
+    const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${shift?.date}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}\n\nצוות יהלום`;
+    openWhatsApp(phone, msg);
+  };
 
   // Check-in mutation
   const checkInMutation = useMutation({
@@ -201,9 +190,11 @@ function ShiftDetailModal({
       toast.error('אין מספרי טלפון לעובדים המשובצים');
       return;
     }
+    // Open WhatsApp Web for each employee (each in a new tab)
     withPhone.forEach((a) => {
-      reminderMutation.mutate({ phone: a.employee_phone!, name: a.employee_name });
+      sendReminder(a.employee_phone!, a.employee_name);
     });
+    toast.success(`נפתחו ${withPhone.length} חלונות WhatsApp - שלח את ההודעות`);
   };
 
   const handleAssign = () => {
@@ -307,10 +298,9 @@ function ShiftDetailModal({
                 {assignments.length > 0 && (
                   <button
                     onClick={sendReminderToAll}
-                    disabled={reminderMutation.isPending}
                     className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    <MessageCircle className="w-3.5 h-3.5" />
                     שלח תזכורת לכולם
                   </button>
                 )}
@@ -369,8 +359,7 @@ function ShiftDetailModal({
                         )}
                         {assignment.employee_phone && (
                           <button
-                            onClick={() => reminderMutation.mutate({ phone: assignment.employee_phone!, name: assignment.employee_name })}
-                            disabled={reminderMutation.isPending}
+                            onClick={() => sendReminder(assignment.employee_phone!, assignment.employee_name)}
                             className="text-green-500 hover:text-green-700 hover:bg-green-50 p-1.5 rounded-lg transition-colors"
                             title="שלח תזכורת WhatsApp"
                           >
