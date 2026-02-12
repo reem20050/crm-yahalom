@@ -15,7 +15,7 @@ import { weaponsApi, equipmentApi, employeesApi } from '../services/api';
 type TabType = 'weapons' | 'equipment';
 
 const WEAPON_TYPES = ['אקדח', 'רובה', 'תת-מקלע', 'אחר'];
-const EQUIPMENT_TYPES = ['רדיו', 'אפוד מגן', 'פנס', 'אזיקים', 'מדים', 'קסדה', 'מכשיר קשר', 'מפתחות', 'אחר'];
+// No fixed equipment types - user enters free text
 const CONDITION_OPTIONS = [
   { value: 'new', label: 'חדש' },
   { value: 'good', label: 'תקין' },
@@ -40,7 +40,7 @@ export default function WeaponsEquipment() {
 
   // Equipment form
   const [equipForm, setEquipForm] = useState({
-    item_type: 'רדיו', item_name: '', serial_number: '',
+    item_type: '', item_name: '', serial_number: '',
     condition: 'good', employee_id: '', notes: '',
   });
 
@@ -103,7 +103,7 @@ export default function WeaponsEquipment() {
       queryClient.invalidateQueries({ queryKey: ['all-equipment'] });
       toast.success('ציוד נוסף בהצלחה');
       setShowForm(false);
-      setEquipForm({ item_type: 'רדיו', item_name: '', serial_number: '', condition: 'good', employee_id: '', notes: '' });
+      setEquipForm({ item_type: '', item_name: '', serial_number: '', condition: 'good', employee_id: '', notes: '' });
     },
     onError: () => toast.error('שגיאה בהוספת ציוד'),
   });
@@ -265,9 +265,7 @@ export default function WeaponsEquipment() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="label">סוג ציוד *</label>
-              <select value={equipForm.item_type} onChange={(e) => setEquipForm({ ...equipForm, item_type: e.target.value })} className="input">
-                {EQUIPMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <input value={equipForm.item_type} onChange={(e) => setEquipForm({ ...equipForm, item_type: e.target.value })} className="input" placeholder="לדוגמה: רדיו, אפוד, פנס..." required />
             </div>
             <div>
               <label className="label">שם פריט *</label>
