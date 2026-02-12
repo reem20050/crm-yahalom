@@ -14,8 +14,7 @@ import { weaponsApi, equipmentApi, employeesApi } from '../services/api';
 
 type TabType = 'weapons' | 'equipment';
 
-const WEAPON_TYPES = ['אקדח', 'רובה', 'תת-מקלע', 'אחר'];
-// No fixed equipment types - user enters free text
+// No fixed weapon/equipment types - user enters free text
 const CONDITION_OPTIONS = [
   { value: 'new', label: 'חדש' },
   { value: 'good', label: 'תקין' },
@@ -34,7 +33,7 @@ export default function WeaponsEquipment() {
 
   // Weapon form
   const [weaponForm, setWeaponForm] = useState({
-    weapon_type: 'אקדח', manufacturer: '', model: '', serial_number: '',
+    weapon_type: '', manufacturer: '', model: '', serial_number: '',
     license_number: '', license_expiry: '', employee_id: '', notes: '',
   });
 
@@ -71,7 +70,7 @@ export default function WeaponsEquipment() {
       queryClient.invalidateQueries({ queryKey: ['all-weapons'] });
       toast.success('נשק נוסף בהצלחה');
       setShowForm(false);
-      setWeaponForm({ weapon_type: 'אקדח', manufacturer: '', model: '', serial_number: '', license_number: '', license_expiry: '', employee_id: '', notes: '' });
+      setWeaponForm({ weapon_type: '', manufacturer: '', model: '', serial_number: '', license_number: '', license_expiry: '', employee_id: '', notes: '' });
     },
     onError: () => toast.error('שגיאה בהוספת נשק'),
   });
@@ -205,9 +204,7 @@ export default function WeaponsEquipment() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="label">סוג נשק *</label>
-              <select value={weaponForm.weapon_type} onChange={(e) => setWeaponForm({ ...weaponForm, weapon_type: e.target.value })} className="input">
-                {WEAPON_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <input value={weaponForm.weapon_type} onChange={(e) => setWeaponForm({ ...weaponForm, weapon_type: e.target.value })} className="input" placeholder="לדוגמה: אקדח, רובה..." required />
             </div>
             <div>
               <label className="label">יצרן</label>
