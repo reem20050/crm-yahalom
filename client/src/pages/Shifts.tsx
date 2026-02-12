@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText, LogIn, LogOut } from 'lucide-react';
 import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi, shiftTemplatesApi } from '../services/api';
 import ShiftTemplateModal, { GenerateFromTemplateModal } from '../components/ShiftTemplateModal';
 import PatrolLogView from '../components/PatrolLogView';
@@ -169,6 +169,30 @@ function ShiftDetailModal({
     },
   });
 
+  // Check-in mutation
+  const checkInMutation = useMutation({
+    mutationFn: (assignmentId: string) => shiftsApi.checkIn(assignmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shift-detail', shiftId] });
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      toast.success('צ\'ק-אין בוצע בהצלחה');
+    },
+    onError: () => toast.error('שגיאה בביצוע צ\'ק-אין'),
+  });
+
+  // Check-out mutation
+  const checkOutMutation = useMutation({
+    mutationFn: (assignmentId: string) => shiftsApi.checkOut(assignmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shift-detail', shiftId] });
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      toast.success('צ\'ק-אאוט בוצע בהצלחה');
+    },
+    onError: () => toast.error('שגיאה בביצוע צ\'ק-אאוט'),
+  });
+
+  const isToday = shift?.date === format(new Date(), 'yyyy-MM-dd');
+
   const sendReminderToAll = () => {
     const withPhone = assignments.filter((a) => a.employee_phone);
     if (withPhone.length === 0) {
@@ -306,8 +330,41 @@ function ShiftDetailModal({
                           <p className="text-sm text-gray-500">{assignment.role}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         {getStatusBadge(assignment.status)}
+                        {/* Check-in/out buttons for today's shifts */}
+                        {isToday && assignment.status === 'assigned' && (
+                          <button
+                            onClick={() => checkInMutation.mutate(assignment.id)}
+                            disabled={checkInMutation.isPending}
+                            className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                            title="צ'ק-אין"
+                          >
+                            <LogIn className="w-3.5 h-3.5" />
+                            כניסה
+                          </button>
+                        )}
+                        {isToday && assignment.status === 'checked_in' && !assignment.check_out_time && (
+                          <button
+                            onClick={() => checkOutMutation.mutate(assignment.id)}
+                            disabled={checkOutMutation.isPending}
+                            className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                            title="צ'ק-אאוט"
+                          >
+                            <LogOut className="w-3.5 h-3.5" />
+                            יציאה
+                          </button>
+                        )}
+                        {assignment.check_in_time && (
+                          <span className="text-xs text-gray-400" title="שעת כניסה">
+                            {new Date(assignment.check_in_time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                        {assignment.check_out_time && (
+                          <span className="text-xs text-gray-400" title="שעת יציאה">
+                            - {new Date(assignment.check_out_time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
                         {assignment.employee_phone && (
                           <button
                             onClick={() => reminderMutation.mutate({ phone: assignment.employee_phone!, name: assignment.employee_name })}

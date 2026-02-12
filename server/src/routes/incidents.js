@@ -147,7 +147,25 @@ router.post('/', async (req, res) => {
         witnesses || null, actions_taken || null]);
 
     const result = db.query('SELECT * FROM incidents WHERE id = ?', [id]);
-    res.status(201).json({ incident: result.rows[0] });
+    const incident = result.rows[0];
+
+    // Create notifications for admins/managers on critical/high severity
+    if (severity === 'critical' || severity === 'high') {
+      const admins = db.query(`SELECT id FROM users WHERE role IN ('admin', 'manager') AND is_active = 1`);
+      const severityLabel = severity === 'critical' ? 'קריטי' : 'גבוה';
+      for (const admin of admins.rows) {
+        const notifId = crypto.randomUUID();
+        db.query(`
+          INSERT INTO notifications (id, user_id, type, title, message, related_entity_type, related_entity_id)
+          VALUES (?, ?, 'incident', ?, ?, 'incident', ?)
+        `, [notifId, admin.id,
+            `אירוע אבטחה ${severityLabel}: ${title}`,
+            `${description?.substring(0, 100) || ''}${description?.length > 100 ? '...' : ''}`,
+            id]);
+      }
+    }
+
+    res.status(201).json({ incident });
   } catch (error) {
     console.error('Create incident error:', error);
     res.status(500).json({ error: 'שגיאה ביצירת אירוע אבטחה' });

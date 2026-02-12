@@ -63,6 +63,11 @@ class Scheduler {
       await this.checkUnresolvedIncidents();
     });
 
+    // Every 15 minutes - Check for guard no-shows (shifts started 15+ min ago with no check-in)
+    this.addJob('*/15 * * * *', 'guard-no-show-check', async () => {
+      await this.checkGuardNoShows();
+    });
+
     console.log(`${this.jobs.length} scheduled tasks registered`);
   }
 
@@ -534,6 +539,75 @@ class Scheduler {
       }
     } catch (error) {
       console.error('[CRON] checkUnresolvedIncidents error:', error.message);
+    }
+  }
+
+  /**
+   * Check for guard no-shows (shift started 15+ min ago, no check-in)
+   */
+  async checkGuardNoShows() {
+    try {
+      const result = query(`
+        SELECT sa.id as assignment_id, sa.employee_id, sa.shift_id,
+               e.first_name, e.last_name, e.phone,
+               s.date, s.start_time, s.end_time,
+               c.company_name, si.name as site_name, si.address as site_address
+        FROM shift_assignments sa
+        JOIN employees e ON sa.employee_id = e.id
+        JOIN shifts s ON sa.shift_id = s.id
+        LEFT JOIN customers c ON s.customer_id = c.id
+        LEFT JOIN sites si ON s.site_id = si.id
+        WHERE s.date = date('now')
+        AND sa.status = 'assigned'
+        AND sa.check_in_time IS NULL
+        AND time('now', 'localtime') > time(s.start_time, '+15 minutes')
+        AND time('now', 'localtime') < time(s.end_time)
+      `);
+
+      if (result.rows.length === 0) return;
+
+      console.log(`[CRON] Found ${result.rows.length} guard no-shows`);
+
+      // Create notifications for admins
+      const crypto = require('crypto');
+      for (const ns of result.rows) {
+        // Create in-app notification
+        const admins = query(`SELECT id FROM users WHERE role IN ('admin', 'manager') AND is_active = 1`);
+        for (const admin of admins.rows) {
+          const notifId = crypto.randomUUID();
+          query(`
+            INSERT INTO notifications (id, user_id, type, title, message, related_entity_type, related_entity_id)
+            VALUES (?, ?, 'no_show', ?, ?, 'shift_assignment', ?)
+          `, [notifId, admin.id,
+              `אי הגעה: ${ns.first_name} ${ns.last_name}`,
+              `${ns.first_name} ${ns.last_name} לא ביצע/ה צ'ק-אין למשמרת ${ns.start_time}-${ns.end_time} ב${ns.site_name || ns.company_name || 'אתר'}`,
+              ns.assignment_id]);
+        }
+
+        // Mark assignment as no_show
+        query(`UPDATE shift_assignments SET status = 'no_show' WHERE id = ?`, [ns.assignment_id]);
+      }
+
+      // WhatsApp alert to admins
+      if (!whatsappHelper.isConfigured()) return;
+
+      const admins = query(`
+        SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
+      `);
+
+      let summary = `התראת אי-הגעה! 🚨\n\n`;
+      for (const ns of result.rows) {
+        summary += `• ${ns.first_name} ${ns.last_name}\n`;
+        summary += `  ${ns.site_name || ns.company_name || 'משמרת'} | ${ns.start_time}-${ns.end_time}\n\n`;
+      }
+      summary += `סה"כ: ${result.rows.length} מאבטחים\nצוות יהלום CRM`;
+
+      for (const admin of admins.rows) {
+        await whatsappHelper.safeSend(admin.phone, summary);
+        await this.delay(500);
+      }
+    } catch (error) {
+      console.error('[CRON] checkGuardNoShows error:', error.message);
     }
   }
 

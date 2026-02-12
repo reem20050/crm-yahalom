@@ -151,7 +151,7 @@ export default function Users() {
         setError('נא להזין סיסמה');
         return;
       }
-      createMutation.mutate(form);
+      createMutation.mutate({ ...form });
     }
   };
 
