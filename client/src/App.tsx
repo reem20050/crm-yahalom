@@ -21,6 +21,7 @@ import Calendar from './pages/Calendar';
 import Profile from './pages/Profile';
 import Users from './pages/Users';
 import Incidents from './pages/Incidents';
+import WeaponsEquipment from './pages/WeaponsEquipment';
 import NotFound from './pages/NotFound';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -54,6 +55,7 @@ function App() {
           <Route path="events" element={<Events />} />
           <Route path="events/:id" element={<EventDetails />} />
           <Route path="incidents" element={<Incidents />} />
+          <Route path="weapons" element={<WeaponsEquipment />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={<Users />} />

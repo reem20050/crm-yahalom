@@ -9,6 +9,8 @@ import {
   DollarSign,
   Download,
   Printer,
+  Shield,
+  Star,
 } from 'lucide-react';
 import {
   BarChart,
@@ -22,11 +24,11 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { reportsApi } from '../services/api';
+import { reportsApi, performanceApi, incidentsApi } from '../services/api';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-type ReportTab = 'sales' | 'customers' | 'employees' | 'financial';
+type ReportTab = 'sales' | 'customers' | 'employees' | 'financial' | 'performance';
 
 function exportToCSV(data: Record<string, unknown>[], headers: Record<string, string>, filename: string) {
   if (!data || data.length === 0) return;
@@ -78,11 +80,24 @@ export default function Reports() {
     enabled: activeTab === 'financial',
   });
 
+  const { data: rankingsData } = useQuery({
+    queryKey: ['reports', 'performance-rankings'],
+    queryFn: () => performanceApi.getRankings().then((res) => res.data),
+    enabled: activeTab === 'performance',
+  });
+
+  const { data: incidentStats } = useQuery({
+    queryKey: ['reports', 'incident-stats'],
+    queryFn: () => incidentsApi.getStats().then((res) => res.data),
+    enabled: activeTab === 'performance',
+  });
+
   const tabs = [
     { id: 'sales' as const, label: 'מכירות', icon: TrendingUp },
     { id: 'customers' as const, label: 'לקוחות', icon: Building2 },
     { id: 'employees' as const, label: 'עובדים', icon: Users },
     { id: 'financial' as const, label: 'כספים', icon: DollarSign },
+    { id: 'performance' as const, label: 'ביצועי מאבטחים', icon: Shield },
   ];
 
   const handleExport = () => {
@@ -105,6 +120,14 @@ export default function Reports() {
       case 'financial':
         if (financialData?.revenueByCustomer) {
           exportToCSV(financialData.revenueByCustomer, { company_name: 'לקוח', paid: 'שולם', pending: 'ממתין' }, 'financial-revenue.csv');
+        }
+        break;
+      case 'performance':
+        if (rankingsData?.rankings) {
+          exportToCSV(rankingsData.rankings, {
+            first_name: 'שם פרטי', last_name: 'שם משפחה', avg_rating: 'דירוג ממוצע',
+            total_ratings: 'דירוגים', shifts_completed: 'משמרות הושלמו', shifts_total: 'סה"כ משמרות'
+          }, 'guard-performance.csv');
         }
         break;
     }
@@ -335,6 +358,114 @@ export default function Reports() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guard Performance Report */}
+      {activeTab === 'performance' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Incident Stats */}
+          {incidentStats && (
+            <div className="card lg:col-span-2">
+              <h3 className="text-lg font-semibold mb-4">סטטיסטיקות אירועי אבטחה</h3>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="text-center p-3 bg-red-50 rounded-lg">
+                  <p className="text-2xl font-bold text-red-600">{incidentStats.open || 0}</p>
+                  <p className="text-sm text-gray-500">פתוחים</p>
+                </div>
+                <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                  <p className="text-2xl font-bold text-yellow-600">{incidentStats.investigating || 0}</p>
+                  <p className="text-sm text-gray-500">בחקירה</p>
+                </div>
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <p className="text-2xl font-bold text-green-600">{incidentStats.resolved || 0}</p>
+                  <p className="text-sm text-gray-500">נפתרו</p>
+                </div>
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <p className="text-2xl font-bold text-blue-600">{incidentStats.total || 0}</p>
+                  <p className="text-sm text-gray-500">סה"כ</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Rankings Table */}
+          <div className="card lg:col-span-2">
+            <h3 className="text-lg font-semibold mb-4">דירוג מאבטחים</h3>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>דירוג</th>
+                    <th>מאבטח</th>
+                    <th>ציון ממוצע</th>
+                    <th>דירוגים</th>
+                    <th>משמרות הושלמו</th>
+                    <th>אחוז נוכחות</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {(rankingsData?.rankings || []).map((guard: {
+                    id: string;
+                    first_name: string;
+                    last_name: string;
+                    avg_rating: number;
+                    total_ratings: number;
+                    shifts_completed: number;
+                    shifts_total: number;
+                  }, index: number) => {
+                    const attendancePct = guard.shifts_total > 0
+                      ? Math.round((guard.shifts_completed / guard.shifts_total) * 100)
+                      : 0;
+                    return (
+                      <tr key={guard.id}>
+                        <td>
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold ${
+                            index === 0 ? 'bg-yellow-100 text-yellow-700' :
+                            index === 1 ? 'bg-gray-100 text-gray-700' :
+                            index === 2 ? 'bg-orange-100 text-orange-700' :
+                            'bg-white text-gray-500'
+                          }`}>
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td className="font-medium">{guard.first_name} {guard.last_name}</td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            {guard.avg_rating ? (
+                              <>
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <Star key={s} className={`w-3.5 h-3.5 ${
+                                    s <= Math.round(guard.avg_rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+                                  }`} />
+                                ))}
+                                <span className="text-sm mr-1">{guard.avg_rating}</span>
+                              </>
+                            ) : (
+                              <span className="text-gray-400 text-sm">אין דירוג</span>
+                            )}
+                          </div>
+                        </td>
+                        <td>{guard.total_ratings || 0}</td>
+                        <td>{guard.shifts_completed}/{guard.shifts_total}</td>
+                        <td>
+                          <span className={`font-medium ${
+                            attendancePct >= 90 ? 'text-green-600' :
+                            attendancePct >= 70 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {attendancePct}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {(!rankingsData?.rankings || rankingsData.rankings.length === 0) && (
+              <p className="text-gray-400 text-center py-8">אין נתוני ביצועים</p>
+            )}
           </div>
         </div>
       )}

@@ -254,6 +254,16 @@ export const performanceApi = {
   getRankings: () => api.get('/performance/rankings'),
 };
 
+// Equipment
+export const equipmentApi = {
+  getAll: (params?: Record<string, unknown>) => api.get('/equipment', { params }),
+  getByEmployee: (employeeId: string) => api.get(`/equipment/employee/${employeeId}`),
+  create: (data: Record<string, unknown>) => api.post('/equipment', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/equipment/${id}`, data),
+  returnItem: (id: string, condition?: string) => api.post(`/equipment/${id}/return`, { condition }),
+  delete: (id: string) => api.delete(`/equipment/${id}`),
+};
+
 // Activities
 export const activitiesApi = {
   getForLead: (leadId: string) => api.get(`/leads/${leadId}/activities`),

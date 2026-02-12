@@ -24,6 +24,7 @@ const weaponsRoutes = require('./routes/weapons');
 const shiftTemplatesRoutes = require('./routes/shiftTemplates');
 const patrolsRoutes = require('./routes/patrols');
 const performanceRoutes = require('./routes/performance');
+const equipmentRoutes = require('./routes/equipment');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
@@ -56,6 +57,7 @@ app.use('/api/weapons', weaponsRoutes);
 app.use('/api/shift-templates', shiftTemplatesRoutes);
 app.use('/api/patrols', patrolsRoutes);
 app.use('/api/performance', performanceRoutes);
+app.use('/api/equipment', equipmentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

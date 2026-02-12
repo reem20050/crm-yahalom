@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText } from 'lucide-react';
 import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi, shiftTemplatesApi } from '../services/api';
 import ShiftTemplateModal, { GenerateFromTemplateModal } from '../components/ShiftTemplateModal';
+import PatrolLogView from '../components/PatrolLogView';
 
 function cleanPhone(phone: string): string {
   return phone.replace(/[\s\-+]/g, '');
@@ -335,6 +336,17 @@ function ShiftDetailModal({
                 </p>
               )}
             </div>
+
+            {/* Patrol Logs Section */}
+            {shift.site_id && (
+              <div className="border-t pt-4">
+                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  סיורים ונקודות ביקורת
+                </h3>
+                <PatrolLogView siteId={shift.site_id} />
+              </div>
+            )}
 
             {/* Assign Employee Section */}
             <div className="border-t pt-4">

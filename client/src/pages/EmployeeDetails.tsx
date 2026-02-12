@@ -22,9 +22,10 @@ import {
   Star,
   Crosshair,
   BarChart3,
+  Package,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { employeesApi, certificationsApi, weaponsApi, performanceApi } from '../services/api';
+import { employeesApi, certificationsApi, weaponsApi, performanceApi, equipmentApi } from '../services/api';
 import WhatsAppButton from '../components/WhatsAppButton';
 import GuardRatingModal from '../components/GuardRatingModal';
 
@@ -87,7 +88,7 @@ export default function EmployeeDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'info' | 'certifications' | 'weapons' | 'performance'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'certifications' | 'weapons' | 'equipment' | 'performance'>('info');
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
   const [certForm, setCertForm] = useState({ cert_type: 'firearm_license', cert_name: '', cert_number: '', issuing_authority: '', issue_date: '', expiry_date: '', notes: '' });
@@ -132,6 +133,12 @@ export default function EmployeeDetails() {
     queryKey: ['weapons', id],
     queryFn: () => weaponsApi.getByEmployee(id!).then((r) => r.data),
     enabled: !!id && activeTab === 'weapons',
+  });
+
+  const { data: equipData } = useQuery({
+    queryKey: ['equipment', id],
+    queryFn: () => equipmentApi.getByEmployee(id!).then((r) => r.data),
+    enabled: !!id && activeTab === 'equipment',
   });
 
   const { data: perfData } = useQuery({
@@ -438,6 +445,7 @@ export default function EmployeeDetails() {
             { id: 'info' as const, label: 'מידע כללי', icon: UserCircle },
             { id: 'certifications' as const, label: 'הסמכות', icon: Award },
             { id: 'weapons' as const, label: 'נשק', icon: Crosshair },
+            { id: 'equipment' as const, label: 'ציוד', icon: Package },
             { id: 'performance' as const, label: 'ביצועים', icon: BarChart3 },
           ].map((tab) => (
             <button
@@ -601,6 +609,52 @@ export default function EmployeeDetails() {
         </div>
       )}
 
+      {/* Equipment Tab */}
+      {activeTab === 'equipment' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">ציוד מוקצה</h2>
+          {equipData?.equipment?.length > 0 ? (
+            <div className="space-y-2">
+              {equipData.equipment.map((e: {
+                id: string; item_type: string; item_name: string; serial_number?: string;
+                condition: string; assigned_date?: string; notes?: string;
+              }) => {
+                const condLabel: Record<string, string> = { new: 'חדש', good: 'תקין', fair: 'סביר', needs_repair: 'דורש תיקון', damaged: 'פגום' };
+                return (
+                  <div key={e.id} className="card p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Package className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{e.item_name}</p>
+                          <p className="text-sm text-gray-500">
+                            {e.item_type}
+                            {e.serial_number && ` | מס"ס: ${e.serial_number}`}
+                          </p>
+                          {e.assigned_date && (
+                            <p className="text-xs text-gray-400">מאז: {e.assigned_date}</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`badge ${
+                        e.condition === 'good' || e.condition === 'new' ? 'badge-success' :
+                        e.condition === 'fair' ? 'badge-warning' : 'badge-danger'
+                      }`}>
+                        {condLabel[e.condition] || e.condition}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-8">אין ציוד מוקצה</p>
+          )}
+        </div>
+      )}
+
       {/* Performance Tab */}
       {activeTab === 'performance' && (
         <div className="space-y-4">
@@ -612,28 +666,32 @@ export default function EmployeeDetails() {
             </button>
           </div>
 
-          {perfData && (
+          {perfData && (() => {
+            const avgRating = perfData.ratings?.avg_rating || 0;
+            const totalRatings = perfData.ratings?.total_ratings || 0;
+            const attendanceRate = perfData.attendance?.rate || 0;
+            return (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="card text-center">
                   <div className="flex items-center justify-center gap-1 mb-1">
                     {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} className={`w-4 h-4 ${s <= Math.round(perfData.avg_rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                      <Star key={s} className={`w-4 h-4 ${s <= Math.round(avgRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
                     ))}
                   </div>
-                  <p className="text-2xl font-bold">{(perfData.avg_rating || 0).toFixed(1)}</p>
-                  <p className="text-xs text-gray-500">דירוג ממוצע ({perfData.total_ratings || 0} דירוגים)</p>
+                  <p className="text-2xl font-bold">{Number(avgRating).toFixed(1)}</p>
+                  <p className="text-xs text-gray-500">דירוג ממוצע ({totalRatings} דירוגים)</p>
                 </div>
                 <div className="card text-center">
-                  <p className="text-2xl font-bold text-green-600">{perfData.attendance_rate || 0}%</p>
+                  <p className="text-2xl font-bold text-green-600">{attendanceRate}%</p>
                   <p className="text-xs text-gray-500">נוכחות</p>
                 </div>
                 <div className="card text-center">
                   <p className="text-2xl font-bold text-blue-600">{perfData.total_hours || 0}</p>
-                  <p className="text-xs text-gray-500">שעות החודש</p>
+                  <p className="text-xs text-gray-500">שעות (3 חודשים)</p>
                 </div>
                 <div className="card text-center">
-                  <p className="text-2xl font-bold text-purple-600">{perfData.total_shifts || 0}</p>
+                  <p className="text-2xl font-bold text-purple-600">{perfData.shifts_this_month || 0}</p>
                   <p className="text-xs text-gray-500">משמרות החודש</p>
                 </div>
               </div>
@@ -643,12 +701,16 @@ export default function EmployeeDetails() {
                   <h3 className="font-medium mb-2">סטטיסטיקות</h3>
                   <dl className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <dt className="text-gray-500">אירועי אבטחה</dt>
-                      <dd className="font-medium">{perfData.incidents_handled || 0}</dd>
+                      <dt className="text-gray-500">אירועי אבטחה דווחו</dt>
+                      <dd className="font-medium">{perfData.incidents_reported || 0}</dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-gray-500">סיורים שהושלמו</dt>
-                      <dd className="font-medium">{perfData.patrols_completed || 0}</dd>
+                      <dd className="font-medium">{perfData.total_patrols || 0}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500">משמרות הגיע</dt>
+                      <dd className="font-medium">{perfData.attendance?.checked_in || 0}/{perfData.attendance?.total_assignments || 0}</dd>
                     </div>
                   </dl>
                 </div>
@@ -664,7 +726,7 @@ export default function EmployeeDetails() {
                               <Star key={s} className={`w-3 h-3 ${s <= r.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
                             ))}
                             <span className="text-xs text-gray-500 mr-2">
-                              {r.rating_type === 'manager' ? 'מנהל' : r.rating_type === 'client' ? 'לקוח' : 'אירוע'}
+                              {r.rating_type === 'manager_review' ? 'מנהל' : r.rating_type === 'customer_feedback' ? 'לקוח' : 'אירוע'}
                             </span>
                           </div>
                           <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString('he-IL')}</span>
@@ -675,7 +737,8 @@ export default function EmployeeDetails() {
                 )}
               </div>
             </>
-          )}
+            );
+          })()}
         </div>
       )}
 
