@@ -5,13 +5,23 @@ class GoogleService {
   constructor() {
     this.clientId = process.env.GOOGLE_CLIENT_ID;
     this.clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    this.redirectUri = process.env.GOOGLE_REDIRECT_URI;
+    // Use dedicated integration redirect URI, fallback to constructed URI
+    this.redirectUri = process.env.GOOGLE_INTEGRATION_REDIRECT_URI
+      || process.env.GOOGLE_REDIRECT_URI
+      || (process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/integrations/google/callback`
+        : 'http://localhost:5000/api/integrations/google/callback');
 
-    this.oauth2Client = new google.auth.OAuth2(
-      this.clientId,
-      this.clientSecret,
-      this.redirectUri
-    );
+    if (this.clientId && this.clientSecret) {
+      this.oauth2Client = new google.auth.OAuth2(
+        this.clientId,
+        this.clientSecret,
+        this.redirectUri
+      );
+    } else {
+      // Create a dummy client - will fail gracefully when used
+      this.oauth2Client = new google.auth.OAuth2();
+    }
   }
 
   // Generate auth URL

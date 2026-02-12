@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -13,6 +13,7 @@ import {
   X,
   ExternalLink,
   RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -49,6 +50,28 @@ export default function Settings() {
   const [showGreenInvoiceForm, setShowGreenInvoiceForm] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [showWhatsAppGuide, setShowWhatsAppGuide] = useState(false);
+  const [googleSetupNeeded, setGoogleSetupNeeded] = useState(false);
+  const [showGoogleGuide, setShowGoogleGuide] = useState(false);
+
+  // Handle Google OAuth redirect query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleStatus = params.get('google');
+    if (googleStatus === 'connected') {
+      toast.success('Google חובר בהצלחה! 🎉');
+      queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
+      // Clean URL
+      window.history.replaceState({}, '', '/settings');
+    } else if (googleStatus === 'error') {
+      const reason = params.get('reason') || '';
+      if (reason.includes('access_denied') || reason.includes('blocked')) {
+        toast.error('הגישה נחסמה על ידי Google. ודא שהאפליקציה מאומתת ושהמשתמש מורשה.');
+      } else {
+        toast.error('שגיאה בהתחברות ל-Google: ' + (reason || 'שגיאה לא ידועה'));
+      }
+      window.history.replaceState({}, '', '/settings');
+    }
+  }, [queryClient]);
 
   // Fetch integration settings
   const { data: settings, isLoading } = useQuery<IntegrationSettings>({
@@ -69,13 +92,22 @@ export default function Settings() {
   const googleConnectMutation = useMutation({
     mutationFn: async () => {
       const res = await api.get('/integrations/google/auth-url');
-      return res.data.authUrl;
+      return res.data;
     },
-    onSuccess: (authUrl) => {
-      window.location.href = authUrl;
+    onSuccess: (data) => {
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
     },
-    onError: () => {
-      toast.error('שגיאה בהתחברות ל-Google');
+    onError: (err: any) => {
+      const data = err.response?.data;
+      if (data?.needsSetup) {
+        setGoogleSetupNeeded(true);
+        setShowGoogleGuide(true);
+        toast.error('צריך להגדיר Google OAuth בשרת');
+      } else {
+        toast.error(data?.message || 'שגיאה בהתחברות ל-Google');
+      }
     },
   });
 
@@ -201,18 +233,86 @@ export default function Settings() {
                   </button>
                 </div>
               ) : (
-                <div className="mt-4">
-                  <p className="text-sm text-gray-600 mb-3">
+                <div className="mt-4 space-y-3">
+                  <p className="text-sm text-gray-600">
                     חבר את חשבון Google שלך כדי לשלוח מיילים, לסנכרן יומן ולשמור מסמכים
                   </p>
+
+                  {googleSetupNeeded && (
+                    <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-amber-800">
+                        צריך להגדיר Google OAuth בשרת. לחץ על "מדריך הגדרה" למטה.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => googleConnectMutation.mutate()}
+                      disabled={googleConnectMutation.isPending}
+                      className="btn-primary flex items-center gap-2"
+                    >
+                      <Link className="w-4 h-4" />
+                      {googleConnectMutation.isPending ? 'מתחבר...' : 'התחבר עם Google'}
+                    </button>
+                  </div>
+
                   <button
-                    onClick={() => googleConnectMutation.mutate()}
-                    disabled={googleConnectMutation.isPending}
-                    className="btn-primary flex items-center gap-2"
+                    type="button"
+                    onClick={() => setShowGoogleGuide(!showGoogleGuide)}
+                    className="text-primary-600 hover:underline text-sm flex items-center gap-1"
                   >
-                    <Link className="w-4 h-4" />
-                    התחבר עם Google
+                    {showGoogleGuide ? '▲ הסתר מדריך' : '▼ מדריך הגדרת Google OAuth'}
                   </button>
+
+                  {showGoogleGuide && (
+                    <div className="bg-red-50 rounded-lg p-4 text-sm space-y-2 border border-red-200">
+                      <h4 className="font-bold text-red-900">מדריך הגדרת Google OAuth</h4>
+                      <ol className="list-decimal list-inside space-y-1.5 text-red-800">
+                        <li>
+                          היכנס ל-
+                          <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">Google Cloud Console</a>
+                        </li>
+                        <li>צור פרויקט חדש או בחר קיים</li>
+                        <li>
+                          הפעל את ה-APIs הבאים:
+                          <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
+                            <li>Gmail API</li>
+                            <li>Google Calendar API</li>
+                            <li>Google Drive API</li>
+                          </ul>
+                        </li>
+                        <li>
+                          הגדר <span className="font-bold">OAuth consent screen</span>:
+                          <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
+                            <li>User type: External</li>
+                            <li>הוסף את המיילים שלך ל-<span className="font-bold">Test users</span></li>
+                            <li>הוסף scopes: Gmail Send, Calendar, Drive Files</li>
+                          </ul>
+                        </li>
+                        <li>
+                          צור <span className="font-bold">OAuth 2.0 Client ID</span> (Credentials → Create → Web Application):
+                          <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
+                            <li>Authorized redirect URI: <code className="bg-red-100 px-1 rounded text-xs" dir="ltr">https://web-production-9c7e4.up.railway.app/api/integrations/google/callback</code></li>
+                          </ul>
+                        </li>
+                        <li>העתק את <span className="font-bold">Client ID</span> ו-<span className="font-bold">Client Secret</span></li>
+                        <li>
+                          הגדר ב-Railway (Environment Variables):
+                          <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
+                            <li><code className="bg-red-100 px-1 rounded text-xs" dir="ltr">GOOGLE_CLIENT_ID=your-client-id</code></li>
+                            <li><code className="bg-red-100 px-1 rounded text-xs" dir="ltr">GOOGLE_CLIENT_SECRET=your-client-secret</code></li>
+                          </ul>
+                        </li>
+                      </ol>
+                      <div className="mt-3 p-2 bg-red-100 rounded text-xs text-red-700">
+                        <p className="font-bold">⚠️ חשוב:</p>
+                        <p>כל עוד האפליקציה לא מאומתת (Testing), רק משתמשים שהוספת ל-Test users יוכלו להתחבר.</p>
+                        <p>אם מופיע "הגישה חסומה" - ודא שהמייל שלך מופיע ב-Test users.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

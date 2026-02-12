@@ -7,7 +7,76 @@ const greenInvoiceService = require('../services/greenInvoice');
 const whatsappHelper = require('../utils/whatsappHelper');
 const { authenticateToken } = require('../middleware/auth');
 
-// Apply auth middleware
+// ====================
+// PUBLIC ROUTES (no auth required)
+// ====================
+
+// Google OAuth callback - Google redirects here without JWT token
+router.get('/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    if (!code) {
+      return res.redirect('/settings?google=error&reason=no_code');
+    }
+
+    const tokens = await googleService.getTokensFromCode(code);
+
+    // Save tokens to database
+    const existingSettings = query(`SELECT * FROM integration_settings WHERE id = 'main'`);
+
+    if (existingSettings.rows.length === 0) {
+      query(`
+        INSERT INTO integration_settings (id, google_tokens, google_email, updated_at)
+        VALUES ('main', ?, ?, datetime('now'))
+      `, [JSON.stringify(tokens), '']);
+    } else {
+      query(`
+        UPDATE integration_settings
+        SET google_tokens = ?, updated_at = datetime('now')
+        WHERE id = 'main'
+      `, [JSON.stringify(tokens)]);
+    }
+
+    // Redirect to settings page with success
+    res.redirect('/settings?google=connected');
+  } catch (error) {
+    console.error('Google callback error:', error);
+    res.redirect('/settings?google=error&reason=' + encodeURIComponent(error.message || 'unknown'));
+  }
+});
+
+// WhatsApp webhook verification (Meta sends GET without auth)
+router.get('/whatsapp/webhook', (req, res) => {
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'tzevet-yahalom-verify';
+
+  if (req.query['hub.verify_token'] === verifyToken) {
+    res.send(req.query['hub.challenge']);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+// WhatsApp webhook incoming messages (Meta sends POST without auth)
+router.post('/whatsapp/webhook', async (req, res) => {
+  try {
+    const result = await whatsappService.handleWebhook(req.body);
+
+    if (result && result.type === 'message') {
+      console.log('Incoming WhatsApp message:', result);
+      await whatsappHelper.handleIncomingMessage(result.from, result.text, result.timestamp);
+    }
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('WhatsApp webhook error:', error);
+    res.sendStatus(500);
+  }
+});
+
+// ====================
+// AUTHENTICATED ROUTES
+// ====================
 router.use(authenticateToken);
 
 // ====================
@@ -60,48 +129,21 @@ router.get('/settings', async (req, res) => {
 // Get Google auth URL
 router.get('/google/auth-url', (req, res) => {
   try {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.status(400).json({
+        message: 'Google API לא מוגדר. צריך להגדיר GOOGLE_CLIENT_ID ו-GOOGLE_CLIENT_SECRET בהגדרות השרת.',
+        needsSetup: true
+      });
+    }
     const authUrl = googleService.getAuthUrl();
     res.json({ authUrl });
   } catch (error) {
     console.error('Google auth URL error:', error);
-    res.status(500).json({ message: 'שגיאה ביצירת קישור התחברות' });
+    res.status(500).json({ message: 'שגיאה ביצירת קישור התחברות. ודא שפרטי Google OAuth מוגדרים נכון.' });
   }
 });
 
-// Google OAuth callback
-router.get('/google/callback', async (req, res) => {
-  try {
-    const { code } = req.query;
-
-    if (!code) {
-      return res.status(400).json({ message: 'חסר קוד אימות' });
-    }
-
-    const tokens = await googleService.getTokensFromCode(code);
-
-    // Save tokens to database
-    const existingSettings = query(`SELECT * FROM integration_settings WHERE id = 'main'`);
-
-    if (existingSettings.rows.length === 0) {
-      query(`
-        INSERT INTO integration_settings (id, google_tokens, google_email, updated_at)
-        VALUES ('main', ?, ?, datetime('now'))
-      `, [JSON.stringify(tokens), req.user?.email || '']);
-    } else {
-      query(`
-        UPDATE integration_settings
-        SET google_tokens = ?, google_email = ?, updated_at = datetime('now')
-        WHERE id = 'main'
-      `, [JSON.stringify(tokens), req.user?.email || '']);
-    }
-
-    // Redirect to settings page with success
-    res.redirect('/settings?google=connected');
-  } catch (error) {
-    console.error('Google callback error:', error);
-    res.redirect('/settings?google=error');
-  }
-});
+// Google OAuth callback is defined above (public route, no auth required)
 
 // Disconnect Google
 router.post('/google/disconnect', async (req, res) => {
@@ -183,34 +225,7 @@ router.post('/whatsapp/send', async (req, res) => {
   }
 });
 
-// WhatsApp webhook (for receiving messages)
-router.post('/whatsapp/webhook', async (req, res) => {
-  try {
-    const result = await whatsappService.handleWebhook(req.body);
-
-    if (result && result.type === 'message') {
-      // Log and auto-reply to incoming message
-      console.log('Incoming WhatsApp message:', result);
-      await whatsappHelper.handleIncomingMessage(result.from, result.text, result.timestamp);
-    }
-
-    res.sendStatus(200);
-  } catch (error) {
-    console.error('WhatsApp webhook error:', error);
-    res.sendStatus(500);
-  }
-});
-
-// WhatsApp webhook verification
-router.get('/whatsapp/webhook', (req, res) => {
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'tzevet-yahalom-verify';
-
-  if (req.query['hub.verify_token'] === verifyToken) {
-    res.send(req.query['hub.challenge']);
-  } else {
-    res.sendStatus(403);
-  }
-});
+// WhatsApp webhooks are defined above (public routes, no auth required)
 
 // ====================
 // GREEN INVOICE INTEGRATION
