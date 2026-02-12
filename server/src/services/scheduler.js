@@ -53,6 +53,16 @@ class Scheduler {
       await this.checkUnassignedEvents();
     });
 
+    // Every day at 07:30 - Check expiring guard certifications
+    this.addJob('30 7 * * *', 'certification-expiry-check', async () => {
+      await this.checkExpiringCertifications();
+    });
+
+    // Every day at 11:00 - Check unresolved incidents (48+ hours)
+    this.addJob('0 11 * * *', 'unresolved-incidents-check', async () => {
+      await this.checkUnresolvedIncidents();
+    });
+
     console.log(`${this.jobs.length} scheduled tasks registered`);
   }
 
@@ -427,6 +437,103 @@ class Scheduler {
       }
     } catch (error) {
       console.error('[CRON] checkUnassignedEvents error:', error.message);
+    }
+  }
+
+  /**
+   * Check for expiring guard certifications (next 14 days)
+   */
+  async checkExpiringCertifications() {
+    try {
+      if (!whatsappHelper.isConfigured()) return;
+
+      const result = query(`
+        SELECT gc.id, gc.cert_type, gc.cert_name, gc.expiry_date,
+               e.first_name, e.last_name, e.phone,
+               CAST(julianday(gc.expiry_date) - julianday('now') AS INTEGER) as days_until_expiry
+        FROM guard_certifications gc
+        JOIN employees e ON gc.employee_id = e.id
+        WHERE gc.expiry_date IS NOT NULL
+        AND gc.status = 'active'
+        AND gc.expiry_date BETWEEN date('now') AND date('now', '+14 days')
+        ORDER BY gc.expiry_date
+      `);
+
+      if (result.rows.length === 0) return;
+
+      console.log(`[CRON] Found ${result.rows.length} expiring certifications`);
+
+      const admins = query(`
+        SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
+      `);
+
+      let summary = `התראת הסמכות שפגות תוקף! 🔴\n\n`;
+      for (const cert of result.rows) {
+        summary += `• ${cert.first_name} ${cert.last_name}\n`;
+        summary += `  ${cert.cert_name} - פג בעוד ${cert.days_until_expiry} ימים (${cert.expiry_date})\n\n`;
+      }
+      summary += `סה"כ: ${result.rows.length} הסמכות\nצוות יהלום CRM`;
+
+      for (const admin of admins.rows) {
+        await whatsappHelper.safeSend(admin.phone, summary);
+        await this.delay(500);
+      }
+
+      // Notify employees with expiring certs (7 days or less)
+      for (const cert of result.rows) {
+        if (cert.phone && cert.days_until_expiry <= 7) {
+          const msg = `שלום ${cert.first_name}! 📋\nההסמכה "${cert.cert_name}" שלך פגה תוקף בתאריך ${cert.expiry_date}.\nנא לחדש בהקדם.\n\nצוות יהלום`;
+          await whatsappHelper.safeSend(cert.phone, msg);
+          await this.delay(1000);
+        }
+      }
+    } catch (error) {
+      console.error('[CRON] checkExpiringCertifications error:', error.message);
+    }
+  }
+
+  /**
+   * Check for unresolved incidents (open > 48 hours)
+   */
+  async checkUnresolvedIncidents() {
+    try {
+      if (!whatsappHelper.isConfigured()) return;
+
+      const result = query(`
+        SELECT i.id, i.title, i.severity, i.incident_type, i.incident_date, i.status,
+               c.company_name, s.name as site_name,
+               CAST(julianday('now') - julianday(i.created_at) AS INTEGER) as days_open
+        FROM incidents i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN sites s ON i.site_id = s.id
+        WHERE i.status IN ('open', 'investigating')
+        AND i.created_at <= datetime('now', '-48 hours')
+        ORDER BY i.severity DESC, i.created_at
+      `);
+
+      if (result.rows.length === 0) return;
+
+      console.log(`[CRON] Found ${result.rows.length} unresolved incidents (48h+)`);
+
+      const admins = query(`
+        SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
+      `);
+
+      const severityLabels = { critical: '🔴 קריטי', high: '🟠 גבוה', medium: '🟡 בינוני', low: '🟢 נמוך' };
+      let summary = `אירועי אבטחה לא פתורים (48+ שעות)! ⚠️\n\n`;
+      for (const inc of result.rows) {
+        summary += `${severityLabels[inc.severity] || inc.severity} - ${inc.title}\n`;
+        summary += `  ${inc.company_name || ''} ${inc.site_name ? '/ ' + inc.site_name : ''}\n`;
+        summary += `  פתוח ${inc.days_open} ימים | סטטוס: ${inc.status === 'open' ? 'פתוח' : 'בחקירה'}\n\n`;
+      }
+      summary += `סה"כ: ${result.rows.length} אירועים\nצוות יהלום CRM`;
+
+      for (const admin of admins.rows) {
+        await whatsappHelper.safeSend(admin.phone, summary);
+        await this.delay(500);
+      }
+    } catch (error) {
+      console.error('[CRON] checkUnresolvedIncidents error:', error.message);
     }
   }
 

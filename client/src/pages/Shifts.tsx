@@ -6,8 +6,9 @@ import { z } from 'zod';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send } from 'lucide-react';
-import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi } from '../services/api';
+import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText } from 'lucide-react';
+import { shiftsApi, customersApi, sitesApi, employeesApi, integrationsApi, shiftTemplatesApi } from '../services/api';
+import ShiftTemplateModal, { GenerateFromTemplateModal } from '../components/ShiftTemplateModal';
 
 function cleanPhone(phone: string): string {
   return phone.replace(/[\s\-+]/g, '');
@@ -434,6 +435,9 @@ export default function Shifts() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [generateTemplate, setGenerateTemplate] = useState<{ id: string; name: string } | null>(null);
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const queryClient = useQueryClient();
 
@@ -462,6 +466,22 @@ export default function Shifts() {
         ? sitesApi.getByCustomer(selectedCustomer).then((res) => res.data)
         : Promise.resolve({ sites: [] }),
     enabled: !!selectedCustomer,
+  });
+
+  // Fetch shift templates
+  const { data: templatesData } = useQuery({
+    queryKey: ['shift-templates'],
+    queryFn: () => shiftTemplatesApi.getAll().then((res) => res.data),
+    enabled: showTemplates,
+  });
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (tmplId: string) => shiftTemplatesApi.delete(tmplId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shift-templates'] });
+      toast.success('התבנית נמחקה');
+    },
+    onError: () => toast.error('שגיאה במחיקה'),
   });
 
   const createMutation = useMutation({
@@ -515,11 +535,83 @@ export default function Shifts() {
           <h1 className="text-2xl font-bold text-gray-900">משמרות</h1>
           <p className="text-gray-500">לוח משמרות שבועי</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" />
-          משמרת חדשה
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowTemplates(!showTemplates)} className="btn-secondary flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            תבניות
+          </button>
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            משמרת חדשה
+          </button>
+        </div>
       </div>
+
+      {/* Shift Templates Section */}
+      {showTemplates && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">תבניות משמרות</h2>
+            <button onClick={() => setShowTemplateModal(true)} className="btn-primary text-sm flex items-center gap-1">
+              <Plus className="w-4 h-4" />
+              תבנית חדשה
+            </button>
+          </div>
+          {templatesData?.templates?.length > 0 ? (
+            <div className="space-y-2">
+              {templatesData.templates.map((tmpl: { id: string; name: string; company_name?: string; site_name?: string; start_time: string; end_time: string; days_of_week: string; required_employees: number; is_active: number }) => {
+                const days = typeof tmpl.days_of_week === 'string' ? JSON.parse(tmpl.days_of_week) : tmpl.days_of_week;
+                const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+                return (
+                  <div key={tmpl.id} className={`flex items-center justify-between p-3 rounded-lg ${tmpl.is_active ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
+                    <div>
+                      <p className="font-medium">{tmpl.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {tmpl.company_name && `${tmpl.company_name} `}
+                        {tmpl.site_name && `- ${tmpl.site_name} `}
+                        | {tmpl.start_time}-{tmpl.end_time}
+                        | {tmpl.required_employees} עובדים
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        ימים: {(days || []).map((d: number) => dayNames[d]).join(', ')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setGenerateTemplate({ id: tmpl.id, name: tmpl.name })}
+                        className="btn-success text-xs flex items-center gap-1 px-2 py-1"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        צור משמרות
+                      </button>
+                      <button
+                        onClick={() => deleteTemplateMutation.mutate(tmpl.id)}
+                        className="text-red-400 hover:text-red-600 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-4">אין תבניות. צור תבנית ראשונה כדי לחסוך זמן.</p>
+          )}
+        </div>
+      )}
+
+      {/* Template Modals */}
+      {showTemplateModal && (
+        <ShiftTemplateModal onClose={() => setShowTemplateModal(false)} />
+      )}
+      {generateTemplate && (
+        <GenerateFromTemplateModal
+          templateId={generateTemplate.id}
+          templateName={generateTemplate.name}
+          onClose={() => setGenerateTemplate(null)}
+        />
+      )}
 
       {/* Week navigation */}
       <div className="card">

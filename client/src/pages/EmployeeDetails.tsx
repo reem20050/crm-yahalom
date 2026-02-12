@@ -18,10 +18,15 @@ import {
   ToggleRight,
   FileText,
   AlertTriangle,
+  Award,
+  Star,
+  Crosshair,
+  BarChart3,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { employeesApi } from '../services/api';
+import { employeesApi, certificationsApi, weaponsApi, performanceApi } from '../services/api';
 import WhatsAppButton from '../components/WhatsAppButton';
+import GuardRatingModal from '../components/GuardRatingModal';
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'id_card', label: 'תעודת זהות' },
@@ -82,6 +87,10 @@ export default function EmployeeDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'info' | 'certifications' | 'weapons' | 'performance'>('info');
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showCertForm, setShowCertForm] = useState(false);
+  const [certForm, setCertForm] = useState({ cert_type: 'firearm_license', cert_name: '', cert_number: '', issuing_authority: '', issue_date: '', expiry_date: '', notes: '' });
 
   const [editForm, setEditForm] = useState<EditForm>({
     first_name: '',
@@ -111,6 +120,45 @@ export default function EmployeeDetails() {
   });
 
   const employee = data?.employee;
+
+  // Additional queries for security-specific tabs
+  const { data: certsData } = useQuery({
+    queryKey: ['certifications', id],
+    queryFn: () => certificationsApi.getByEmployee(id!).then((r) => r.data),
+    enabled: !!id && activeTab === 'certifications',
+  });
+
+  const { data: weaponsData } = useQuery({
+    queryKey: ['weapons', id],
+    queryFn: () => weaponsApi.getByEmployee(id!).then((r) => r.data),
+    enabled: !!id && activeTab === 'weapons',
+  });
+
+  const { data: perfData } = useQuery({
+    queryKey: ['performance', id],
+    queryFn: () => performanceApi.getEmployee(id!).then((r) => r.data),
+    enabled: !!id && activeTab === 'performance',
+  });
+
+  const createCertMutation = useMutation({
+    mutationFn: (formData: Record<string, unknown>) => certificationsApi.create(formData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certifications', id] });
+      toast.success('הסמכה נוספה בהצלחה');
+      setShowCertForm(false);
+      setCertForm({ cert_type: 'firearm_license', cert_name: '', cert_number: '', issuing_authority: '', issue_date: '', expiry_date: '', notes: '' });
+    },
+    onError: () => toast.error('שגיאה בהוספת הסמכה'),
+  });
+
+  const deleteCertMutation = useMutation({
+    mutationFn: (certId: string) => certificationsApi.delete(certId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certifications', id] });
+      toast.success('הסמכה נמחקה');
+    },
+    onError: () => toast.error('שגיאה במחיקה'),
+  });
 
   // Sync edit form when employee data loads or changes
   useEffect(() => {
@@ -383,7 +431,265 @@ export default function EmployeeDetails() {
         </div>
       )}
 
-      {/* Main content */}
+      {/* Tabs */}
+      <div className="border-b">
+        <nav className="flex gap-4">
+          {[
+            { id: 'info' as const, label: 'מידע כללי', icon: UserCircle },
+            { id: 'certifications' as const, label: 'הסמכות', icon: Award },
+            { id: 'weapons' as const, label: 'נשק', icon: Crosshair },
+            { id: 'performance' as const, label: 'ביצועים', icon: BarChart3 },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors text-sm ${
+                activeTab === tab.id
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Certifications Tab */}
+      {activeTab === 'certifications' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">הסמכות ורישיונות</h2>
+            <button onClick={() => setShowCertForm(!showCertForm)} className="btn-primary text-sm flex items-center gap-1">
+              {showCertForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              {showCertForm ? 'ביטול' : 'הוסף הסמכה'}
+            </button>
+          </div>
+
+          {showCertForm && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                createCertMutation.mutate({ ...certForm, employee_id: id });
+              }}
+              className="card space-y-3"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">סוג הסמכה *</label>
+                  <select value={certForm.cert_type} onChange={(e) => setCertForm({ ...certForm, cert_type: e.target.value })} className="input">
+                    <option value="firearm_license">רישיון נשק</option>
+                    <option value="security_officer">קצין ביטחון</option>
+                    <option value="first_aid">עזרה ראשונה</option>
+                    <option value="fire_safety">בטיחות אש</option>
+                    <option value="driving_license">רישיון נהיגה</option>
+                    <option value="guard_license">רישיון שמירה</option>
+                    <option value="other">אחר</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">שם ההסמכה *</label>
+                  <input value={certForm.cert_name} onChange={(e) => setCertForm({ ...certForm, cert_name: e.target.value })} className="input" required />
+                </div>
+                <div>
+                  <label className="label">מספר תעודה</label>
+                  <input value={certForm.cert_number} onChange={(e) => setCertForm({ ...certForm, cert_number: e.target.value })} className="input" dir="ltr" />
+                </div>
+                <div>
+                  <label className="label">גוף מנפיק</label>
+                  <input value={certForm.issuing_authority} onChange={(e) => setCertForm({ ...certForm, issuing_authority: e.target.value })} className="input" />
+                </div>
+                <div>
+                  <label className="label">תאריך הנפקה</label>
+                  <input type="date" value={certForm.issue_date} onChange={(e) => setCertForm({ ...certForm, issue_date: e.target.value })} className="input" />
+                </div>
+                <div>
+                  <label className="label">תאריך תפוגה</label>
+                  <input type="date" value={certForm.expiry_date} onChange={(e) => setCertForm({ ...certForm, expiry_date: e.target.value })} className="input" />
+                </div>
+              </div>
+              <button type="submit" disabled={createCertMutation.isPending} className="btn-primary text-sm">
+                {createCertMutation.isPending ? 'שומר...' : 'שמור הסמכה'}
+              </button>
+            </form>
+          )}
+
+          {certsData?.certifications?.length > 0 ? (
+            <div className="space-y-2">
+              {certsData.certifications.map((cert: {
+                id: string; cert_type: string; cert_name: string; cert_number?: string;
+                issuing_authority?: string; expiry_date?: string; expiry_status?: string;
+              }) => {
+                const expiryColor = cert.expiry_status === 'expired' ? 'bg-red-100 border-red-300 text-red-800'
+                  : cert.expiry_status === 'expiring_soon' ? 'bg-yellow-100 border-yellow-300 text-yellow-800'
+                  : cert.expiry_status === 'expiring' ? 'bg-orange-50 border-orange-200 text-orange-700'
+                  : 'bg-green-50 border-green-200 text-green-800';
+                const expiryLabel: Record<string, string> = {
+                  expired: 'פג תוקף',
+                  expiring_soon: 'פג בקרוב (<30 יום)',
+                  expiring: 'פג ב-60 יום',
+                  valid: 'בתוקף',
+                  no_expiry: 'ללא תפוגה',
+                };
+
+                return (
+                  <div key={cert.id} className={`p-3 rounded-lg border ${expiryColor}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{cert.cert_name}</p>
+                        <p className="text-sm opacity-80">
+                          {cert.cert_number && `מס׳ ${cert.cert_number} | `}
+                          {cert.issuing_authority || ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium">{expiryLabel[cert.expiry_status || 'valid']}</span>
+                        {cert.expiry_date && <span className="text-xs opacity-70">{cert.expiry_date}</span>}
+                        <button onClick={() => deleteCertMutation.mutate(cert.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-8">אין הסמכות רשומות</p>
+          )}
+        </div>
+      )}
+
+      {/* Weapons Tab */}
+      {activeTab === 'weapons' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">נשק מוקצה</h2>
+          {weaponsData?.weapons?.length > 0 ? (
+            <div className="space-y-2">
+              {weaponsData.weapons.map((w: {
+                id: string; weapon_type: string; manufacturer?: string; model?: string;
+                serial_number: string; license_number?: string; license_expiry?: string;
+                status: string; assigned_date?: string;
+              }) => (
+                <div key={w.id} className="card p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                        <Crosshair className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{w.weapon_type} {w.manufacturer && `- ${w.manufacturer}`} {w.model || ''}</p>
+                        <p className="text-sm text-gray-500">מס״ס: {w.serial_number}</p>
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <span className={`badge ${w.status === 'assigned' ? 'badge-success' : w.status === 'maintenance' ? 'badge-warning' : 'badge-gray'}`}>
+                        {w.status === 'assigned' ? 'מוקצה' : w.status === 'maintenance' ? 'בתחזוקה' : 'במחסן'}
+                      </span>
+                      {w.license_expiry && (
+                        <p className="text-xs text-gray-500 mt-1">רישיון: {w.license_expiry}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-8">אין נשק מוקצה</p>
+          )}
+        </div>
+      )}
+
+      {/* Performance Tab */}
+      {activeTab === 'performance' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">ביצועים</h2>
+            <button onClick={() => setShowRatingModal(true)} className="btn-primary text-sm flex items-center gap-1">
+              <Star className="w-4 h-4" />
+              דרג מאבטח
+            </button>
+          </div>
+
+          {perfData && (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="card text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} className={`w-4 h-4 ${s <= Math.round(perfData.avg_rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                    ))}
+                  </div>
+                  <p className="text-2xl font-bold">{(perfData.avg_rating || 0).toFixed(1)}</p>
+                  <p className="text-xs text-gray-500">דירוג ממוצע ({perfData.total_ratings || 0} דירוגים)</p>
+                </div>
+                <div className="card text-center">
+                  <p className="text-2xl font-bold text-green-600">{perfData.attendance_rate || 0}%</p>
+                  <p className="text-xs text-gray-500">נוכחות</p>
+                </div>
+                <div className="card text-center">
+                  <p className="text-2xl font-bold text-blue-600">{perfData.total_hours || 0}</p>
+                  <p className="text-xs text-gray-500">שעות החודש</p>
+                </div>
+                <div className="card text-center">
+                  <p className="text-2xl font-bold text-purple-600">{perfData.total_shifts || 0}</p>
+                  <p className="text-xs text-gray-500">משמרות החודש</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="card">
+                  <h3 className="font-medium mb-2">סטטיסטיקות</h3>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500">אירועי אבטחה</dt>
+                      <dd className="font-medium">{perfData.incidents_handled || 0}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-gray-500">סיורים שהושלמו</dt>
+                      <dd className="font-medium">{perfData.patrols_completed || 0}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {perfData.recent_ratings?.length > 0 && (
+                  <div className="card">
+                    <h3 className="font-medium mb-2">דירוגים אחרונים</h3>
+                    <div className="space-y-2">
+                      {perfData.recent_ratings.slice(0, 5).map((r: { id: string; rating: number; rating_type: string; comments?: string; created_at: string }) => (
+                        <div key={r.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star key={s} className={`w-3 h-3 ${s <= r.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                            ))}
+                            <span className="text-xs text-gray-500 mr-2">
+                              {r.rating_type === 'manager' ? 'מנהל' : r.rating_type === 'client' ? 'לקוח' : 'אירוע'}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString('he-IL')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {showRatingModal && employee && (
+        <GuardRatingModal
+          employeeId={id!}
+          employeeName={`${employee.first_name} ${employee.last_name}`}
+          onClose={() => setShowRatingModal(false)}
+        />
+      )}
+
+      {/* Main content - Info Tab */}
+      {activeTab === 'info' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Contact info */}
@@ -712,6 +1018,7 @@ export default function EmployeeDetails() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
