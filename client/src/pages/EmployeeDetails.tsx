@@ -30,6 +30,7 @@ import { employeesApi, certificationsApi, weaponsApi, performanceApi, equipmentA
 import WhatsAppButton from '../components/WhatsAppButton';
 import GuardRatingModal from '../components/GuardRatingModal';
 import DocumentManager from '../components/DocumentManager';
+import WhatsAppHistory from '../components/WhatsAppHistory';
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'id_card', label: 'תעודת זהות' },
@@ -90,7 +91,7 @@ export default function EmployeeDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'info' | 'certifications' | 'weapons' | 'equipment' | 'performance'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'certifications' | 'weapons' | 'equipment' | 'performance' | 'whatsapp'>('info');
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
   const [certForm, setCertForm] = useState({ cert_type: 'firearm_license', cert_name: '', cert_number: '', issuing_authority: '', issue_date: '', expiry_date: '', notes: '' });
@@ -458,6 +459,7 @@ export default function EmployeeDetails() {
             { id: 'weapons' as const, label: 'נשק', icon: Crosshair },
             { id: 'equipment' as const, label: 'ציוד', icon: Package },
             { id: 'performance' as const, label: 'ביצועים', icon: BarChart3 },
+            { id: 'whatsapp' as const, label: 'WhatsApp', icon: Phone },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -760,6 +762,20 @@ export default function EmployeeDetails() {
           employeeName={`${employee.first_name} ${employee.last_name}`}
           onClose={() => setShowRatingModal(false)}
         />
+      )}
+
+      {/* WhatsApp Tab */}
+      {activeTab === 'whatsapp' && id && (
+        <div className="max-w-2xl">
+          <div className="card p-0 overflow-hidden">
+            <WhatsAppHistory
+              entityType="employee"
+              entityId={id}
+              phone={employee?.phone}
+              entityName={employee ? `${employee.first_name} ${employee.last_name}` : undefined}
+            />
+          </div>
+        </div>
       )}
 
       {/* Main content - Info Tab */}

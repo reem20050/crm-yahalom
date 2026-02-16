@@ -64,28 +64,44 @@ router.post('/whatsapp/webhook', async (req, res) => {
 
     if (result && result.type === 'message') {
       console.log('Incoming WhatsApp message from:', result.from);
+
+      // Log to whatsapp_messages table with entity matching
+      const entity = whatsappService.findEntityByPhone(result.from);
+      whatsappService.logMessage({
+        phone: result.from,
+        direction: 'incoming',
+        message: result.text || '',
+        context: 'incoming',
+        entityType: entity?.type || null,
+        entityId: entity?.id || null,
+        status: 'received'
+      });
+
+      // Also keep activity_log for backwards compatibility
       try {
         const logId = generateUUID();
         query(`INSERT INTO activity_log (id, action, entity_type, entity_id, changes, created_at)
           VALUES (?, 'whatsapp_received', 'whatsapp', '', ?, datetime('now'))`,
-          [logId, JSON.stringify({ from: result.from, text: result.text?.substring(0, 200) })]);
+          [logId, JSON.stringify({ from: result.from, text: result.text?.substring(0, 500) })]);
       } catch (logErr) { /* non-blocking */ }
+
       await whatsappHelper.handleIncomingMessage(result.from, result.text, result.timestamp);
     }
 
     if (result && result.type === 'status') {
+      // Update message status in whatsapp_messages
       try {
-        const logId = generateUUID();
-        query(`INSERT INTO activity_log (id, action, entity_type, entity_id, changes, created_at)
-          VALUES (?, 'whatsapp_status', 'whatsapp', '', ?, datetime('now'))`,
-          [logId, JSON.stringify({ messageId: result.messageId, status: result.status })]);
-      } catch (logErr) { /* non-blocking */ }
+        if (result.messageId) {
+          query(`UPDATE whatsapp_messages SET status = $1 WHERE waha_message_id = $2`,
+            [result.status === 3 ? 'read' : result.status === 2 ? 'delivered' : 'sent', result.messageId]);
+        }
+      } catch (e) { /* non-blocking */ }
     }
 
     res.sendStatus(200);
   } catch (error) {
     console.error('WhatsApp webhook error:', error);
-    res.sendStatus(200); // Always return 200 to prevent Meta from retrying
+    res.sendStatus(200); // Always return 200 to prevent retrying
   }
 });
 
@@ -345,23 +361,18 @@ router.post('/whatsapp/disconnect', async (req, res) => {
 // Send WhatsApp message (with logging)
 router.post('/whatsapp/send', async (req, res) => {
   try {
-    const { to, message } = req.body;
+    const { to, message, entityType, entityId } = req.body;
 
     if (!to || !message) {
       return res.status(400).json({ message: 'נדרש מספר טלפון והודעה' });
     }
 
-    const result = await whatsappService.sendMessage(to, message);
-
-    // Log to activity_log
-    try {
-      const logId = generateUUID();
-      query(`INSERT INTO activity_log (id, action, entity_type, entity_id, changes, user_id, created_at)
-        VALUES (?, 'whatsapp_sent', 'whatsapp', '', ?, ?, datetime('now'))`,
-        [logId, JSON.stringify({ to, success: result.success, messageId: result.messageId }), req.user?.id]);
-    } catch (logErr) {
-      // Don't fail the request if logging fails
-    }
+    // sendMessage now auto-logs to whatsapp_messages
+    const result = await whatsappService.sendMessage(to, message, {
+      context: 'manual',
+      entityType: entityType || null,
+      entityId: entityId || null
+    });
 
     if (result.success) {
       res.json({ message: 'הודעה נשלחה בהצלחה', messageId: result.messageId });
@@ -375,6 +386,153 @@ router.post('/whatsapp/send', async (req, res) => {
 });
 
 // WhatsApp webhooks are defined above (public routes, no auth required)
+
+// ====================
+// WHATSAPP MESSAGE HISTORY
+// ====================
+
+// Get messages for an entity (employee/customer)
+router.get('/whatsapp/messages', async (req, res) => {
+  try {
+    const { entityType, entityId, phone, limit: lim } = req.query;
+    const messageLimit = Math.min(parseInt(lim) || 100, 500);
+
+    let sql, params;
+    if (entityType && entityId) {
+      sql = `SELECT * FROM whatsapp_messages WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT $3`;
+      params = [entityType, entityId, messageLimit];
+    } else if (phone) {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      sql = `SELECT * FROM whatsapp_messages WHERE phone LIKE '%' || $1 || '%' ORDER BY created_at DESC LIMIT $2`;
+      params = [cleanPhone.slice(-9), messageLimit];
+    } else {
+      sql = `SELECT * FROM whatsapp_messages ORDER BY created_at DESC LIMIT $1`;
+      params = [messageLimit];
+    }
+
+    const result = query(sql, params);
+    // Return in chronological order for chat display
+    res.json({ messages: result.rows.reverse() });
+  } catch (error) {
+    console.error('Get WhatsApp messages error:', error);
+    res.status(500).json({ message: 'שגיאה בטעינת הודעות' });
+  }
+});
+
+// Get conversations list (grouped by phone number)
+router.get('/whatsapp/conversations', async (req, res) => {
+  try {
+    const result = query(`
+      SELECT phone,
+             entity_type,
+             entity_id,
+             COUNT(*) as message_count,
+             MAX(created_at) as last_message_at,
+             (SELECT message FROM whatsapp_messages wm2
+              WHERE wm2.phone = wm.phone
+              ORDER BY wm2.created_at DESC LIMIT 1) as last_message,
+             (SELECT direction FROM whatsapp_messages wm3
+              WHERE wm3.phone = wm.phone
+              ORDER BY wm3.created_at DESC LIMIT 1) as last_direction
+      FROM whatsapp_messages wm
+      GROUP BY phone
+      ORDER BY last_message_at DESC
+    `);
+
+    // Enrich with entity names
+    const conversations = result.rows.map(conv => {
+      let entityName = null;
+      if (conv.entity_type === 'employee' && conv.entity_id) {
+        try {
+          const emp = query(`SELECT first_name || ' ' || last_name as name FROM employees WHERE id = $1`, [conv.entity_id]);
+          entityName = emp.rows[0]?.name;
+        } catch (e) { /* ignore */ }
+      } else if (conv.entity_type === 'customer' && conv.entity_id) {
+        try {
+          const cust = query(`SELECT company_name as name FROM customers WHERE id = $1`, [conv.entity_id]);
+          entityName = cust.rows[0]?.name;
+        } catch (e) { /* ignore */ }
+      }
+      return { ...conv, entity_name: entityName };
+    });
+
+    res.json({ conversations });
+  } catch (error) {
+    console.error('Get WhatsApp conversations error:', error);
+    res.status(500).json({ message: 'שגיאה בטעינת שיחות' });
+  }
+});
+
+// Send message and return immediately (for chat UI)
+router.post('/whatsapp/chat/send', async (req, res) => {
+  try {
+    const { phone, message, entityType, entityId } = req.body;
+
+    if (!phone || !message) {
+      return res.status(400).json({ message: 'נדרש מספר טלפון והודעה' });
+    }
+
+    const result = await whatsappService.sendMessage(phone, message, {
+      context: 'manual',
+      entityType: entityType || null,
+      entityId: entityId || null
+    });
+
+    if (result.success) {
+      res.json({ success: true, messageId: result.messageId });
+    } else {
+      res.status(400).json({ success: false, message: result.error });
+    }
+  } catch (error) {
+    console.error('WhatsApp chat send error:', error);
+    res.status(500).json({ message: 'שגיאה בשליחת הודעה' });
+  }
+});
+
+// Send invoice reminder via WhatsApp
+router.post('/whatsapp/invoice-remind/:invoiceId', async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+
+    // Get invoice + customer contact
+    const invoiceResult = query(`
+      SELECT i.*, c.company_name
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      WHERE i.id = $1
+    `, [invoiceId]);
+
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({ message: 'חשבונית לא נמצאה' });
+    }
+
+    const invoice = invoiceResult.rows[0];
+
+    // Get primary contact phone
+    const contactResult = query(`
+      SELECT name, phone, customer_id FROM contacts
+      WHERE customer_id = $1 AND phone IS NOT NULL
+      ORDER BY is_primary DESC LIMIT 1
+    `, [invoice.customer_id]);
+
+    if (contactResult.rows.length === 0) {
+      return res.status(400).json({ message: 'לא נמצא איש קשר עם טלפון ללקוח זה' });
+    }
+
+    const contact = contactResult.rows[0];
+
+    const result = await whatsappService.sendInvoiceReminder(contact, invoice);
+
+    if (result.success) {
+      res.json({ message: 'תזכורת חשבונית נשלחה בהצלחה' });
+    } else {
+      res.status(400).json({ message: result.error || 'שגיאה בשליחת תזכורת' });
+    }
+  } catch (error) {
+    console.error('WhatsApp invoice remind error:', error);
+    res.status(500).json({ message: 'שגיאה בשליחת תזכורת חשבונית' });
+  }
+});
 
 // ====================
 // GREEN INVOICE INTEGRATION

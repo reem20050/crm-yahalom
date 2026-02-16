@@ -667,6 +667,22 @@ const initializeDatabase = () => {
     )
   `);
 
+  // WhatsApp messages table (conversation history)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS whatsapp_messages (
+      id TEXT PRIMARY KEY,
+      phone TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      message TEXT NOT NULL,
+      context TEXT,
+      entity_type TEXT,
+      entity_id TEXT,
+      status TEXT DEFAULT 'sent',
+      waha_message_id TEXT,
+      created_at DATETIME DEFAULT (datetime('now'))
+    )
+  `);
+
   // Create indexes
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
@@ -684,6 +700,9 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_guard_weapons_employee ON guard_weapons(employee_id);
     CREATE INDEX IF NOT EXISTS idx_patrol_logs_shift ON patrol_logs(shift_assignment_id);
     CREATE INDEX IF NOT EXISTS idx_guard_ratings_employee ON guard_ratings(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_phone ON whatsapp_messages(phone);
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_entity ON whatsapp_messages(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_created ON whatsapp_messages(created_at);
   `);
 
   // Create default admin user if not exists

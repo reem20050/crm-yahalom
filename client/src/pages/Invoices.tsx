@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail, ExternalLink, Download } from 'lucide-react';
+import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail, ExternalLink, Download, MessageCircle } from 'lucide-react';
 import { invoicesApi, customersApi, integrationsApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { exportInvoiceToPDF } from '../utils/pdfExport';
@@ -140,6 +140,15 @@ export default function Invoices() {
       toast.success(count > 0 ? `סונכרנו ${count} חשבוניות מחשבונית ירוקה` : 'אין חשבוניות חדשות לסנכרון');
     },
     onError: () => toast.error('שגיאה בסנכרון חשבוניות'),
+  });
+
+  const whatsappRemindMutation = useMutation({
+    mutationFn: (invoiceId: string) => integrationsApi.sendInvoiceReminder(invoiceId),
+    onSuccess: () => toast.success('תזכורת WhatsApp נשלחה ללקוח'),
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'שגיאה בשליחת תזכורת');
+    },
   });
 
   const sendEmailMutation = useMutation({
@@ -395,6 +404,18 @@ export default function Invoices() {
                           >
                             <Download className="w-4 h-4" />
                           </button>
+
+                          {/* WhatsApp remind button - for sent/overdue invoices */}
+                          {effectiveStatus === 'sent' && (
+                            <button
+                              onClick={() => whatsappRemindMutation.mutate(invoice.id)}
+                              disabled={whatsappRemindMutation.isPending}
+                              className="text-green-500 hover:text-green-700 p-1"
+                              title="שלח תזכורת WhatsApp ללקוח"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </button>
+                          )}
 
                           {/* Send email button */}
                           {can('invoices:create') && effectiveStatus !== 'cancelled' && (

@@ -154,7 +154,20 @@ function ShiftDetailModal({
     },
   });
 
-  // WhatsApp reminder - opens WhatsApp Web with pre-filled message
+  // WhatsApp CRM reminder via API
+  const remindOneMutation = useMutation({
+    mutationFn: (assignmentId: string) => shiftsApi.remindOne(shiftId, assignmentId),
+    onSuccess: () => toast.success('תזכורת WhatsApp נשלחה!'),
+    onError: () => toast.error('שגיאה בשליחת תזכורת'),
+  });
+
+  const remindAllMutation = useMutation({
+    mutationFn: () => shiftsApi.remindAll(shiftId),
+    onSuccess: (res) => toast.success(res.data.message || 'תזכורות נשלחו'),
+    onError: () => toast.error('שגיאה בשליחת תזכורות'),
+  });
+
+  // Fallback: open WhatsApp Web
   const sendReminder = (phone: string, name: string) => {
     const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${shift?.date}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}\n\nצוות יהלום`;
     openWhatsApp(phone, msg);
@@ -185,16 +198,7 @@ function ShiftDetailModal({
   const isToday = shift?.date === format(new Date(), 'yyyy-MM-dd');
 
   const sendReminderToAll = () => {
-    const withPhone = assignments.filter((a) => a.employee_phone);
-    if (withPhone.length === 0) {
-      toast.error('אין מספרי טלפון לעובדים המשובצים');
-      return;
-    }
-    // Open WhatsApp Web for each employee (each in a new tab)
-    withPhone.forEach((a) => {
-      sendReminder(a.employee_phone!, a.employee_name);
-    });
-    toast.success(`נפתחו ${withPhone.length} חלונות WhatsApp - שלח את ההודעות`);
+    remindAllMutation.mutate();
   };
 
   const handleAssign = () => {
@@ -359,9 +363,10 @@ function ShiftDetailModal({
                         )}
                         {assignment.employee_phone && (
                           <button
-                            onClick={() => sendReminder(assignment.employee_phone!, assignment.employee_name)}
+                            onClick={() => remindOneMutation.mutate(assignment.id)}
+                            disabled={remindOneMutation.isPending}
                             className="text-green-500 hover:text-green-700 hover:bg-green-50 p-1.5 rounded-lg transition-colors"
-                            title="שלח תזכורת WhatsApp"
+                            title="שלח תזכורת WhatsApp (CRM)"
                           >
                             <MessageCircle className="w-4 h-4" />
                           </button>

@@ -23,6 +23,7 @@ import WhatsAppButton from '../components/WhatsAppButton';
 import ActivityLog from '../components/ActivityLog';
 import EmailComposeModal from '../components/EmailComposeModal';
 import DocumentManager from '../components/DocumentManager';
+import WhatsAppHistory from '../components/WhatsAppHistory';
 
 const SERVICE_TYPE_OPTIONS = [
   { value: 'regular', label: 'שמירה רגילה' },
@@ -555,6 +556,18 @@ export default function CustomerDetails() {
 
           {/* Activity Log */}
           {id && <ActivityLog entityType="customer" entityId={id} />}
+
+          {/* WhatsApp History */}
+          {id && (
+            <div className="card p-0 overflow-hidden">
+              <WhatsAppHistory
+                entityType="customer"
+                entityId={id}
+                phone={data?.contacts?.find((c: { is_primary: boolean; phone: string }) => c.is_primary && c.phone)?.phone || data?.contacts?.find((c: { phone: string }) => c.phone)?.phone}
+                entityName={customer?.company_name}
+              />
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}

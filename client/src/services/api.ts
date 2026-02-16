@@ -120,6 +120,10 @@ export const shiftsApi = {
     api.post(`/shifts/${shiftId}/assign`, data),
   unassign: (shiftId: string, assignmentId: string) =>
     api.delete(`/shifts/${shiftId}/assign/${assignmentId}`),
+  remindAll: (shiftId: string) =>
+    api.post(`/shifts/${shiftId}/remind`),
+  remindOne: (shiftId: string, assignmentId: string) =>
+    api.post(`/shifts/${shiftId}/remind/${assignmentId}`),
   checkIn: (assignmentId: string, data?: Record<string, unknown>) =>
     api.post(`/shifts/check-in/${assignmentId}`, data),
   checkOut: (assignmentId: string, data?: Record<string, unknown>) =>
@@ -176,8 +180,16 @@ export const searchApi = {
 // Integrations
 export const integrationsApi = {
   getSettings: () => api.get('/integrations/settings'),
-  sendWhatsApp: (to: string, message: string) =>
-    api.post('/integrations/whatsapp/send', { to, message }),
+  sendWhatsApp: (to: string, message: string, entityType?: string, entityId?: string) =>
+    api.post('/integrations/whatsapp/send', { to, message, entityType, entityId }),
+  getWhatsAppMessages: (params: Record<string, string>) =>
+    api.get('/integrations/whatsapp/messages', { params }),
+  getWhatsAppConversations: () =>
+    api.get('/integrations/whatsapp/conversations'),
+  sendWhatsAppChat: (phone: string, message: string, entityType?: string, entityId?: string) =>
+    api.post('/integrations/whatsapp/chat/send', { phone, message, entityType, entityId }),
+  sendInvoiceReminder: (invoiceId: string) =>
+    api.post(`/integrations/whatsapp/invoice-remind/${invoiceId}`),
   createGreenInvoice: (data: Record<string, unknown>) =>
     api.post('/integrations/green-invoice/create-invoice', data),
   syncGreenInvoices: (fromDate?: string) =>

@@ -164,6 +164,52 @@ class WhatsAppService {
     }
   }
 
+  // ========== Message Logging ==========
+
+  /**
+   * Log a WhatsApp message to the database
+   * @param {object} opts - { phone, direction, message, context, entityType, entityId, wahaMessageId, status }
+   */
+  logMessage({ phone, direction, message, context, entityType, entityId, wahaMessageId, status }) {
+    try {
+      const { query, generateUUID } = require('../config/database');
+      const id = generateUUID();
+      // Normalize phone - strip @c.us suffix and non-digits
+      const cleanPhone = (phone || '').replace('@c.us', '').replace(/[^0-9]/g, '');
+      query(`
+        INSERT INTO whatsapp_messages (id, phone, direction, message, context, entity_type, entity_id, status, waha_message_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, datetime('now'))
+      `, [id, cleanPhone, direction || 'outgoing', message || '', context || 'manual', entityType || null, entityId || null, status || 'sent', wahaMessageId || null]);
+      return id;
+    } catch (e) {
+      console.error('logMessage error:', e.message);
+      return null;
+    }
+  }
+
+  /**
+   * Find entity (employee or customer contact) by phone number
+   */
+  findEntityByPhone(phone) {
+    try {
+      const { query } = require('../config/database');
+      const cleanPhone = (phone || '').replace('@c.us', '').replace(/[^0-9]/g, '');
+      // Try to match employee
+      const emp = query(`SELECT id, first_name, last_name, phone FROM employees WHERE REPLACE(REPLACE(phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
+      if (emp.rows.length > 0) {
+        return { type: 'employee', id: emp.rows[0].id, name: emp.rows[0].first_name + ' ' + emp.rows[0].last_name };
+      }
+      // Try to match customer contact
+      const contact = query(`SELECT c.id as contact_id, c.customer_id, c.name, c.phone FROM contacts c WHERE REPLACE(REPLACE(c.phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR c.phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
+      if (contact.rows.length > 0) {
+        return { type: 'customer', id: contact.rows[0].customer_id, name: contact.rows[0].name };
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ========== Messaging ==========
 
   // Format phone number for WAHA (needs @c.us suffix)
@@ -180,7 +226,7 @@ class WhatsAppService {
     return formatted + '@c.us';
   }
 
-  async sendMessage(to, message) {
+  async sendMessage(to, message, opts = {}) {
     try {
       if (!this._ensureConfig() && !this.wahaUrl) {
         return { success: false, error: 'WhatsApp לא מוגדר. הגדר את הפרטים בדף ההגדרות.' };
@@ -198,9 +244,31 @@ class WhatsAppService {
         timeout: 15000
       });
 
+      // Log outgoing message
+      this.logMessage({
+        phone: to,
+        direction: 'outgoing',
+        message: message,
+        context: opts.context || 'manual',
+        entityType: opts.entityType || null,
+        entityId: opts.entityId || null,
+        wahaMessageId: response.data.id,
+        status: 'sent'
+      });
+
       return { success: true, messageId: response.data.id };
     } catch (error) {
       console.error('WhatsApp send error:', error.response?.data || error.message);
+      // Log failed message too
+      this.logMessage({
+        phone: to,
+        direction: 'outgoing',
+        message: message,
+        context: opts.context || 'manual',
+        entityType: opts.entityType || null,
+        entityId: opts.entityId || null,
+        status: 'failed'
+      });
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
@@ -217,7 +285,11 @@ class WhatsAppService {
 
 צוות יהלום`;
 
-    return await this.sendMessage(employee.phone, message);
+    return await this.sendMessage(employee.phone, message, {
+      context: 'shift_reminder',
+      entityType: 'employee',
+      entityId: employee.id || null
+    });
   }
 
   // Send assignment confirmation to employee
@@ -231,7 +303,11 @@ class WhatsAppService {
 נא לאשר קבלה.
 צוות יהלום`;
 
-    return await this.sendMessage(employee.phone, message);
+    return await this.sendMessage(employee.phone, message, {
+      context: 'assignment_confirmation',
+      entityType: 'employee',
+      entityId: employee.id || null
+    });
   }
 
   // Send booking confirmation to customer
@@ -245,7 +321,11 @@ class WhatsAppService {
 
 צוות יהלום`;
 
-    return await this.sendMessage(contact.phone, message);
+    return await this.sendMessage(contact.phone, message, {
+      context: 'booking_confirmation',
+      entityType: 'customer',
+      entityId: contact.customer_id || null
+    });
   }
 
   // Send invoice reminder to customer
@@ -258,7 +338,11 @@ class WhatsAppService {
 לפרטים נוספים ניתן לפנות אלינו.
 צוות יהלום`;
 
-    return await this.sendMessage(contact.phone, message);
+    return await this.sendMessage(contact.phone, message, {
+      context: 'invoice_reminder',
+      entityType: 'customer',
+      entityId: contact.customer_id || null
+    });
   }
 
   // Send guard arrival notification to customer
@@ -267,7 +351,11 @@ class WhatsAppService {
 המאבטח ${guardName} בדרך אליכם ל${siteName}.
 צוות יהלום`;
 
-    return await this.sendMessage(contact.phone, message);
+    return await this.sendMessage(contact.phone, message, {
+      context: 'guard_arrival',
+      entityType: 'customer',
+      entityId: contact.customer_id || null
+    });
   }
 
   // Handle incoming webhook from WAHA

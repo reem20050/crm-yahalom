@@ -59,7 +59,7 @@ export function exportTableToPDF({
     alternateRowStyles: {
       fillColor: [245, 247, 250],
     },
-    didDrawPage: (data) => {
+    didDrawPage: (data: { pageNumber: number }) => {
       // Page footer
       const pageHeight = doc.internal.pageSize.getHeight();
       doc.setFontSize(8);

@@ -385,6 +385,118 @@ router.post('/check-out/:assignmentId', async (req, res) => {
   }
 });
 
+// Send WhatsApp reminder to all employees in a shift
+router.post('/:id/remind', requireManager, async (req, res) => {
+  try {
+    const whatsappService = require('../services/whatsapp');
+
+    const shiftResult = await db.query(`
+      SELECT s.*, c.company_name, si.name as site_name, si.address as site_address
+      FROM shifts s
+      LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN sites si ON s.site_id = si.id
+      WHERE s.id = $1
+    `, [req.params.id]);
+
+    if (shiftResult.rows.length === 0) {
+      return res.status(404).json({ error: 'משמרת לא נמצאה' });
+    }
+
+    const shift = shiftResult.rows[0];
+
+    const assignResult = await db.query(`
+      SELECT sa.id as assignment_id, e.id as employee_id, e.first_name, e.last_name, e.phone
+      FROM shift_assignments sa
+      JOIN employees e ON sa.employee_id = e.id
+      WHERE sa.shift_id = $1 AND e.phone IS NOT NULL
+    `, [req.params.id]);
+
+    if (assignResult.rows.length === 0) {
+      return res.status(400).json({ error: 'אין עובדים עם טלפון במשמרת' });
+    }
+
+    let sent = 0;
+    let failed = 0;
+    for (const emp of assignResult.rows) {
+      const message = `שלום ${emp.first_name}! 🔔
+תזכורת למשמרת:
+📍 ${shift.site_name || shift.company_name || 'משמרת'}
+🏠 ${shift.site_address || ''}
+📅 ${shift.date}
+🕐 ${shift.start_time} - ${shift.end_time}
+
+נא להגיע בזמן.
+צוות יהלום`;
+
+      const result = await whatsappService.sendMessage(emp.phone, message, {
+        context: 'shift_reminder',
+        entityType: 'employee',
+        entityId: emp.employee_id
+      });
+      if (result.success) sent++;
+      else failed++;
+    }
+
+    res.json({ message: `נשלחו ${sent} תזכורות`, sent, failed });
+  } catch (error) {
+    console.error('Shift remind error:', error);
+    res.status(500).json({ error: 'שגיאה בשליחת תזכורות' });
+  }
+});
+
+// Send WhatsApp reminder to specific employee in a shift
+router.post('/:id/remind/:assignmentId', requireManager, async (req, res) => {
+  try {
+    const whatsappService = require('../services/whatsapp');
+
+    const result = await db.query(`
+      SELECT sa.id, e.id as employee_id, e.first_name, e.phone,
+             s.date, s.start_time, s.end_time,
+             c.company_name, si.name as site_name, si.address as site_address
+      FROM shift_assignments sa
+      JOIN employees e ON sa.employee_id = e.id
+      JOIN shifts s ON sa.shift_id = s.id
+      LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN sites si ON s.site_id = si.id
+      WHERE sa.id = $1 AND s.id = $2
+    `, [req.params.assignmentId, req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'שיבוץ לא נמצא' });
+    }
+
+    const emp = result.rows[0];
+    if (!emp.phone) {
+      return res.status(400).json({ error: 'לעובד אין מספר טלפון' });
+    }
+
+    const message = `שלום ${emp.first_name}! 🔔
+תזכורת למשמרת:
+📍 ${emp.site_name || emp.company_name || 'משמרת'}
+🏠 ${emp.site_address || ''}
+📅 ${emp.date}
+🕐 ${emp.start_time} - ${emp.end_time}
+
+נא להגיע בזמן.
+צוות יהלום`;
+
+    const sendResult = await whatsappService.sendMessage(emp.phone, message, {
+      context: 'shift_reminder',
+      entityType: 'employee',
+      entityId: emp.employee_id
+    });
+
+    if (sendResult.success) {
+      res.json({ message: 'תזכורת נשלחה בהצלחה' });
+    } else {
+      res.status(400).json({ error: sendResult.error || 'שגיאה בשליחה' });
+    }
+  } catch (error) {
+    console.error('Shift remind single error:', error);
+    res.status(500).json({ error: 'שגיאה בשליחת תזכורת' });
+  }
+});
+
 // Delete shift (admin/manager only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {

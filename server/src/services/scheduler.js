@@ -28,9 +28,14 @@ class Scheduler {
       await this.sendTomorrowShiftReminders();
     });
 
-    // Every day at 09:00 - Check overdue invoices
+    // Every day at 09:00 - Check overdue invoices (notify admins)
     this.addJob('0 9 * * *', 'overdue-invoice-check', async () => {
       await this.checkOverdueInvoices();
+    });
+
+    // Every day at 10:00 - Send invoice reminders to customers (3, 7, 14, 30 days overdue)
+    this.addJob('0 10 * * *', 'customer-invoice-reminders', async () => {
+      await this.sendCustomerInvoiceReminders();
     });
 
     // Every Monday at 08:00 - Weekly summary
@@ -100,9 +105,11 @@ class Scheduler {
         return;
       }
 
+      const whatsappService = require('./whatsapp');
+
       const result = query(`
         SELECT sa.id, sa.shift_id, sa.employee_id,
-               e.first_name, e.last_name, e.phone,
+               e.first_name, e.last_name, e.phone, e.id as emp_id,
                s.date, s.start_time, s.end_time,
                c.company_name, si.name as site_name, si.address as site_address
         FROM shift_assignments sa
@@ -128,8 +135,11 @@ class Scheduler {
 נא להגיע בזמן.
 צוות יהלום`;
 
-        await whatsappHelper.safeSend(assignment.phone, message);
-        // Small delay between messages
+        await whatsappService.sendMessage(assignment.phone, message, {
+          context: 'shift_reminder',
+          entityType: 'employee',
+          entityId: assignment.emp_id
+        });
         await this.delay(1000);
       }
     } catch (error) {
@@ -144,9 +154,11 @@ class Scheduler {
     try {
       if (!whatsappHelper.isConfigured()) return;
 
+      const whatsappService = require('./whatsapp');
+
       const result = query(`
         SELECT sa.id, sa.employee_id,
-               e.first_name, e.phone,
+               e.first_name, e.phone, e.id as emp_id,
                s.date, s.start_time, s.end_time,
                c.company_name, si.name as site_name, si.address as site_address
         FROM shift_assignments sa
@@ -172,7 +184,11 @@ class Scheduler {
 
 צוות יהלום`;
 
-        await whatsappHelper.safeSend(assignment.phone, message);
+        await whatsappService.sendMessage(assignment.phone, message, {
+          context: 'shift_reminder',
+          entityType: 'employee',
+          entityId: assignment.emp_id
+        });
         await this.delay(1000);
       }
     } catch (error) {
@@ -222,6 +238,60 @@ class Scheduler {
       }
     } catch (error) {
       console.error('[CRON] checkOverdueInvoices error:', error.message);
+    }
+  }
+
+  /**
+   * Send invoice reminders directly to customers (at 3, 7, 14, 30 days overdue)
+   */
+  async sendCustomerInvoiceReminders() {
+    try {
+      if (!whatsappHelper.isConfigured()) {
+        console.log('[CRON] WhatsApp not configured, skipping customer invoice reminders');
+        return;
+      }
+
+      const whatsappService = require('./whatsapp');
+
+      // Only send on specific overdue days to avoid spamming
+      const result = query(`
+        SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
+               i.customer_id, c.company_name,
+               ct.name as contact_name, ct.phone as contact_phone, ct.customer_id,
+               CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN contacts ct ON ct.customer_id = i.customer_id AND ct.is_primary = 1
+        WHERE i.status = 'sent'
+        AND i.due_date < date('now')
+        AND CAST(julianday('now') - julianday(i.due_date) AS INTEGER) IN (3, 7, 14, 30)
+        AND ct.phone IS NOT NULL
+        ORDER BY i.due_date
+      `);
+
+      if (result.rows.length === 0) return;
+
+      console.log(`[CRON] Sending ${result.rows.length} customer invoice reminders`);
+
+      for (const inv of result.rows) {
+        const message = `שלום ${inv.contact_name || inv.company_name},
+תזכורת לתשלום חשבונית ${inv.invoice_number ? '#' + inv.invoice_number : ''}
+💰 סכום: ₪${Number(inv.total_amount).toLocaleString()}
+📅 תאריך תשלום: ${inv.due_date}
+⏰ איחור: ${inv.days_overdue} ימים
+
+לפרטים נוספים ניתן לפנות אלינו.
+צוות יהלום`;
+
+        await whatsappService.sendMessage(inv.contact_phone, message, {
+          context: 'invoice_reminder',
+          entityType: 'customer',
+          entityId: inv.customer_id
+        });
+        await this.delay(1500);
+      }
+    } catch (error) {
+      console.error('[CRON] sendCustomerInvoiceReminders error:', error.message);
     }
   }
 
