@@ -17,7 +17,6 @@ import {
   ArrowLeftRight,
   CheckCircle,
   Package,
-  Crosshair,
 } from 'lucide-react';
 import { dashboardApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
