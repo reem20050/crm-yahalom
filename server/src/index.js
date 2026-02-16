@@ -32,7 +32,21 @@ const scheduler = require('./services/scheduler');
 const app = express();
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https://accounts.google.com", "https://graph.facebook.com", "https://api.greeninvoice.co.il"],
+      frameSrc: ["'self'", "https://accounts.google.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+    },
+  },
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+}));
 app.use(cors());
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
