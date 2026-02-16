@@ -66,8 +66,8 @@ router.post('/whatsapp/webhook', async (req, res) => {
       console.log('Incoming WhatsApp message from:', result.from);
       try {
         const logId = generateUUID();
-        query(`INSERT INTO activity_log (id, action, entity_type, details, created_at)
-          VALUES (?, 'whatsapp_received', 'whatsapp', ?, datetime('now'))`,
+        query(`INSERT INTO activity_log (id, action, entity_type, entity_id, changes, created_at)
+          VALUES (?, 'whatsapp_received', 'whatsapp', '', ?, datetime('now'))`,
           [logId, JSON.stringify({ from: result.from, text: result.text?.substring(0, 200) })]);
       } catch (logErr) { /* non-blocking */ }
       await whatsappHelper.handleIncomingMessage(result.from, result.text, result.timestamp);
@@ -76,8 +76,8 @@ router.post('/whatsapp/webhook', async (req, res) => {
     if (result && result.type === 'status') {
       try {
         const logId = generateUUID();
-        query(`INSERT INTO activity_log (id, action, entity_type, details, created_at)
-          VALUES (?, 'whatsapp_status', 'whatsapp', ?, datetime('now'))`,
+        query(`INSERT INTO activity_log (id, action, entity_type, entity_id, changes, created_at)
+          VALUES (?, 'whatsapp_status', 'whatsapp', '', ?, datetime('now'))`,
           [logId, JSON.stringify({ messageId: result.messageId, status: result.status })]);
       } catch (logErr) { /* non-blocking */ }
     }
@@ -258,8 +258,8 @@ router.post('/whatsapp/send', async (req, res) => {
     // Log to activity_log
     try {
       const logId = generateUUID();
-      query(`INSERT INTO activity_log (id, action, entity_type, details, user_id, created_at)
-        VALUES (?, 'whatsapp_sent', 'whatsapp', ?, ?, datetime('now'))`,
+      query(`INSERT INTO activity_log (id, action, entity_type, entity_id, changes, user_id, created_at)
+        VALUES (?, 'whatsapp_sent', 'whatsapp', '', ?, ?, datetime('now'))`,
         [logId, JSON.stringify({ to, success: result.success, messageId: result.messageId }), req.user?.id]);
     } catch (logErr) {
       // Don't fail the request if logging fails

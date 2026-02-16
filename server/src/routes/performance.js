@@ -143,7 +143,7 @@ router.get('/rankings', async (req, res) => {
       LEFT JOIN guard_ratings gr ON e.id = gr.employee_id
       WHERE e.status = 'active'
       GROUP BY e.id
-      ORDER BY avg_rating DESC NULLS LAST, shifts_completed DESC
+      ORDER BY avg_rating IS NULL, avg_rating DESC, shifts_completed DESC
     `);
 
     res.json({ rankings: result.rows });

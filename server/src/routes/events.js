@@ -317,7 +317,7 @@ router.post('/:id/complete', requireManager, async (req, res) => {
     const result = await db.query(`
       UPDATE events SET
         status = 'completed',
-        notes = COALESCE(notes || char(10) || char(10) || 'דוח אירוע: ' || $2, notes),
+        notes = COALESCE(notes, '') || char(10) || char(10) || 'דוח אירוע: ' || $2,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *

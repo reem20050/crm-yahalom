@@ -475,7 +475,7 @@ export default function Reports() {
                         ₪{(m.profit || 0).toLocaleString()}
                       </td>
                       <td>
-                        <span className={`badge ${m.margin >= 30 ? 'badge-green' : m.margin >= 10 ? 'badge-yellow' : 'badge-red'}`}>
+                        <span className={`badge ${m.margin >= 30 ? 'badge-success' : m.margin >= 10 ? 'badge-warning' : 'badge-danger'}`}>
                           {m.margin}%
                         </span>
                       </td>
@@ -530,7 +530,7 @@ export default function Reports() {
                         ₪{(c.profit || 0).toLocaleString()}
                       </td>
                       <td>
-                        <span className={`badge ${c.margin >= 30 ? 'badge-green' : c.margin >= 10 ? 'badge-yellow' : 'badge-red'}`}>
+                        <span className={`badge ${c.margin >= 30 ? 'badge-success' : c.margin >= 10 ? 'badge-warning' : 'badge-danger'}`}>
                           {c.margin}%
                         </span>
                       </td>

@@ -103,9 +103,10 @@ export const sitesApi = {
   getByCustomer: (customerId: string) => api.get(`/customers/${customerId}/sites`),
   create: (customerId: string, data: Record<string, unknown>) =>
     api.post(`/customers/${customerId}/sites`, data),
-  update: (siteId: string, data: Record<string, unknown>) =>
-    api.put(`/sites/${siteId}`, data),
-  delete: (siteId: string) => api.delete(`/sites/${siteId}`),
+  update: (customerId: string, siteId: string, data: Record<string, unknown>) =>
+    api.put(`/customers/${customerId}/sites/${siteId}`, data),
+  delete: (customerId: string, siteId: string) =>
+    api.delete(`/customers/${customerId}/sites/${siteId}`),
 };
 
 // Shifts

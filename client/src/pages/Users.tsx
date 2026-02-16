@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { usersApi } from '../services/api';
 import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X } from 'lucide-react';
 
@@ -67,6 +68,7 @@ export default function Users() {
     mutationFn: (data: Record<string, unknown>) => usersApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('משתמש נוצר בהצלחה');
       closeModal();
     },
     onError: (err: any) => {
@@ -78,6 +80,7 @@ export default function Users() {
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => usersApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('משתמש עודכן בהצלחה');
       closeModal();
     },
     onError: (err: any) => {
@@ -90,13 +93,16 @@ export default function Users() {
       usersApi.update(id, { is_active }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('סטטוס משתמש עודכן');
     },
+    onError: () => toast.error('שגיאה בעדכון סטטוס משתמש'),
   });
 
   const resetPasswordMutation = useMutation({
     mutationFn: ({ id, password }: { id: string; password: string }) =>
       usersApi.resetPassword(id, password),
     onSuccess: () => {
+      toast.success('סיסמה אופסה בהצלחה');
       setResetPasswordModal(null);
       setNewPassword('');
     },

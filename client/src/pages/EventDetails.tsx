@@ -32,7 +32,7 @@ const statusOptions = [
 const statusColors: Record<string, string> = {
   quote: 'badge-warning',
   approved: 'badge-info',
-  staffed: 'badge-primary',
+  staffed: 'badge-info',
   completed: 'badge-success',
   cancelled: 'badge-gray',
 };

@@ -351,7 +351,8 @@ router.post('/check-out/:assignmentId', async (req, res) => {
 
     const checkInTime = assignmentResult.rows[0].check_in_time;
     const checkOutTime = new Date();
-    const actualHours = (checkOutTime - new Date(checkInTime)) / (1000 * 60 * 60);
+    // Parse check_in_time as UTC (SQLite datetime('now') stores UTC without Z suffix)
+    const actualHours = (checkOutTime - new Date(checkInTime + 'Z')) / (1000 * 60 * 60);
 
     const result = await db.query(`
       UPDATE shift_assignments SET
@@ -366,7 +367,7 @@ router.post('/check-out/:assignmentId', async (req, res) => {
     const shiftId = (await db.query('SELECT shift_id FROM shift_assignments WHERE id = $1', [req.params.assignmentId])).rows[0].shift_id;
 
     const pendingResult = await db.query(`
-      SELECT COUNT(*) FROM shift_assignments
+      SELECT COUNT(*) as count FROM shift_assignments
       WHERE shift_id = $1 AND status != 'checked_out'
     `, [shiftId]);
 

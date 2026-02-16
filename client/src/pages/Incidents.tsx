@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   Shield,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { incidentsApi, customersApi, sitesApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 
@@ -108,10 +109,12 @@ export default function Incidents() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['incidents-stats'] });
+      toast.success(editingId ? 'אירוע עודכן בהצלחה' : 'אירוע נוצר בהצלחה');
       setShowModal(false);
       setEditingId(null);
       resetForm();
     },
+    onError: () => toast.error('שגיאה בשמירת אירוע'),
   });
 
   const addUpdateMutation = useMutation({
@@ -119,8 +122,10 @@ export default function Incidents() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incident', showDetail] });
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      toast.success('עדכון נוסף בהצלחה');
       setUpdateText('');
     },
+    onError: () => toast.error('שגיאה בהוספת עדכון'),
   });
 
   const resolveMutation = useMutation({
@@ -129,9 +134,11 @@ export default function Incidents() {
       queryClient.invalidateQueries({ queryKey: ['incident', showDetail] });
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['incidents-stats'] });
+      toast.success('אירוע נסגר בהצלחה');
       setResolutionText('');
       setShowDetail(null);
     },
+    onError: () => toast.error('שגיאה בסגירת אירוע'),
   });
 
   const resetForm = () => {

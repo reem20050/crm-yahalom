@@ -54,7 +54,7 @@ router.get('/sales', async (req, res) => {
           COALESCE(SUM(CASE WHEN l.status = 'won' THEN l.expected_value ELSE 0 END), 0) as revenue
         FROM users u
         LEFT JOIN leads l ON l.assigned_to = u.id AND l.created_at BETWEEN $1 AND $2
-        WHERE u.role IN ('admin', 'manager', 'sales')
+        WHERE u.role IN ('admin', 'manager', 'employee')
         GROUP BY u.id, u.first_name, u.last_name
         ORDER BY deals_won DESC
         LIMIT 10
@@ -345,7 +345,7 @@ router.get('/profit-loss', async (req, res) => {
         JOIN shifts s ON sa.shift_id = s.id
         JOIN employees e ON sa.employee_id = e.id
         WHERE strftime('%Y', s.date) = $1
-          AND sa.status IN ('completed', 'checked_in')
+          AND sa.status IN ('checked_out', 'checked_in')
         GROUP BY strftime('%Y-%m', s.date)
         ORDER BY month
       `, [String(targetYear)]),
@@ -381,7 +381,7 @@ router.get('/profit-loss', async (req, res) => {
         JOIN shifts s ON sa.shift_id = s.id
         JOIN employees e ON sa.employee_id = e.id
         WHERE strftime('%Y', s.date) = $1
-          AND sa.status IN ('completed', 'checked_in')
+          AND sa.status IN ('checked_out', 'checked_in')
           AND s.customer_id IS NOT NULL
         GROUP BY s.customer_id
       `, [String(targetYear)])

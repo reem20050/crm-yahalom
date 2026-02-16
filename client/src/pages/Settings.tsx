@@ -118,6 +118,7 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
       toast.success('Google נותק בהצלחה');
     },
+    onError: () => toast.error('שגיאה בניתוק Google'),
   });
 
   // WhatsApp save mutation
@@ -140,6 +141,7 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
       toast.success('WhatsApp נותק בהצלחה');
     },
+    onError: () => toast.error('שגיאה בניתוק WhatsApp'),
   });
 
   // WhatsApp test mutation
@@ -174,6 +176,7 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
       toast.success('חשבונית ירוקה נותקה בהצלחה');
     },
+    onError: () => toast.error('שגיאה בניתוק חשבונית ירוקה'),
   });
 
   if (isLoading) {

@@ -215,6 +215,39 @@ router.post('/:id/sites', requireManager, [
   }
 });
 
+// Update site
+router.put('/:id/sites/:siteId', requireManager, async (req, res) => {
+  try {
+    const { name, address, city, requirements, requires_weapon, notes } = req.body;
+    const result = await db.query(`
+      UPDATE sites SET name = $1, address = $2, city = $3, requirements = $4,
+        requires_weapon = $5, notes = $6
+      WHERE id = $7 AND customer_id = $8
+      RETURNING *
+    `, [name, address, city, requirements, requires_weapon ? 1 : 0, notes, req.params.siteId, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+    res.json({ site: result.rows[0] });
+  } catch (error) {
+    console.error('Update site error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון אתר' });
+  }
+});
+
+// Delete site
+router.delete('/:id/sites/:siteId', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      'DELETE FROM sites WHERE id = $1 AND customer_id = $2 RETURNING id',
+      [req.params.siteId, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+    res.json({ message: 'אתר נמחק בהצלחה' });
+  } catch (error) {
+    console.error('Delete site error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת אתר' });
+  }
+});
+
 // Add contract to customer
 router.post('/:id/contracts', requireManager, [
   body('start_date').isDate().withMessage('נדרש תאריך התחלה')
@@ -284,7 +317,7 @@ router.post('/:id/activities', async (req, res) => {
     const result = await db.query(
       `INSERT INTO activity_logs (id, entity_type, entity_id, action, description, user_id, user_name)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [activityId, 'customer', req.params.id, action, description || '', req.user?.id || '', ((req.user?.firstName || '') + ' ' + (req.user?.lastName || '')).trim() || 'מערכת']
+      [activityId, 'customer', req.params.id, action, description || '', req.user?.id || '', ((req.user?.first_name || '') + ' ' + (req.user?.last_name || '')).trim() || 'מערכת']
     );
     res.status(201).json({ activity: result.rows[0] });
   } catch (error) {

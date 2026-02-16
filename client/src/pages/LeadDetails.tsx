@@ -89,6 +89,7 @@ export default function LeadDetails() {
       queryClient.invalidateQueries({ queryKey: ['lead', id] });
       toast.success('סטטוס עודכן');
     },
+    onError: () => toast.error('שגיאה בעדכון סטטוס'),
   });
 
   const updateMutation = useMutation({
