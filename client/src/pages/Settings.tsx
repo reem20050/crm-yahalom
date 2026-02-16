@@ -53,6 +53,7 @@ export default function Settings() {
   // WAHA WhatsApp states
   const [wahaStep, setWahaStep] = useState<'idle' | 'url' | 'qr' | 'connected'>('idle');
   const [wahaUrl, setWahaUrl] = useState('');
+  const [wahaApiKey, setWahaApiKey] = useState('');
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [wahaStatus, setWahaStatus] = useState<string | null>(null);
   const [wahaPhone, setWahaPhone] = useState<string | null>(null);
@@ -126,8 +127,8 @@ export default function Settings() {
 
   // Save WAHA URL and start session
   const wahaSaveMutation = useMutation({
-    mutationFn: async (url: string) => {
-      const res = await api.post('/integrations/whatsapp/settings', { wahaUrl: url });
+    mutationFn: async ({ url, apiKey }: { url: string; apiKey?: string }) => {
+      const res = await api.post('/integrations/whatsapp/settings', { wahaUrl: url, apiKey: apiKey || '' });
       return res.data;
     },
     onSuccess: () => {
@@ -388,13 +389,25 @@ export default function Settings() {
                   onChange={(e) => setWahaUrl(e.target.value)}
                   className="input"
                   dir="ltr"
-                  placeholder="https://your-waha.up.railway.app"
+                  placeholder="http://localhost:3000"
+                />
+              </div>
+
+              <div>
+                <label className="label">API Key (אופציונלי)</label>
+                <input
+                  type="text"
+                  value={wahaApiKey}
+                  onChange={(e) => setWahaApiKey(e.target.value)}
+                  className="input"
+                  dir="ltr"
+                  placeholder="WAHA_API_KEY (מהלוגים של WAHA)"
                 />
               </div>
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => wahaSaveMutation.mutate(wahaUrl)}
+                  onClick={() => wahaSaveMutation.mutate({ url: wahaUrl, apiKey: wahaApiKey })}
                   disabled={!wahaUrl || wahaSaveMutation.isPending}
                   className="btn-primary flex items-center gap-2"
                 >

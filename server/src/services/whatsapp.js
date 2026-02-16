@@ -4,23 +4,32 @@ require('dotenv').config();
 // WAHA (WhatsApp HTTP API) - self-hosted WhatsApp Web API
 // Docs: https://waha.devlike.pro/
 const DEFAULT_WAHA_URL = process.env.WAHA_API_URL || 'http://localhost:3000';
+const DEFAULT_API_KEY = process.env.WAHA_API_KEY || '';
 const SESSION_NAME = 'default';
 
 class WhatsAppService {
   constructor() {
     this.wahaUrl = DEFAULT_WAHA_URL;
+    this.apiKey = DEFAULT_API_KEY;
     this.sessionName = SESSION_NAME;
     this.connected = false;
   }
 
-  // Load WAHA URL from DB if set
+  // Load WAHA URL + API key from DB if set
   _ensureConfig() {
     try {
       const { query } = require('../config/database');
       const result = query("SELECT whatsapp_phone_id, whatsapp_access_token, whatsapp_phone_display FROM integration_settings WHERE id = 'main'");
       if (result.rows.length > 0 && result.rows[0].whatsapp_phone_id) {
-        // whatsapp_phone_id stores WAHA URL, whatsapp_access_token stores session name
-        this.wahaUrl = result.rows[0].whatsapp_phone_id;
+        // whatsapp_phone_id stores "wahaUrl|apiKey", whatsapp_access_token stores session name
+        const stored = result.rows[0].whatsapp_phone_id;
+        if (stored.includes('|')) {
+          const parts = stored.split('|');
+          this.wahaUrl = parts[0];
+          this.apiKey = parts[1] || '';
+        } else {
+          this.wahaUrl = stored;
+        }
         this.sessionName = result.rows[0].whatsapp_access_token || SESSION_NAME;
         this.connected = true;
         return true;
@@ -36,6 +45,15 @@ class WhatsAppService {
     return this.wahaUrl || DEFAULT_WAHA_URL;
   }
 
+  // Get headers with API key if set
+  _getHeaders(extra = {}) {
+    const headers = { 'Content-Type': 'application/json', ...extra };
+    if (this.apiKey) {
+      headers['X-Api-Key'] = this.apiKey;
+    }
+    return headers;
+  }
+
   // ========== Session Management ==========
 
   // Get session status
@@ -43,6 +61,7 @@ class WhatsAppService {
     try {
       const url = this._getBaseUrl();
       const response = await axios.get(`${url}/api/sessions/${this.sessionName}`, {
+        headers: this._getHeaders(),
         timeout: 5000
       });
       return { success: true, status: response.data.status, data: response.data };
@@ -70,11 +89,11 @@ class WhatsAppService {
               events: ['message']
             }]
           }
-        }, { timeout: 10000 });
+        }, { headers: this._getHeaders(), timeout: 10000 });
       } catch (e) {
         // Session might already exist, try to start it
         if (e.response?.status === 422 || e.response?.status === 409) {
-          await axios.post(`${url}/api/sessions/${this.sessionName}/start`, {}, { timeout: 10000 });
+          await axios.post(`${url}/api/sessions/${this.sessionName}/start`, {}, { headers: this._getHeaders(), timeout: 10000 });
         } else {
           throw e;
         }
@@ -90,7 +109,7 @@ class WhatsAppService {
   async stopSession() {
     try {
       const url = this._getBaseUrl();
-      await axios.post(`${url}/api/sessions/${this.sessionName}/stop`, {}, { timeout: 5000 });
+      await axios.post(`${url}/api/sessions/${this.sessionName}/stop`, {}, { headers: this._getHeaders(), timeout: 5000 });
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -101,7 +120,7 @@ class WhatsAppService {
   async logoutSession() {
     try {
       const url = this._getBaseUrl();
-      await axios.post(`${url}/api/sessions/${this.sessionName}/logout`, {}, { timeout: 5000 });
+      await axios.post(`${url}/api/sessions/${this.sessionName}/logout`, {}, { headers: this._getHeaders(), timeout: 5000 });
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -113,7 +132,7 @@ class WhatsAppService {
     try {
       const url = this._getBaseUrl();
       const response = await axios.get(`${url}/api/${this.sessionName}/auth/qr`, {
-        headers: { 'Accept': 'application/json' },
+        headers: this._getHeaders({ 'Accept': 'application/json' }),
         timeout: 10000
       });
       // Returns { value: "base64..." } or { value: "raw qr data" }
@@ -134,7 +153,7 @@ class WhatsAppService {
   async getAccountInfo() {
     try {
       const url = this._getBaseUrl();
-      const response = await axios.get(`${url}/api/sessions/${this.sessionName}/me`, { timeout: 5000 });
+      const response = await axios.get(`${url}/api/sessions/${this.sessionName}/me`, { headers: this._getHeaders(), timeout: 5000 });
       return { success: true, account: response.data };
     } catch (error) {
       return { success: false, error: error.message };
@@ -171,7 +190,7 @@ class WhatsAppService {
         chatId: chatId,
         text: message
       }, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: this._getHeaders(),
         timeout: 15000
       });
 

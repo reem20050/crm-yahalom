@@ -125,7 +125,7 @@ router.get('/settings', async (req, res) => {
       whatsapp: {
         connected: !!settings.whatsapp_phone_id,
         phoneNumber: settings.whatsapp_phone_display,
-        wahaUrl: settings.whatsapp_phone_id || null
+        wahaUrl: settings.whatsapp_phone_id ? settings.whatsapp_phone_id.split('|')[0] : null
       },
       greenInvoice: {
         connected: !!settings.green_invoice_api_key,
@@ -204,38 +204,44 @@ router.get('/google/calendar/events', async (req, res) => {
 // Save WhatsApp WAHA settings (URL of WAHA instance)
 router.post('/whatsapp/settings', async (req, res) => {
   try {
-    const { wahaUrl } = req.body;
+    const { wahaUrl, apiKey } = req.body;
 
     if (!wahaUrl) {
       return res.status(400).json({ message: 'נדרש כתובת שרת WAHA' });
     }
 
-    // Validate URL by checking WAHA health
+    // Validate URL by checking WAHA health (with API key if provided)
     try {
       const axios = require('axios');
-      await axios.get(`${wahaUrl}/api/sessions`, { timeout: 5000 });
+      const headers = apiKey ? { 'X-Api-Key': apiKey } : {};
+      await axios.get(`${wahaUrl}/api/sessions`, { headers, timeout: 5000 });
     } catch (e) {
+      if (e.response?.status === 401) {
+        return res.status(400).json({ message: 'API Key שגוי. בדוק את ה-WAHA_API_KEY בהגדרות WAHA.' });
+      }
       return res.status(400).json({ message: 'לא ניתן להתחבר לשרת WAHA. ודא שהכתובת נכונה ושהשרת פעיל.' });
     }
 
+    // Store "wahaUrl|apiKey" in whatsapp_phone_id field
+    const storedValue = apiKey ? `${wahaUrl}|${apiKey}` : wahaUrl;
     const existingSettings = query(`SELECT * FROM integration_settings WHERE id = 'main'`);
 
-    // Store WAHA URL in whatsapp_phone_id field, session name in whatsapp_access_token
     if (existingSettings.rows.length === 0) {
       query(`
         INSERT INTO integration_settings (id, whatsapp_phone_id, whatsapp_access_token, updated_at)
         VALUES ('main', ?, 'default', datetime('now'))
-      `, [wahaUrl]);
+      `, [storedValue]);
     } else {
       query(`
         UPDATE integration_settings
         SET whatsapp_phone_id = ?, whatsapp_access_token = 'default', updated_at = datetime('now')
         WHERE id = 'main'
-      `, [wahaUrl]);
+      `, [storedValue]);
     }
 
     // Update service in memory
     whatsappService.wahaUrl = wahaUrl;
+    whatsappService.apiKey = apiKey || '';
     whatsappService.sessionName = 'default';
 
     // Start WAHA session
