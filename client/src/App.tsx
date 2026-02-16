@@ -62,6 +62,7 @@ function App() {
             }
           >
             <Route index element={<Dashboard />} />
+            <Route path="dashboard" element={<Navigate to="/" replace />} />
             <Route path="leads" element={<RoleRoute permission="page:leads"><Leads /></RoleRoute>} />
             <Route path="leads/:id" element={<RoleRoute permission="page:leads"><LeadDetails /></RoleRoute>} />
             <Route path="customers" element={<RoleRoute permission="page:customers"><Customers /></RoleRoute>} />

@@ -11,7 +11,7 @@ const authenticateToken = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'yahalom-crm-secret-key-2026');
 
     // Get user from database
     const result = await query(
@@ -31,7 +31,7 @@ const authenticateToken = async (req, res, next) => {
 
     // Look up linked employee record for employee users
     try {
-      const empResult = query(
+      const empResult = await query(
         'SELECT id FROM employees WHERE user_id = $1',
         [decoded.userId]
       );

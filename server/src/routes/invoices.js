@@ -261,10 +261,22 @@ router.post('/:id/send-email', requireManager, async (req, res) => {
     }
 
     const invoice = result.rows[0];
-    const email = req.body.email || invoice.contact_email;
+
+    // Try: 1) email from request body, 2) primary contact, 3) any contact with email
+    let email = req.body.email || invoice.contact_email;
+    if (!email && invoice.customer_id) {
+      const anyContact = await db.query(
+        `SELECT email, name FROM contacts WHERE customer_id = $1 AND email IS NOT NULL AND email != '' ORDER BY is_primary DESC LIMIT 1`,
+        [invoice.customer_id]
+      );
+      if (anyContact.rows.length > 0) {
+        email = anyContact.rows[0].email;
+        if (!invoice.contact_name) invoice.contact_name = anyContact.rows[0].name;
+      }
+    }
 
     if (!email) {
-      return res.status(400).json({ error: 'לא נמצא אימייל ללקוח. הוסף איש קשר עם אימייל.' });
+      return res.status(400).json({ error: 'לא נמצא אימייל ללקוח. הוסף איש קשר עם כתובת אימייל בדף הלקוח, או שלח עם אימייל ידני.' });
     }
 
     const googleHelper = require('../utils/googleHelper');

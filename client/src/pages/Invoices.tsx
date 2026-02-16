@@ -52,6 +52,8 @@ export default function Invoices() {
   const [greenInvoiceCustomer, setGreenInvoiceCustomer] = useState('');
   const [greenInvoiceDueDate, setGreenInvoiceDueDate] = useState(new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]);
   const [greenInvoiceRemarks, setGreenInvoiceRemarks] = useState('');
+  const [emailModal, setEmailModal] = useState<{ invoiceId: string; show: boolean }>({ invoiceId: '', show: false });
+  const [manualEmail, setManualEmail] = useState('');
   const queryClient = useQueryClient();
   const { can } = usePermissions();
 
@@ -136,14 +138,23 @@ export default function Invoices() {
   });
 
   const sendEmailMutation = useMutation({
-    mutationFn: (id: string) => invoicesApi.sendEmail(id),
+    mutationFn: ({ id, email }: { id: string; email?: string }) => invoicesApi.sendEmail(id, email),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       toast.success(res.data.message || 'חשבונית נשלחה במייל');
+      setEmailModal({ invoiceId: '', show: false });
+      setManualEmail('');
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
-      toast.error(error.response?.data?.error || 'שגיאה בשליחת חשבונית במייל');
+      const errMsg = error.response?.data?.error || 'שגיאה בשליחת חשבונית במייל';
+      // If no email found, open email modal for manual entry
+      if (errMsg.includes('לא נמצא אימייל')) {
+        setEmailModal({ invoiceId: sendEmailMutation.variables?.id || '', show: true });
+        toast.error('לא נמצא אימייל ללקוח - הזן אימייל ידנית');
+      } else {
+        toast.error(errMsg);
+      }
     },
   });
 
@@ -340,7 +351,7 @@ export default function Invoices() {
                           {/* Send email button */}
                           {can('invoices:create') && effectiveStatus !== 'cancelled' && (
                             <button
-                              onClick={() => sendEmailMutation.mutate(invoice.id)}
+                              onClick={() => sendEmailMutation.mutate({ id: invoice.id })}
                               disabled={sendEmailMutation.isPending}
                               className="text-blue-400 hover:text-blue-600 p-1"
                               title="שלח חשבונית במייל"
@@ -631,6 +642,62 @@ export default function Invoices() {
                 </button>
                 <button
                   onClick={() => setIsGreenInvoiceModalOpen(false)}
+                  className="btn-secondary"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Input Modal */}
+      {emailModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-lg font-bold">שליחת חשבונית במייל</h2>
+              <button
+                onClick={() => { setEmailModal({ invoiceId: '', show: false }); setManualEmail(''); }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                <p className="text-sm text-yellow-700">לא נמצא אימייל לאיש קשר של לקוח זה. הזן כתובת אימייל ידנית לשליחה.</p>
+              </div>
+              <div>
+                <label className="label">כתובת אימייל</label>
+                <input
+                  type="email"
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  className="input"
+                  dir="ltr"
+                  placeholder="customer@example.com"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (!manualEmail || !manualEmail.includes('@')) {
+                      toast.error('נדרשת כתובת אימייל תקינה');
+                      return;
+                    }
+                    sendEmailMutation.mutate({ id: emailModal.invoiceId, email: manualEmail });
+                  }}
+                  disabled={sendEmailMutation.isPending}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  {sendEmailMutation.isPending ? 'שולח...' : 'שלח חשבונית'}
+                </button>
+                <button
+                  onClick={() => { setEmailModal({ invoiceId: '', show: false }); setManualEmail(''); }}
                   className="btn-secondary"
                 >
                   ביטול
