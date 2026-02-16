@@ -75,12 +75,18 @@ const query = (sql, params = []) => {
       } else if (cleanSql.toUpperCase().startsWith('UPDATE')) {
         // For UPDATE with RETURNING
         const tableName = cleanSql.match(/UPDATE (\w+)/i)?.[1];
-        const whereMatch = cleanSql.match(/WHERE\s+(.+)$/i);
 
-        db.prepare(cleanSql).run(...params);
+        const updateResult = db.prepare(cleanSql).run(...params);
 
-        if (tableName && whereMatch) {
-          const selectSql = `SELECT * FROM ${tableName} WHERE ${whereMatch[1]}`;
+        if (tableName && updateResult.changes > 0) {
+          // Find the id parameter: look for WHERE id = ? pattern
+          // The id is typically the last param in UPDATE ... WHERE id = $N queries
+          const lastParam = params[params.length - 1];
+          const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(lastParam);
+          return { rows: row ? [row] : [] };
+        }
+        // If no rows changed, try to find and return anyway (for idempotent updates)
+        if (tableName) {
           const lastParam = params[params.length - 1];
           const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(lastParam);
           return { rows: row ? [row] : [] };
