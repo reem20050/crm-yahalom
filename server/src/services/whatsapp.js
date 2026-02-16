@@ -135,8 +135,12 @@ class WhatsAppService {
         headers: this._getHeaders({ 'Accept': 'application/json' }),
         timeout: 10000
       });
-      // Returns { value: "base64..." } or { value: "raw qr data" }
-      return { success: true, qr: response.data.value || response.data };
+      // WAHA returns { mimetype: "image/png", data: "base64..." } or { value: "..." }
+      const d = response.data;
+      if (d.data && d.mimetype) {
+        return { success: true, qr: `data:${d.mimetype};base64,${d.data}` };
+      }
+      return { success: true, qr: d.value || d };
     } catch (error) {
       if (error.response?.status === 404) {
         return { success: false, error: 'Session not started. Start session first.' };
