@@ -106,6 +106,32 @@ class GoogleService {
     return response.data;
   }
 
+  async listCalendarEvents(startDate, endDate) {
+    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: `${startDate}T00:00:00+03:00`,
+      timeMax: `${endDate}T23:59:59+03:00`,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 100,
+    });
+
+    return (response.data.items || []).map(event => ({
+      id: event.id,
+      title: event.summary || '(ללא כותרת)',
+      description: event.description || '',
+      location: event.location || '',
+      start_date: event.start?.date || event.start?.dateTime?.split('T')[0] || '',
+      start_time: event.start?.dateTime ? event.start.dateTime.split('T')[1]?.substring(0, 5) : '',
+      end_time: event.end?.dateTime ? event.end.dateTime.split('T')[1]?.substring(0, 5) : '',
+      all_day: !!event.start?.date,
+      html_link: event.htmlLink || '',
+      source: 'google',
+    }));
+  }
+
   async deleteCalendarEvent(eventId) {
     const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
 

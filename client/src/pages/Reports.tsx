@@ -28,6 +28,8 @@ import {
   Legend,
 } from 'recharts';
 import { reportsApi, performanceApi, incidentsApi } from '../services/api';
+import { FileText } from 'lucide-react';
+import { exportTableToPDF } from '../utils/pdfExport';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -151,6 +153,110 @@ export default function Reports() {
     }
   };
 
+  const handlePDFExport = () => {
+    const today = new Date().toLocaleDateString('he-IL');
+    switch (activeTab) {
+      case 'sales':
+        if (salesData?.leadsBySource) {
+          exportTableToPDF({
+            title: 'Yahalom CRM - Sales Report',
+            subtitle: today,
+            columns: [
+              { header: 'Source', dataKey: 'source' },
+              { header: 'Count', dataKey: 'count' },
+            ],
+            data: salesData.leadsBySource,
+            filename: 'sales-report.pdf',
+          });
+        }
+        break;
+      case 'customers':
+        if (customersData?.revenueByCustomer) {
+          exportTableToPDF({
+            title: 'Yahalom CRM - Customers Revenue',
+            subtitle: today,
+            columns: [
+              { header: 'Company', dataKey: 'company_name' },
+              { header: 'Revenue', dataKey: 'total_revenue' },
+            ],
+            data: customersData.revenueByCustomer,
+            filename: 'customers-revenue.pdf',
+          });
+        }
+        break;
+      case 'employees':
+        if (employeesData?.hoursBreakdown) {
+          exportTableToPDF({
+            title: 'Yahalom CRM - Employee Hours',
+            subtitle: today,
+            columns: [
+              { header: 'Employee', dataKey: 'name' },
+              { header: 'Total Hours', dataKey: 'total_hours' },
+              { header: 'Days Worked', dataKey: 'days_worked' },
+              { header: 'Saturday Hours', dataKey: 'saturday_hours' },
+            ],
+            data: employeesData.hoursBreakdown,
+            filename: 'employees-hours.pdf',
+            orientation: 'landscape',
+          });
+        }
+        break;
+      case 'financial':
+        if (financialData?.revenueByCustomer) {
+          exportTableToPDF({
+            title: 'Yahalom CRM - Financial Report',
+            subtitle: today,
+            columns: [
+              { header: 'Customer', dataKey: 'company_name' },
+              { header: 'Paid', dataKey: 'paid' },
+              { header: 'Pending', dataKey: 'pending' },
+            ],
+            data: financialData.revenueByCustomer,
+            filename: 'financial-report.pdf',
+          });
+        }
+        break;
+      case 'profitloss':
+        if (profitLossData?.customerProfitability) {
+          exportTableToPDF({
+            title: 'Yahalom CRM - Profit & Loss',
+            subtitle: today,
+            columns: [
+              { header: 'Customer', dataKey: 'company_name' },
+              { header: 'Revenue', dataKey: 'revenue' },
+              { header: 'Labor Cost', dataKey: 'labor_cost' },
+              { header: 'Profit', dataKey: 'profit' },
+              { header: 'Margin %', dataKey: 'margin' },
+              { header: 'Hours', dataKey: 'hours' },
+            ],
+            data: profitLossData.customerProfitability,
+            filename: 'profit-loss.pdf',
+            orientation: 'landscape',
+          });
+        }
+        break;
+      case 'performance':
+        if (rankingsData?.rankings) {
+          exportTableToPDF({
+            title: 'Yahalom CRM - Guard Performance',
+            subtitle: today,
+            columns: [
+              { header: 'First Name', dataKey: 'first_name' },
+              { header: 'Last Name', dataKey: 'last_name' },
+              { header: 'Avg Rating', dataKey: 'avg_rating' },
+              { header: 'Total Ratings', dataKey: 'total_ratings' },
+              { header: 'Shifts Done', dataKey: 'shifts_completed' },
+              { header: 'Total Shifts', dataKey: 'shifts_total' },
+            ],
+            data: rankingsData.rankings,
+            filename: 'guard-performance.pdf',
+            orientation: 'landscape',
+          });
+        }
+        break;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -162,6 +268,10 @@ export default function Reports() {
           <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
             <Download className="w-5 h-5" />
             ייצוא לאקסל
+          </button>
+          <button onClick={handlePDFExport} className="btn-secondary flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            ייצוא PDF
           </button>
           <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2">
             <Printer className="w-5 h-5" />

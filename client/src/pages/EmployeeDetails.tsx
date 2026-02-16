@@ -13,6 +13,7 @@ import {
   Save,
   X,
   Trash2,
+  FileText as FileTextIcon,
   Plus,
   ToggleLeft,
   ToggleRight,
@@ -28,6 +29,7 @@ import toast from 'react-hot-toast';
 import { employeesApi, certificationsApi, weaponsApi, performanceApi, equipmentApi } from '../services/api';
 import WhatsAppButton from '../components/WhatsAppButton';
 import GuardRatingModal from '../components/GuardRatingModal';
+import DocumentManager from '../components/DocumentManager';
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'id_card', label: 'תעודת זהות' },
@@ -974,6 +976,14 @@ export default function EmployeeDetails() {
               <p className="text-gray-500 text-center py-4">אין משמרות</p>
             )}
           </div>
+
+          {/* Documents */}
+          {id && (
+            <div className="card">
+              <h2 className="text-lg font-semibold mb-4">מסמכים</h2>
+              <DocumentManager entityType="employee" entityId={id} />
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}

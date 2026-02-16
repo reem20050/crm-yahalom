@@ -183,6 +183,14 @@ export const integrationsApi = {
   syncGreenInvoices: (fromDate?: string) =>
     api.post('/integrations/green-invoice/sync', { fromDate }),
   getSchedulerStatus: () => api.get('/integrations/scheduler/status'),
+  getGoogleCalendarEvents: (start_date: string, end_date: string) =>
+    api.get('/integrations/google/calendar/events', { params: { start_date, end_date } }),
+  getEmailTemplates: () => api.get('/integrations/email-templates'),
+  createEmailTemplate: (data: Record<string, unknown>) =>
+    api.post('/integrations/email-templates', data),
+  deleteEmailTemplate: (id: string) => api.delete(`/integrations/email-templates/${id}`),
+  sendEmail: (to: string, subject: string, body: string) =>
+    api.post('/integrations/google/send-email', { to, subject, body }),
 };
 
 // Users (admin only)
@@ -279,6 +287,15 @@ export const activitiesApi = {
   getForCustomer: (customerId: string) => api.get(`/customers/${customerId}/activities`),
   addToCustomer: (customerId: string, data: Record<string, unknown>) =>
     api.post(`/customers/${customerId}/activities`, data),
+};
+
+// Documents (Google Drive)
+export const documentsApi = {
+  getByEntity: (entity_type: string, entity_id: string) =>
+    api.get('/documents', { params: { entity_type, entity_id } }),
+  upload: (formData: FormData) =>
+    api.post('/documents/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  delete: (id: string) => api.delete(`/documents/${id}`),
 };
 
 export default api;

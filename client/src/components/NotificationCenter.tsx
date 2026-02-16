@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
@@ -11,6 +11,8 @@ import {
   X,
   Loader2,
   BellOff,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -109,6 +111,66 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
       toast.error('שגיאה בעדכון ההתראות');
     },
   });
+
+  // SSE real-time connection
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const sseConnected = useRef(false);
+
+  const connectSSE = useCallback(() => {
+    if (eventSourceRef.current) return; // Already connected
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const url = `${baseUrl}/api/dashboard/notifications/stream?token=${encodeURIComponent(token)}`;
+      const es = new EventSource(url);
+
+      es.onopen = () => {
+        sseConnected.current = true;
+      };
+
+      es.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          if (parsed.type === 'notification') {
+            // Refetch notifications when a new one arrives
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            // Show toast for the new notification
+            if (parsed.data?.title) {
+              toast(parsed.data.title, { icon: '🔔', duration: 5000 });
+            }
+          }
+        } catch {
+          // Ignore parse errors (heartbeats, etc.)
+        }
+      };
+
+      es.onerror = () => {
+        sseConnected.current = false;
+        es.close();
+        eventSourceRef.current = null;
+        // Retry after 10 seconds
+        setTimeout(connectSSE, 10000);
+      };
+
+      eventSourceRef.current = es;
+    } catch {
+      // SSE not supported or connection failed - fall back to polling
+    }
+  }, [queryClient]);
+
+  // Connect SSE on mount, disconnect on unmount
+  useEffect(() => {
+    connectSSE();
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [connectSSE]);
 
   // Click outside to close
   useEffect(() => {

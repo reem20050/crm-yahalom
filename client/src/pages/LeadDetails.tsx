@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ArrowRight, Phone, Mail, Building2, MapPin, Edit, Save, X, Trash2, ArrowLeftRight, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Phone, Mail, Building2, MapPin, Edit, Save, X, Trash2, ArrowLeftRight, AlertTriangle, Send } from 'lucide-react';
 import { leadsApi } from '../services/api';
 import WhatsAppButton from '../components/WhatsAppButton';
 import ActivityLog from '../components/ActivityLog';
+import EmailComposeModal from '../components/EmailComposeModal';
 
 const statusOptions = [
   { value: 'new', label: 'חדש' },
@@ -48,6 +49,7 @@ export default function LeadDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({
     contact_name: '',
     company_name: '',
@@ -388,9 +390,18 @@ export default function LeadDetails() {
                     <Mail className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">אימייל</p>
-                      <a href={`mailto:${lead.email}`} className="text-primary-600 font-medium">
-                        {lead.email}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a href={`mailto:${lead.email}`} className="text-primary-600 font-medium">
+                          {lead.email}
+                        </a>
+                        <button
+                          onClick={() => setShowEmailModal(true)}
+                          className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors"
+                          title="שלח אימייל"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -515,6 +526,16 @@ export default function LeadDetails() {
           </div>
         </div>
       </div>
+
+      {/* Email Compose Modal */}
+      <EmailComposeModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        defaultTo={lead?.email || ''}
+        defaultName={lead?.contact_name || ''}
+        entityType="lead"
+        entityId={id}
+      />
     </div>
   );
 }

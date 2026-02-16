@@ -358,4 +358,76 @@ router.patch('/notifications/read-all', async (req, res) => {
   }
 });
 
+// SSE - Real-time notification stream
+const sseClients = new Map(); // userId -> Set of response objects
+const jwt = require('jsonwebtoken');
+
+router.get('/notifications/stream', (req, res) => {
+  // SSE doesn't support Authorization headers, so accept token as query param
+  let userId = req.user?.id;
+  if (!userId && req.query.token) {
+    try {
+      const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET || 'yahalom-secret-key');
+      userId = decoded.id;
+    } catch {
+      return res.status(401).json({ error: 'Token expired' });
+    }
+  }
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // For nginx proxies
+  });
+
+  // Register this client
+  if (!sseClients.has(userId)) {
+    sseClients.set(userId, new Set());
+  }
+  sseClients.get(userId).add(res);
+
+  // Send initial keepalive
+  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connected' })}\n\n`);
+
+  // Heartbeat every 30s to keep connection alive
+  const heartbeat = setInterval(() => {
+    res.write(`:heartbeat\n\n`);
+  }, 30000);
+
+  // Cleanup on disconnect
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    const clients = sseClients.get(userId);
+    if (clients) {
+      clients.delete(res);
+      if (clients.size === 0) {
+        sseClients.delete(userId);
+      }
+    }
+  });
+});
+
+// Helper to broadcast notification to a specific user
+function broadcastNotification(userId, notification) {
+  const clients = sseClients.get(userId);
+  if (clients) {
+    const data = JSON.stringify({ type: 'notification', data: notification });
+    for (const client of clients) {
+      try {
+        client.write(`data: ${data}\n\n`);
+      } catch (e) {
+        clients.delete(client);
+      }
+    }
+  }
+}
+
+// Export both router and broadcast function
+router.broadcastNotification = broadcastNotification;
+
 module.exports = router;

@@ -436,6 +436,73 @@ const initializeDatabase = () => {
     )
   `);
 
+  // Email templates table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      category TEXT DEFAULT 'general',
+      variables TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Documents table (Google Drive)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      file_type TEXT,
+      file_size INTEGER,
+      google_drive_id TEXT,
+      google_drive_url TEXT,
+      uploaded_by TEXT,
+      uploaded_by_name TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default email templates
+  const templateCount = db.prepare('SELECT COUNT(*) as c FROM email_templates').get();
+  if (templateCount.c === 0) {
+    const crypto = require('crypto');
+    const templates = [
+      {
+        id: crypto.randomUUID(),
+        name: 'תזכורת חשבונית',
+        subject: 'תזכורת תשלום - חשבונית #{invoice_number}',
+        body: '<div dir="rtl"><h2>שלום {customer_name},</h2><p>ברצוננו להזכיר כי חשבונית מספר <strong>#{invoice_number}</strong> בסך <strong>₪{amount}</strong> טרם שולמה.</p><p>נשמח אם תוכלו לטפל בתשלום בהקדם.</p><p>בברכה,<br>צוות יהלום</p></div>',
+        category: 'invoices',
+        variables: 'customer_name,invoice_number,amount'
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'אישור משמרת',
+        subject: 'אישור שיבוץ משמרת - {date}',
+        body: '<div dir="rtl"><h2>שלום {employee_name},</h2><p>שובצת למשמרת בתאריך <strong>{date}</strong> באתר <strong>{site_name}</strong>.</p><p>שעות: {start_time} - {end_time}</p><p>אנא אשר קבלה.</p><p>בברכה,<br>צוות יהלום</p></div>',
+        category: 'shifts',
+        variables: 'employee_name,date,site_name,start_time,end_time'
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'ברוכים הבאים',
+        subject: 'ברוכים הבאים לצוות יהלום!',
+        body: '<div dir="rtl"><h2>שלום {customer_name},</h2><p>תודה שבחרתם בצוות יהלום לשירותי אבטחה.</p><p>אנו שמחים להציע לכם שירות מקצועי ואמין. מנהל השירות שלכם ייצור אתכם קשר בימים הקרובים.</p><p>לכל שאלה, אנו כאן לשירותכם.</p><p>בברכה,<br>צוות יהלום</p></div>',
+        category: 'general',
+        variables: 'customer_name'
+      }
+    ];
+    const stmt = db.prepare('INSERT INTO email_templates (id, name, subject, body, category, variables) VALUES (?, ?, ?, ?, ?, ?)');
+    for (const t of templates) {
+      stmt.run(t.id, t.name, t.subject, t.body, t.category, t.variables);
+    }
+  }
+
   // ===== Security Company Tables =====
 
   // Incidents table - security incident reporting

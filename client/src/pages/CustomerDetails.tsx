@@ -15,11 +15,14 @@ import {
   Save,
   Trash2,
   AlertTriangle,
+  Send,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { customersApi } from '../services/api';
 import WhatsAppButton from '../components/WhatsAppButton';
 import ActivityLog from '../components/ActivityLog';
+import EmailComposeModal from '../components/EmailComposeModal';
+import DocumentManager from '../components/DocumentManager';
 
 const SERVICE_TYPE_OPTIONS = [
   { value: 'regular', label: 'שמירה רגילה' },
@@ -60,6 +63,8 @@ export default function CustomerDetails() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSiteForm, setShowSiteForm] = useState(false);
   const [showContactForm, setShowContactForm] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
   const [showContractForm, setShowContractForm] = useState(false);
 
   const [editForm, setEditForm] = useState<EditForm>({
@@ -379,10 +384,19 @@ export default function CustomerDetails() {
                         </div>
                       )}
                       {contact.email && (
-                        <a href={`mailto:${contact.email}`} className="flex items-center gap-1 text-primary-600">
-                          <Mail className="w-4 h-4" />
-                          {contact.email}
-                        </a>
+                        <div className="flex items-center gap-1">
+                          <a href={`mailto:${contact.email}`} className="flex items-center gap-1 text-primary-600">
+                            <Mail className="w-4 h-4" />
+                            {contact.email}
+                          </a>
+                          <button
+                            onClick={() => { setEmailTo(contact.email); setShowEmailModal(true); }}
+                            className="text-blue-500 hover:text-blue-700 p-0.5 rounded hover:bg-blue-50 transition-colors"
+                            title="שלח אימייל"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -530,6 +544,14 @@ export default function CustomerDetails() {
               <p className="text-gray-500 text-center py-4">אין חוזים</p>
             )}
           </div>
+
+          {/* Documents */}
+          {id && (
+            <div className="card">
+              <h2 className="text-lg font-semibold mb-4">מסמכים</h2>
+              <DocumentManager entityType="customer" entityId={id} />
+            </div>
+          )}
 
           {/* Activity Log */}
           {id && <ActivityLog entityType="customer" entityId={id} />}
@@ -689,6 +711,16 @@ export default function CustomerDetails() {
           )}
         </div>
       </div>
+
+      {/* Email Compose Modal */}
+      <EmailComposeModal
+        isOpen={showEmailModal}
+        onClose={() => { setShowEmailModal(false); setEmailTo(''); }}
+        defaultTo={emailTo}
+        defaultName={customer?.company_name || ''}
+        entityType="customer"
+        entityId={id}
+      />
     </div>
   );
 }

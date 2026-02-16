@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail } from 'lucide-react';
+import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail, ExternalLink, Download } from 'lucide-react';
 import { invoicesApi, customersApi, integrationsApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { exportInvoiceToPDF } from '../utils/pdfExport';
 
 const statusLabels: Record<string, { label: string; class: string }> = {
   draft: { label: 'טיוטה', class: 'badge-gray' },
@@ -40,6 +41,8 @@ type Invoice = {
   days_overdue: number;
   payment_date: string | null;
   description: string;
+  green_invoice_id: string | null;
+  document_url: string | null;
 };
 
 export default function Invoices() {
@@ -132,7 +135,9 @@ export default function Invoices() {
     mutationFn: () => integrationsApi.syncGreenInvoices(),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      toast.success(res.data.message || 'חשבוניות סונכרנו בהצלחה');
+      queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
+      const count = res.data.count || 0;
+      toast.success(count > 0 ? `סונכרנו ${count} חשבוניות מחשבונית ירוקה` : 'אין חשבוניות חדשות לסנכרון');
     },
     onError: () => toast.error('שגיאה בסנכרון חשבוניות'),
   });
@@ -291,6 +296,7 @@ export default function Invoices() {
                 <tr>
                   <th>מספר חשבונית</th>
                   <th>לקוח</th>
+                  <th>מקור</th>
                   <th>תאריך הפקה</th>
                   <th>תאריך תשלום</th>
                   <th>סכום</th>
@@ -309,6 +315,31 @@ export default function Invoices() {
                           <Building2 className="w-4 h-4 text-gray-400" />
                           {invoice.company_name}
                         </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {invoice.green_invoice_id ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                              <FileCheck className="w-3 h-3" />
+                              חשבונית ירוקה
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                              ידני
+                            </span>
+                          )}
+                          {invoice.document_url && (
+                            <a
+                              href={invoice.document_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary-600 hover:text-primary-700"
+                              title="צפה במסמך"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td>{invoice.issue_date}</td>
                       <td>
@@ -347,6 +378,23 @@ export default function Invoices() {
                               <option value="cancelled">בוטלה</option>
                             </select>
                           )}
+
+                          {/* PDF download button */}
+                          <button
+                            onClick={() => exportInvoiceToPDF({
+                              invoice_number: invoice.invoice_number,
+                              company_name: invoice.company_name,
+                              issue_date: invoice.issue_date,
+                              due_date: invoice.due_date,
+                              total_amount: invoice.total_amount,
+                              status: statusLabels[effectiveStatus]?.label || effectiveStatus,
+                              description: invoice.description,
+                            })}
+                            className="text-gray-400 hover:text-gray-600 p-1"
+                            title="הורד PDF"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
 
                           {/* Send email button */}
                           {can('invoices:create') && effectiveStatus !== 'cancelled' && (

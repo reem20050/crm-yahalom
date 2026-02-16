@@ -170,6 +170,32 @@ router.post('/google/disconnect', async (req, res) => {
   }
 });
 
+// Get Google Calendar events
+router.get('/google/calendar/events', async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    if (!start_date || !end_date) {
+      return res.status(400).json({ message: 'נדרש start_date ו-end_date' });
+    }
+
+    // Get Google tokens
+    const settings = query(`SELECT google_tokens FROM integration_settings WHERE id = 'main'`);
+    if (!settings.rows.length || !settings.rows[0].google_tokens) {
+      return res.json({ events: [], connected: false });
+    }
+
+    const tokens = JSON.parse(settings.rows[0].google_tokens);
+    googleService.setCredentials(tokens);
+
+    const events = await googleService.listCalendarEvents(start_date, end_date);
+    res.json({ events, connected: true });
+  } catch (error) {
+    console.error('Google calendar events error:', error);
+    // Return empty array instead of 500 so frontend degrades gracefully
+    res.json({ events: [], connected: false, error: error.message });
+  }
+});
+
 // ====================
 // WHATSAPP INTEGRATION
 // ====================
@@ -457,6 +483,86 @@ router.get('/scheduler/status', (req, res) => {
   } catch (error) {
     console.error('Scheduler status error:', error);
     res.status(500).json({ message: 'שגיאה בטעינת סטטוס מתזמן' });
+  }
+});
+
+// ====================
+// EMAIL TEMPLATES
+// ====================
+
+// Get all email templates
+router.get('/email-templates', (req, res) => {
+  try {
+    const result = query('SELECT * FROM email_templates ORDER BY category, name');
+    res.json({ templates: result.rows });
+  } catch (error) {
+    console.error('Get email templates error:', error);
+    res.status(500).json({ message: 'שגיאה בטעינת תבניות אימייל' });
+  }
+});
+
+// Create email template
+router.post('/email-templates', (req, res) => {
+  try {
+    const { name, subject, body, category, variables } = req.body;
+    if (!name || !subject || !body) {
+      return res.status(400).json({ message: 'נדרש שם, נושא וגוף' });
+    }
+    const id = require('crypto').randomUUID();
+    query('INSERT INTO email_templates (id, name, subject, body, category, variables) VALUES ($1, $2, $3, $4, $5, $6)',
+      [id, name, subject, body, category || 'general', variables || '']);
+    res.json({ template: { id, name, subject, body, category: category || 'general', variables: variables || '' } });
+  } catch (error) {
+    console.error('Create email template error:', error);
+    res.status(500).json({ message: 'שגיאה ביצירת תבנית אימייל' });
+  }
+});
+
+// Delete email template
+router.delete('/email-templates/:id', (req, res) => {
+  try {
+    query('DELETE FROM email_templates WHERE id = $1', [req.params.id]);
+    res.json({ message: 'תבנית נמחקה' });
+  } catch (error) {
+    console.error('Delete email template error:', error);
+    res.status(500).json({ message: 'שגיאה במחיקת תבנית' });
+  }
+});
+
+// ====================
+// SEND EMAIL (General)
+// ====================
+
+router.post('/google/send-email', async (req, res) => {
+  try {
+    const { to, subject, body } = req.body;
+    if (!to || !subject || !body) {
+      return res.status(400).json({ message: 'נדרש נמען, נושא וגוף ההודעה' });
+    }
+
+    // Get Google tokens
+    const settings = query(`SELECT google_tokens FROM integration_settings WHERE id = 'main'`);
+    if (!settings.rows.length || !settings.rows[0].google_tokens) {
+      return res.status(400).json({ message: 'Google לא מחובר. חבר את Google בהגדרות האינטגרציות.' });
+    }
+
+    const tokens = JSON.parse(settings.rows[0].google_tokens);
+    googleService.setCredentials(tokens);
+
+    await googleService.sendEmail(to, subject, body);
+
+    // Log the activity
+    try {
+      const logId = require('crypto').randomUUID();
+      query(`INSERT INTO activity_logs (id, entity_type, entity_id, action, description, user_id, user_name)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [logId, 'email', 'sent', 'email_sent', `אימייל נשלח ל-${to}: ${subject}`, req.user?.id || null, req.user?.name || 'מערכת']);
+    } catch (logErr) { /* ignore logging errors */ }
+
+    res.json({ message: 'אימייל נשלח בהצלחה' });
+  } catch (error) {
+    console.error('Send email error:', error);
+    res.status(500).json({ message: 'שגיאה בשליחת אימייל: ' + (error.message || '') });
   }
 });
 

@@ -9,8 +9,9 @@ import {
   MapPin,
   Shield,
   PartyPopper,
+  ExternalLink,
 } from 'lucide-react';
-import { shiftsApi, eventsApi } from '../services/api';
+import { shiftsApi, eventsApi, integrationsApi } from '../services/api';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,20 @@ interface Event {
   required_guards: number;
 }
 
-type FilterType = 'all' | 'shifts' | 'events';
+interface GoogleCalendarEvent {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  start_date: string;
+  start_time: string;
+  end_time: string;
+  all_day: boolean;
+  html_link: string;
+  source: 'google';
+}
+
+type FilterType = 'all' | 'shifts' | 'events' | 'google';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -121,6 +135,7 @@ export default function Calendar() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [filter, setFilter] = useState<FilterType>('all');
+  const [showGoogle, setShowGoogle] = useState(true);
 
   const { start_date, end_date } = formatMonthRange(currentYear, currentMonth);
 
@@ -142,10 +157,22 @@ export default function Calendar() {
         .then((res) => res.data),
   });
 
+  // Fetch Google Calendar events for the displayed month
+  const { data: googleData } = useQuery({
+    queryKey: ['google-calendar-events', start_date, end_date],
+    queryFn: () =>
+      integrationsApi
+        .getGoogleCalendarEvents(start_date, end_date)
+        .then((res) => res.data),
+    retry: false,
+  });
+
   const isLoading = isLoadingShifts || isLoadingEvents;
 
   const shifts: Shift[] = shiftsData?.shifts ?? [];
   const events: Event[] = eventsData?.events ?? [];
+  const googleEvents: GoogleCalendarEvent[] = googleData?.events ?? [];
+  const googleConnected: boolean = googleData?.connected ?? false;
 
   // Index items by date string for fast lookup
   const shiftsByDate = useMemo(() => {
@@ -167,6 +194,16 @@ export default function Calendar() {
     }
     return map;
   }, [events]);
+
+  const googleEventsByDate = useMemo(() => {
+    const map: Record<string, GoogleCalendarEvent[]> = {};
+    for (const event of googleEvents) {
+      const key = event.start_date;
+      if (!map[key]) map[key] = [];
+      map[key].push(event);
+    }
+    return map;
+  }, [googleEvents]);
 
   const calendarDays = useMemo(
     () => getMonthDays(currentYear, currentMonth),
@@ -236,9 +273,28 @@ export default function Calendar() {
     </button>
   );
 
+  const renderGoogleEventItem = (event: GoogleCalendarEvent) => (
+    <a
+      key={`google-${event.id}`}
+      href={event.html_link}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="w-full text-right rounded px-1.5 py-0.5 text-[11px] leading-tight bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 transition-colors cursor-pointer truncate flex items-center gap-1"
+      title={`${event.start_time ? event.start_time + ' - ' + event.end_time + ' | ' : 'כל היום | '}${event.title}${event.location ? ' | ' + event.location : ''}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <CalendarIcon className="w-3 h-3 flex-shrink-0 text-purple-500" />
+      <span className="truncate">
+        {event.all_day ? '📅' : event.start_time} {event.title}
+      </span>
+      <ExternalLink className="w-2.5 h-2.5 flex-shrink-0 text-purple-400" />
+    </a>
+  );
+
   const renderDayItems = (dateStr: string) => {
     const dayShifts = shiftsByDate[dateStr] || [];
     const dayEvents = eventsByDate[dateStr] || [];
+    const dayGoogleEvents = googleEventsByDate[dateStr] || [];
 
     let items: JSX.Element[] = [];
 
@@ -247,6 +303,9 @@ export default function Calendar() {
     }
     if (filter === 'all' || filter === 'events') {
       items = items.concat(dayEvents.map(renderEventItem));
+    }
+    if ((filter === 'all' || filter === 'google') && showGoogle) {
+      items = items.concat(dayGoogleEvents.map(renderGoogleEventItem));
     }
 
     const totalCount = items.length;
@@ -269,6 +328,7 @@ export default function Calendar() {
 
   const totalShiftsThisMonth = shifts.length;
   const totalEventsThisMonth = events.length;
+  const totalGoogleEventsThisMonth = googleEvents.length;
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -291,6 +351,12 @@ export default function Calendar() {
               <span className="w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-300"></span>
               אירועים ({totalEventsThisMonth})
             </span>
+            {googleConnected && (
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-300"></span>
+                Google ({totalGoogleEventsThisMonth})
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -362,6 +428,25 @@ export default function Calendar() {
               <PartyPopper className="w-3.5 h-3.5" />
               אירועים
             </button>
+            {googleConnected && (
+              <button
+                onClick={() => {
+                  if (filter === 'google') {
+                    setFilter('all');
+                  } else {
+                    setFilter('google');
+                  }
+                }}
+                className={`text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                  filter === 'google'
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <CalendarIcon className="w-3.5 h-3.5" />
+                Google
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -397,10 +482,12 @@ export default function Calendar() {
               const isShabbat = dayOfWeek === 6;
               const dayShifts = shiftsByDate[dateStr] || [];
               const dayEvents = eventsByDate[dateStr] || [];
+              const dayGoogleEvents = googleEventsByDate[dateStr] || [];
               const hasItems =
-                (filter === 'all' && (dayShifts.length > 0 || dayEvents.length > 0)) ||
+                (filter === 'all' && (dayShifts.length > 0 || dayEvents.length > 0 || (showGoogle && dayGoogleEvents.length > 0))) ||
                 (filter === 'shifts' && dayShifts.length > 0) ||
-                (filter === 'events' && dayEvents.length > 0);
+                (filter === 'events' && dayEvents.length > 0) ||
+                (filter === 'google' && dayGoogleEvents.length > 0);
 
               return (
                 <div
@@ -429,13 +516,16 @@ export default function Calendar() {
                     </span>
 
                     {/* Dot indicators for quick glance */}
-                    {isCurrentMonth && (dayShifts.length > 0 || dayEvents.length > 0) && (
+                    {isCurrentMonth && (dayShifts.length > 0 || dayEvents.length > 0 || dayGoogleEvents.length > 0) && (
                       <div className="flex items-center gap-0.5">
                         {dayShifts.length > 0 && (filter === 'all' || filter === 'shifts') && (
                           <span className="w-2 h-2 rounded-full bg-blue-400" />
                         )}
                         {dayEvents.length > 0 && (filter === 'all' || filter === 'events') && (
                           <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        )}
+                        {dayGoogleEvents.length > 0 && showGoogle && (filter === 'all' || filter === 'google') && (
+                          <span className="w-2 h-2 rounded-full bg-purple-400" />
                         )}
                       </div>
                     )}
@@ -452,7 +542,7 @@ export default function Calendar() {
 
       {/* Monthly summary footer */}
       {!isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${googleConnected ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
           <div className="card flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Shield className="w-6 h-6 text-blue-600" />
@@ -473,13 +563,25 @@ export default function Calendar() {
             </div>
           </div>
 
+          {googleConnected && (
+            <div className="card flex items-center gap-4">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <CalendarIcon className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{totalGoogleEventsThisMonth}</p>
+                <p className="text-sm text-gray-500">אירועי Google</p>
+              </div>
+            </div>
+          )}
+
           <div className="card flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <CalendarIcon className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+              <CalendarIcon className="w-6 h-6 text-gray-600" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
-                {totalShiftsThisMonth + totalEventsThisMonth}
+                {totalShiftsThisMonth + totalEventsThisMonth + (showGoogle ? totalGoogleEventsThisMonth : 0)}
               </p>
               <p className="text-sm text-gray-500">סה"כ פריטים</p>
             </div>
