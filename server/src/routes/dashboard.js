@@ -367,7 +367,7 @@ router.get('/notifications/stream', (req, res) => {
   let userId = req.user?.id;
   if (!userId && req.query.token) {
     try {
-      const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET || 'yahalom-secret-key');
+      const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET);
       userId = decoded.id;
     } catch {
       return res.status(401).json({ error: 'Token expired' });

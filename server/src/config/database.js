@@ -703,6 +703,21 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_phone ON whatsapp_messages(phone);
     CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_entity ON whatsapp_messages(entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_created ON whatsapp_messages(created_at);
+
+    -- Performance indexes (Phase 1 security & stability)
+    CREATE INDEX IF NOT EXISTS idx_shift_assignments_employee ON shift_assignments(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_shift_assignments_shift ON shift_assignments(shift_id);
+    CREATE INDEX IF NOT EXISTS idx_shift_assignments_status ON shift_assignments(status);
+    CREATE INDEX IF NOT EXISTS idx_contacts_customer ON contacts(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_employees_user ON employees(user_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
+    CREATE INDEX IF NOT EXISTS idx_shifts_date_status ON shifts(date, status);
+    CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date);
+    CREATE INDEX IF NOT EXISTS idx_sites_customer ON sites(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_contracts_customer ON contracts(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_contracts_end_date ON contracts(end_date);
+    CREATE INDEX IF NOT EXISTS idx_events_date_status ON events(event_date, status);
   `);
 
   // Create default admin user if not exists

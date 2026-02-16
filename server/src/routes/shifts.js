@@ -66,16 +66,30 @@ router.get('/', async (req, res) => {
       ORDER BY s.date, s.start_time
     `, params);
 
-    // Fetch assignments for each shift
-    for (const shift of result.rows) {
-      const assignResult = await db.query(`
-        SELECT sa.id, sa.employee_id, e.first_name || ' ' || e.last_name as employee_name,
-               sa.role, sa.status
-        FROM shift_assignments sa
-        JOIN employees e ON sa.employee_id = e.id
-        WHERE sa.shift_id = $1
-      `, [shift.id]);
-      shift.assignments = assignResult.rows;
+    // Batch-fetch all assignments for the returned shifts (avoids N+1)
+    if (result.rows.length > 0) {
+      const shiftIds = result.rows.map(s => s.id);
+      const placeholders = shiftIds.map((_, i) => '?').join(',');
+      const assignResult = db.query(
+        `SELECT sa.id, sa.shift_id, sa.employee_id, e.first_name || ' ' || e.last_name as employee_name,
+                sa.role, sa.status
+         FROM shift_assignments sa
+         JOIN employees e ON sa.employee_id = e.id
+         WHERE sa.shift_id IN (${placeholders})`,
+        shiftIds
+      );
+
+      // Group assignments by shift_id
+      const assignmentMap = {};
+      for (const a of assignResult.rows) {
+        if (!assignmentMap[a.shift_id]) assignmentMap[a.shift_id] = [];
+        assignmentMap[a.shift_id].push(a);
+      }
+      for (const shift of result.rows) {
+        shift.assignments = assignmentMap[shift.id] || [];
+      }
+    } else {
+      // No shifts, nothing to do
     }
 
     res.json({ shifts: result.rows });

@@ -11,7 +11,7 @@ const authenticateToken = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'yahalom-crm-secret-key-2026');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Get user from database
     const result = await query(

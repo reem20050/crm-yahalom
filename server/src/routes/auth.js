@@ -62,7 +62,7 @@ router.post('/login', [
     // Generate token
     const token = jwt.sign(
       { userId: user.id, role: user.role, employeeId },
-      process.env.JWT_SECRET || 'yahalom-crm-secret-key-2026',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -187,7 +187,7 @@ router.post('/google', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, role: user.role, employeeId },
-      process.env.JWT_SECRET || 'yahalom-crm-secret-key-2026',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
