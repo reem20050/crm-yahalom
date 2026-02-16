@@ -205,10 +205,15 @@ router.get('/', async (req, res) => {
 // Get operations dashboard data
 router.get('/operations', async (req, res) => {
   try {
+    // Helper: run query safely, return empty on error
+    const safeQuery = async (sql, params) => {
+      try { return await db.query(sql, params); }
+      catch (e) { console.warn('Operations query failed:', e.message); return { rows: [] }; }
+    };
+
     const [
       guardsOnDuty,
       guardsExpected,
-      sitesTotal,
       sitesCovered,
       openIncidents,
       expiringLicenses,
@@ -216,39 +221,34 @@ router.get('/operations', async (req, res) => {
       uncoveredSites
     ] = await Promise.all([
       // Guards currently checked in
-      db.query(`
+      safeQuery(`
         SELECT COUNT(DISTINCT sa.employee_id) as count
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
         WHERE s.date = date('now') AND sa.status = 'checked_in'
       `),
       // Guards expected today
-      db.query(`
+      safeQuery(`
         SELECT COUNT(DISTINCT sa.employee_id) as count
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
         WHERE s.date = date('now')
       `),
-      // Total sites with shifts today
-      db.query(`
-        SELECT COUNT(DISTINCT s.site_id) as count
-        FROM shifts s WHERE s.date = date('now') AND s.site_id IS NOT NULL
-      `),
       // Sites with at least one checked-in guard
-      db.query(`
+      safeQuery(`
         SELECT COUNT(DISTINCT s.site_id) as count
         FROM shifts s
         JOIN shift_assignments sa ON sa.shift_id = s.id
         WHERE s.date = date('now') AND s.site_id IS NOT NULL AND sa.status = 'checked_in'
       `),
       // Open incidents
-      db.query(`
+      safeQuery(`
         SELECT COUNT(*) as count,
                SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical
         FROM incidents WHERE status IN ('open', 'in_progress')
       `),
       // Expiring certifications (next 30 days)
-      db.query(`
+      safeQuery(`
         SELECT c.id, c.cert_type, c.expiry_date,
                e.first_name || ' ' || e.last_name as employee_name
         FROM certifications c
@@ -258,7 +258,7 @@ router.get('/operations', async (req, res) => {
         LIMIT 10
       `),
       // Guards assigned today but not checked in
-      db.query(`
+      safeQuery(`
         SELECT e.id, e.first_name, e.last_name, e.phone,
                s.start_time, s.end_time,
                c.company_name, si.name as site_name
@@ -269,11 +269,11 @@ router.get('/operations', async (req, res) => {
         LEFT JOIN sites si ON s.site_id = si.id
         WHERE s.date = date('now')
           AND sa.status = 'assigned'
-          AND s.start_time <= time('now', '+30 minutes')
+          AND s.start_time <= strftime('%H:%M', 'now', '+30 minutes')
         ORDER BY s.start_time
       `),
       // Sites without coverage today
-      db.query(`
+      safeQuery(`
         SELECT si.id, si.name, si.address, c.company_name,
                s.start_time, s.end_time
         FROM shifts s
