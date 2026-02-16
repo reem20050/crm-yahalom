@@ -157,7 +157,6 @@ router.get('/:id', async (req, res) => {
 // Create invoice (will integrate with Green Invoice)
 router.post('/', requireManager, [
   body('customer_id').notEmpty().withMessage('נדרש לקוח'),
-  body('amount').isNumeric().withMessage('נדרש סכום'),
   body('issue_date').isDate().withMessage('נדרש תאריך הפקה'),
   body('due_date').isDate().withMessage('נדרש תאריך תשלום')
 ], async (req, res) => {
@@ -173,8 +172,14 @@ router.post('/', requireManager, [
       payment_type // 1=cash, 2=check, 3=credit card, 4=bank transfer
     } = req.body;
 
-    const vatCalc = vat_amount || (amount * 0.17);
-    const totalCalc = total_amount || (amount + vatCalc);
+    // Support both: total_amount from frontend, or amount (pre-VAT) + calculated VAT
+    const baseAmount = amount || total_amount;
+    if (!baseAmount || isNaN(baseAmount) || baseAmount <= 0) {
+      return res.status(400).json({ error: 'נדרש סכום תקין' });
+    }
+
+    const vatCalc = vat_amount || (amount ? amount * 0.17 : 0);
+    const totalCalc = total_amount || (amount ? amount + vatCalc : baseAmount);
 
     const invoiceId = db.generateUUID();
     const result = await db.query(`
@@ -183,7 +188,7 @@ router.post('/', requireManager, [
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [invoiceId, customer_id, event_id, issue_date, due_date,
-        amount, vatCalc, totalCalc, description]);
+        baseAmount, vatCalc, totalCalc, description]);
 
     const invoice = result.rows[0];
 
@@ -208,7 +213,7 @@ router.post('/', requireManager, [
               address: customer.address,
               city: customer.city
             },
-            [{ description: description || 'שירותי אבטחה', price: amount, quantity: 1 }],
+            [{ description: description || 'שירותי אבטחה', price: baseAmount, quantity: 1 }],
             due_date,
             description,
             payment_type || 4

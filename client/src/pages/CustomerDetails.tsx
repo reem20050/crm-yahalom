@@ -108,6 +108,7 @@ export default function CustomerDetails() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer', id] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
       toast.success('הלקוח עודכן בהצלחה');
       setIsEditing(false);
     },
