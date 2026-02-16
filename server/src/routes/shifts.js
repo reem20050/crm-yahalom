@@ -350,9 +350,12 @@ router.post('/check-out/:assignmentId', async (req, res) => {
     }
 
     const checkInTime = assignmentResult.rows[0].check_in_time;
-    const checkOutTime = new Date();
-    // Parse check_in_time as UTC (SQLite datetime('now') stores UTC without Z suffix)
-    const actualHours = (checkOutTime - new Date(checkInTime + 'Z')) / (1000 * 60 * 60);
+    // Calculate hours using SQLite to avoid timezone issues
+    const hoursResult = await db.query(
+      `SELECT ROUND((julianday(datetime('now')) - julianday($1)) * 24, 2) as hours`,
+      [checkInTime]
+    );
+    const actualHours = hoursResult.rows[0]?.hours || 0;
 
     const result = await db.query(`
       UPDATE shift_assignments SET

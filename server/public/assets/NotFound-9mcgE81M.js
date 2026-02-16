@@ -1,6 +1,0 @@
-import{c as t,j as e,L as s}from"./index-DVPKYaqZ.js";/**
- * @license lucide-react v0.302.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const a=t("FileQuestion",[["path",{d:"M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z",key:"1nnpy2"}],["path",{d:"M10 10.3c.2-.4.5-.8.9-1a2.1 2.1 0 0 1 2.6.4c.3.4.5.8.5 1.3 0 1.3-2 2-2 2",key:"1umxtm"}],["path",{d:"M12 17h.01",key:"p32p05"}]]);function l(){return e.jsx("div",{dir:"rtl",className:"min-h-[60vh] flex items-center justify-center p-4",children:e.jsxs("div",{className:"text-center",children:[e.jsx("div",{className:"flex justify-center mb-6",children:e.jsx("div",{className:"w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center",children:e.jsx(a,{className:"w-10 h-10 text-gray-400"})})}),e.jsx("h1",{className:"text-8xl font-extrabold text-gray-200 mb-4",children:"404"}),e.jsx("h2",{className:"text-2xl font-bold text-gray-900 mb-3",children:"הדף לא נמצא"}),e.jsx("p",{className:"text-gray-500 mb-8 max-w-sm mx-auto",children:"הדף שחיפשת אינו קיים או שהועבר"}),e.jsx(s,{to:"/",className:"inline-flex items-center px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium",children:"חזרה לדשבורד"})]})})}export{l as default};

@@ -281,7 +281,7 @@ router.post('/:id/send-email', requireManager, async (req, res) => {
 
     const googleHelper = require('../utils/googleHelper');
     if (!googleHelper.isConfigured()) {
-      return res.status(400).json({ error: 'Gmail לא מחובר. חבר Google בדף ההגדרות.' });
+      return res.status(400).json({ error: 'Gmail לא מחובר. חבר Google בדף ההגדרות, ולוודא שניתנו הרשאות Gmail (צריך להתנתק ולהתחבר מחדש אם חיברת בעבר בלי הרשאות Gmail).' });
     }
 
     const invoiceNumber = invoice.invoice_number || invoice.id.slice(0, 8);
@@ -330,7 +330,15 @@ router.post('/:id/send-email', requireManager, async (req, res) => {
     res.json({ message: `חשבונית נשלחה בהצלחה ל-${email}` });
   } catch (error) {
     console.error('Send invoice email error:', error);
-    res.status(500).json({ error: 'שגיאה בשליחת חשבונית במייל' });
+    const errMsg = error.message || 'שגיאה בשליחת חשבונית במייל';
+    // Provide helpful error messages
+    if (errMsg.includes('insufficient') || errMsg.includes('scope') || errMsg.includes('permission')) {
+      return res.status(400).json({ error: 'אין הרשאות Gmail. יש להתנתק מ-Google בהגדרות ולהתחבר מחדש כדי לאשר הרשאות שליחת מייל.' });
+    }
+    if (errMsg.includes('Gmail לא מחובר') || errMsg.includes('invalid_grant') || errMsg.includes('Token')) {
+      return res.status(400).json({ error: errMsg });
+    }
+    res.status(500).json({ error: 'שגיאה בשליחת חשבונית במייל: ' + errMsg });
   }
 });
 
