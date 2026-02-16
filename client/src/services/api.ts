@@ -114,6 +114,7 @@ export const sitesApi = {
 export const shiftsApi = {
   getAll: (params?: Record<string, unknown>) => api.get('/shifts', { params }),
   getOne: (id: string) => api.get(`/shifts/${id}`),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/shifts/${id}`, data),
   delete: (id: string) => api.delete(`/shifts/${id}`),
   create: (data: Record<string, unknown>) => api.post('/shifts', data),
   createRecurring: (data: Record<string, unknown>) => api.post('/shifts/recurring', data),

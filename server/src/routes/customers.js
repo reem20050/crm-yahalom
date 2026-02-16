@@ -16,6 +16,9 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
+    // Always exclude soft-deleted
+    whereClause.push(`deleted_at IS NULL`);
+
     if (status) {
       paramCount++;
       whereClause.push(`status = $${paramCount}`);
@@ -28,7 +31,7 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClause.join(' AND ')}`;
 
     const countResult = await db.query(`SELECT COUNT(*) as count FROM customers ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
@@ -58,10 +61,23 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get deleted customers (trash) - MUST be before /:id
+router.get('/trash/list', requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT * FROM customers WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC
+    `);
+    res.json({ customers: result.rows });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
+  }
+});
+
 // Get single customer with all related data
 router.get('/:id', async (req, res) => {
   try {
-    const customerResult = await db.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
+    const customerResult = await db.query('SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
 
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'לקוח לא נמצא' });
@@ -269,22 +285,11 @@ router.post('/:id/contracts', requireManager, [
   }
 });
 
-// Delete customer (admin/manager only)
+// Delete customer - soft delete (admin/manager only)
 router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   try {
-    // Delete related data first (order matters for FK constraints)
-    await db.query('DELETE FROM invoices WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM shift_assignments WHERE shift_id IN (SELECT id FROM shifts WHERE customer_id = $1)', [req.params.id]);
-    await db.query('DELETE FROM shifts WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM event_assignments WHERE event_id IN (SELECT id FROM events WHERE customer_id = $1)', [req.params.id]);
-    await db.query('DELETE FROM events WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM incidents WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM contacts WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM sites WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM contracts WHERE customer_id = $1', [req.params.id]);
-
     const result = await db.query(
-      'DELETE FROM customers WHERE id = $1 RETURNING id',
+      `UPDATE customers SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]
     );
 
@@ -296,6 +301,51 @@ router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   } catch (error) {
     console.error('Delete customer error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת לקוח' });
+  }
+});
+
+// Restore customer
+router.post('/:id/restore', requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE customers SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'לקוח לא נמצא בפח' });
+    }
+    res.json({ customer: result.rows[0], message: 'לקוח שוחזר בהצלחה' });
+  } catch (error) {
+    console.error('Restore customer error:', error);
+    res.status(500).json({ error: 'שגיאה בשחזור לקוח' });
+  }
+});
+
+// Permanently delete customer
+router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
+  try {
+    // Only allow permanent delete of already soft-deleted items
+    const check = await db.query('SELECT id FROM customers WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'לקוח לא נמצא בפח (יש למחוק רגיל קודם)' });
+    }
+
+    // Delete related data then the customer
+    await db.query('DELETE FROM invoices WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM shift_assignments WHERE shift_id IN (SELECT id FROM shifts WHERE customer_id = $1)', [req.params.id]);
+    await db.query('DELETE FROM shifts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM event_assignments WHERE event_id IN (SELECT id FROM events WHERE customer_id = $1)', [req.params.id]);
+    await db.query('DELETE FROM events WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM incidents WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM contacts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM sites WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM contracts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM customers WHERE id = $1', [req.params.id]);
+
+    res.json({ message: 'לקוח נמחק לצמיתות' });
+  } catch (error) {
+    console.error('Permanent delete customer error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת לקוח לצמיתות' });
   }
 });
 

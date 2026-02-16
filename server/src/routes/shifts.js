@@ -205,6 +205,52 @@ router.post('/', requireManager, [
   }
 });
 
+// Update shift (partial update)
+router.patch('/:id', requireManager, async (req, res) => {
+  try {
+    const allowedFields = ['site_id', 'customer_id', 'date', 'start_time', 'end_time',
+                           'required_employees', 'requires_weapon', 'requires_vehicle', 'notes', 'status'];
+    const updates = [];
+    const params = [];
+    let paramCount = 0;
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        paramCount++;
+        updates.push(`${field} = $${paramCount}`);
+        let val = req.body[field];
+        // Convert booleans to integers for SQLite
+        if (field === 'requires_weapon' || field === 'requires_vehicle') {
+          val = val ? 1 : 0;
+        }
+        params.push(val);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'לא נשלחו שדות לעדכון' });
+    }
+
+    paramCount++;
+    params.push(req.params.id);
+
+    const result = await db.query(`
+      UPDATE shifts SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramCount}
+      RETURNING *
+    `, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'משמרת לא נמצאה' });
+    }
+
+    res.json({ shift: result.rows[0] });
+  } catch (error) {
+    console.error('Update shift error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון משמרת' });
+  }
+});
+
 // Create recurring shifts
 router.post('/recurring', requireManager, [
   body('customer_id').notEmpty().withMessage('נדרש לקוח'),

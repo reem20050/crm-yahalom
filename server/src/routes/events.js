@@ -18,6 +18,9 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
+    // Always exclude soft-deleted
+    whereClause.push(`e.deleted_at IS NULL`);
+
     if (start_date) {
       paramCount++;
       whereClause.push(`event_date >= $${paramCount}`);
@@ -45,13 +48,13 @@ router.get('/', async (req, res) => {
     // Employee: only see events they are assigned to
     if (req.user.role === 'employee' && req.user.employeeId) {
       paramCount++;
-      whereClause.push(`id IN (SELECT event_id FROM event_assignments WHERE employee_id = $${paramCount})`);
+      whereClause.push(`e.id IN (SELECT event_id FROM event_assignments WHERE employee_id = $${paramCount})`);
       params.push(req.user.employeeId);
     }
 
-    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClause.join(' AND ')}`;
 
-    const countResult = await db.query(`SELECT COUNT(*) as count FROM events ${whereString}`, params);
+    const countResult = await db.query(`SELECT COUNT(*) as count FROM events e ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
 
     paramCount++;
@@ -91,6 +94,7 @@ router.get('/upcoming/week', async (req, res) => {
       LEFT JOIN customers c ON e.customer_id = c.id
       WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
       AND e.status NOT IN ('completed', 'cancelled')
+      AND e.deleted_at IS NULL
       ORDER BY e.event_date, e.start_time
     `);
 
@@ -101,6 +105,21 @@ router.get('/upcoming/week', async (req, res) => {
   }
 });
 
+// Get deleted events (trash) - MUST be before /:id
+router.get('/trash/list', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT e.*, c.company_name
+      FROM events e LEFT JOIN customers c ON e.customer_id = c.id
+      WHERE e.deleted_at IS NOT NULL ORDER BY e.deleted_at DESC
+    `);
+    res.json({ events: result.rows });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
+  }
+});
+
 // Get single event with assignments
 router.get('/:id', async (req, res) => {
   try {
@@ -108,7 +127,7 @@ router.get('/:id', async (req, res) => {
       SELECT e.*, c.company_name
       FROM events e
       LEFT JOIN customers c ON e.customer_id = c.id
-      WHERE e.id = $1
+      WHERE e.id = $1 AND e.deleted_at IS NULL
     `, [req.params.id]);
 
     if (eventResult.rows.length === 0) {
@@ -334,14 +353,11 @@ router.post('/:id/complete', requireManager, async (req, res) => {
   }
 });
 
-// Delete event (admin/manager only)
+// Delete event - soft delete (admin/manager only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {
-    // Delete related assignments first
-    await db.query('DELETE FROM event_assignments WHERE event_id = $1', [req.params.id]);
-
     const result = await db.query(
-      'DELETE FROM events WHERE id = $1 RETURNING id',
+      `UPDATE events SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]
     );
 
@@ -353,6 +369,39 @@ router.delete('/:id', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Delete event error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת אירוע' });
+  }
+});
+
+// Restore event
+router.post('/:id/restore', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE events SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'אירוע לא נמצא בפח' });
+    }
+    res.json({ event: result.rows[0], message: 'אירוע שוחזר בהצלחה' });
+  } catch (error) {
+    console.error('Restore event error:', error);
+    res.status(500).json({ error: 'שגיאה בשחזור אירוע' });
+  }
+});
+
+// Permanently delete event
+router.delete('/:id/permanent', requireManager, async (req, res) => {
+  try {
+    const check = await db.query('SELECT id FROM events WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'אירוע לא נמצא בפח' });
+    }
+    await db.query('DELETE FROM event_assignments WHERE event_id = $1', [req.params.id]);
+    await db.query('DELETE FROM events WHERE id = $1', [req.params.id]);
+    res.json({ message: 'אירוע נמחק לצמיתות' });
+  } catch (error) {
+    console.error('Permanent delete event error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת אירוע לצמיתות' });
   }
 });
 

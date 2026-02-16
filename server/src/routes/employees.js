@@ -16,6 +16,9 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
+    // Always exclude soft-deleted
+    whereClause.push(`deleted_at IS NULL`);
+
     if (status) {
       paramCount++;
       whereClause.push(`status = $${paramCount}`);
@@ -32,7 +35,7 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClause.join(' AND ')}`;
 
     const countResult = await db.query(`SELECT COUNT(*) as count FROM employees ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
@@ -71,7 +74,7 @@ router.get('/available/:date', async (req, res) => {
 
     let queryStr = `
       SELECT e.* FROM employees e
-      WHERE e.status = 'active'
+      WHERE e.status = 'active' AND e.deleted_at IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
@@ -99,10 +102,23 @@ router.get('/available/:date', async (req, res) => {
   }
 });
 
+// Get deleted employees (trash) - MUST be before /:id
+router.get('/trash/list', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT * FROM employees WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC
+    `);
+    res.json({ employees: result.rows });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
+  }
+});
+
 // Get single employee with all details
 router.get('/:id', async (req, res) => {
   try {
-    const employeeResult = await db.query('SELECT * FROM employees WHERE id = $1', [req.params.id]);
+    const employeeResult = await db.query('SELECT * FROM employees WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
 
     if (employeeResult.rows.length === 0) {
       return res.status(404).json({ error: 'עובד לא נמצא' });
@@ -338,15 +354,11 @@ router.get('/:id/hours/:year/:month', async (req, res) => {
   }
 });
 
-// Delete employee (admin/manager only)
+// Delete employee - soft delete (admin/manager only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {
-    // Delete related data first
-    await db.query('DELETE FROM employee_documents WHERE employee_id = $1', [req.params.id]);
-    await db.query('DELETE FROM employee_availability WHERE employee_id = $1', [req.params.id]);
-
     const result = await db.query(
-      'DELETE FROM employees WHERE id = $1 RETURNING id',
+      `UPDATE employees SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]
     );
 
@@ -358,6 +370,40 @@ router.delete('/:id', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Delete employee error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת עובד' });
+  }
+});
+
+// Restore employee
+router.post('/:id/restore', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE employees SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'עובד לא נמצא בפח' });
+    }
+    res.json({ employee: result.rows[0], message: 'עובד שוחזר בהצלחה' });
+  } catch (error) {
+    console.error('Restore employee error:', error);
+    res.status(500).json({ error: 'שגיאה בשחזור עובד' });
+  }
+});
+
+// Permanently delete employee
+router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
+  try {
+    const check = await db.query('SELECT id FROM employees WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'עובד לא נמצא בפח' });
+    }
+    await db.query('DELETE FROM employee_documents WHERE employee_id = $1', [req.params.id]);
+    await db.query('DELETE FROM employee_availability WHERE employee_id = $1', [req.params.id]);
+    await db.query('DELETE FROM employees WHERE id = $1', [req.params.id]);
+    res.json({ message: 'עובד נמחק לצמיתות' });
+  } catch (error) {
+    console.error('Permanent delete employee error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת עובד לצמיתות' });
   }
 });
 

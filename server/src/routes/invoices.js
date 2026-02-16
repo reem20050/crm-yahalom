@@ -18,6 +18,9 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
+    // Always exclude soft-deleted
+    whereClause.push(`i.deleted_at IS NULL`);
+
     if (status) {
       paramCount++;
       whereClause.push(`i.status = $${paramCount}`);
@@ -42,7 +45,7 @@ router.get('/', async (req, res) => {
       params.push(end_date);
     }
 
-    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClause.join(' AND ')}`;
 
     const countResult = await db.query(`SELECT COUNT(*) as count FROM invoices i ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
@@ -91,6 +94,7 @@ router.get('/status/overdue', async (req, res) => {
       LEFT JOIN customers c ON i.customer_id = c.id
       WHERE i.status = 'sent'
       AND i.due_date < date('now')
+      AND i.deleted_at IS NULL
       ORDER BY i.due_date
     `);
 
@@ -119,12 +123,28 @@ router.get('/summary/monthly', async (req, res) => {
       FROM invoices
       WHERE CAST(strftime('%Y', issue_date) AS INTEGER) = $1
       AND CAST(strftime('%m', issue_date) AS INTEGER) = $2
+      AND deleted_at IS NULL
     `, [targetYear, targetMonth]);
 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Get invoice summary error:', error);
     res.status(500).json({ error: 'שגיאה בטעינת סיכום חשבוניות' });
+  }
+});
+
+// Get deleted invoices (trash) - MUST be before /:id
+router.get('/trash/list', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT i.*, c.company_name
+      FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id
+      WHERE i.deleted_at IS NOT NULL ORDER BY i.deleted_at DESC
+    `);
+    res.json({ invoices: result.rows });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
   }
 });
 
@@ -140,7 +160,7 @@ router.get('/:id', async (req, res) => {
       FROM invoices i
       LEFT JOIN customers c ON i.customer_id = c.id
       LEFT JOIN events e ON i.event_id = e.id
-      WHERE i.id = $1
+      WHERE i.id = $1 AND i.deleted_at IS NULL
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -393,32 +413,54 @@ router.patch('/:id/status', requireManager, [
   }
 });
 
-// Delete invoice (admin/manager only, draft status only)
+// Delete invoice - soft delete (admin/manager only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {
-    // Check if invoice is in draft status
-    const invoiceResult = await db.query(
-      'SELECT status FROM invoices WHERE id = $1',
+    const result = await db.query(
+      `UPDATE invoices SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]
     );
 
-    if (invoiceResult.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'חשבונית לא נמצאה' });
     }
-
-    if (invoiceResult.rows[0].status !== 'draft') {
-      return res.status(400).json({ error: 'ניתן למחוק רק חשבוניות בסטטוס טיוטה' });
-    }
-
-    const result = await db.query(
-      'DELETE FROM invoices WHERE id = $1 RETURNING id',
-      [req.params.id]
-    );
 
     res.json({ message: 'חשבונית נמחקה בהצלחה' });
   } catch (error) {
     console.error('Delete invoice error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת חשבונית' });
+  }
+});
+
+// Restore invoice
+router.post('/:id/restore', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE invoices SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'חשבונית לא נמצאה בפח' });
+    }
+    res.json({ invoice: result.rows[0], message: 'חשבונית שוחזרה בהצלחה' });
+  } catch (error) {
+    console.error('Restore invoice error:', error);
+    res.status(500).json({ error: 'שגיאה בשחזור חשבונית' });
+  }
+});
+
+// Permanently delete invoice
+router.delete('/:id/permanent', requireManager, async (req, res) => {
+  try {
+    const check = await db.query('SELECT id FROM invoices WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'חשבונית לא נמצאה בפח' });
+    }
+    await db.query('DELETE FROM invoices WHERE id = $1', [req.params.id]);
+    res.json({ message: 'חשבונית נמחקה לצמיתות' });
+  } catch (error) {
+    console.error('Permanent delete invoice error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת חשבונית לצמיתות' });
   }
 });
 

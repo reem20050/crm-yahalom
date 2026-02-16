@@ -422,6 +422,16 @@ const initializeDatabase = () => {
     // Column already exists, ignore
   }
 
+  // Soft delete columns (Phase 4)
+  const softDeleteTables = ['customers', 'leads', 'employees', 'events', 'invoices'];
+  for (const table of softDeleteTables) {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN deleted_at TEXT DEFAULT NULL`);
+    } catch (e) {
+      // Column already exists, ignore
+    }
+  }
+
   // Activity logs table (for customer/lead activity tracking)
   db.exec(`
     CREATE TABLE IF NOT EXISTS activity_logs (

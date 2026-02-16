@@ -19,6 +19,9 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
+    // Always exclude soft-deleted
+    whereClause.push(`deleted_at IS NULL`);
+
     if (status) {
       paramCount++;
       whereClause.push(`status = $${paramCount}`);
@@ -43,7 +46,7 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClause.join(' AND ')}`;
 
     // Get total count
     const countResult = await db.query(
@@ -96,12 +99,28 @@ router.get('/stats/summary', async (req, res) => {
         SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as this_month,
         COALESCE(SUM(CASE WHEN status != 'lost' THEN expected_value ELSE 0 END), 0) as pipeline_value
       FROM leads
+      WHERE deleted_at IS NULL
     `);
 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Get lead stats error:', error);
     res.status(500).json({ error: 'שגיאה בטעינת סטטיסטיקות' });
+  }
+});
+
+// Get deleted leads (trash) - MUST be before /:id
+router.get('/trash/list', requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT l.*, u.first_name || ' ' || u.last_name as assigned_to_name
+      FROM leads l LEFT JOIN users u ON l.assigned_to = u.id
+      WHERE l.deleted_at IS NOT NULL ORDER BY l.deleted_at DESC
+    `);
+    res.json({ leads: result.rows });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
   }
 });
 
@@ -113,7 +132,7 @@ router.get('/:id', async (req, res) => {
              u.first_name || ' ' || u.last_name as assigned_to_name
       FROM leads l
       LEFT JOIN users u ON l.assigned_to = u.id
-      WHERE l.id = $1
+      WHERE l.id = $1 AND l.deleted_at IS NULL
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -286,11 +305,11 @@ router.post('/:id/convert', requireManager, async (req, res) => {
   }
 });
 
-// Delete lead
+// Delete lead - soft delete
 router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   try {
     const result = await db.query(
-      'DELETE FROM leads WHERE id = $1 RETURNING id',
+      `UPDATE leads SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]
     );
 
@@ -302,6 +321,38 @@ router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   } catch (error) {
     console.error('Delete lead error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת ליד' });
+  }
+});
+
+// Restore lead
+router.post('/:id/restore', requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE leads SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'ליד לא נמצא בפח' });
+    }
+    res.json({ lead: result.rows[0], message: 'ליד שוחזר בהצלחה' });
+  } catch (error) {
+    console.error('Restore lead error:', error);
+    res.status(500).json({ error: 'שגיאה בשחזור ליד' });
+  }
+});
+
+// Permanently delete lead
+router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
+  try {
+    const check = await db.query('SELECT id FROM leads WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'ליד לא נמצא בפח' });
+    }
+    await db.query('DELETE FROM leads WHERE id = $1', [req.params.id]);
+    res.json({ message: 'ליד נמחק לצמיתות' });
+  } catch (error) {
+    console.error('Permanent delete lead error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת ליד לצמיתות' });
   }
 });
 
