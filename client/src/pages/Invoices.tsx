@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw } from 'lucide-react';
+import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail } from 'lucide-react';
 import { invoicesApi, customersApi, integrationsApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 
@@ -133,6 +133,18 @@ export default function Invoices() {
       toast.success(res.data.message || 'חשבוניות סונכרנו בהצלחה');
     },
     onError: () => toast.error('שגיאה בסנכרון חשבוניות'),
+  });
+
+  const sendEmailMutation = useMutation({
+    mutationFn: (id: string) => invoicesApi.sendEmail(id),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success(res.data.message || 'חשבונית נשלחה במייל');
+    },
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { error?: string } } };
+      toast.error(error.response?.data?.error || 'שגיאה בשליחת חשבונית במייל');
+    },
   });
 
   // Form
@@ -323,6 +335,18 @@ export default function Invoices() {
                               <option value="paid">שולמה</option>
                               <option value="cancelled">בוטלה</option>
                             </select>
+                          )}
+
+                          {/* Send email button */}
+                          {can('invoices:create') && effectiveStatus !== 'cancelled' && (
+                            <button
+                              onClick={() => sendEmailMutation.mutate(invoice.id)}
+                              disabled={sendEmailMutation.isPending}
+                              className="text-blue-400 hover:text-blue-600 p-1"
+                              title="שלח חשבונית במייל"
+                            >
+                              <Mail className="w-4 h-4" />
+                            </button>
                           )}
 
                           {/* Delete button - only for draft status */}

@@ -153,6 +153,8 @@ export const invoicesApi = {
   getOverdue: () => api.get('/invoices/status/overdue'),
   getMonthlySummary: (year?: number, month?: number) =>
     api.get('/invoices/summary/monthly', { params: { year, month } }),
+  sendEmail: (id: string, email?: string) =>
+    api.post(`/invoices/${id}/send-email`, { email }),
 };
 
 // Reports

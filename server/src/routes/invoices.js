@@ -241,6 +241,87 @@ router.post('/', requireManager, [
   }
 });
 
+// Send invoice email to customer
+router.post('/:id/send-email', requireManager, async (req, res) => {
+  try {
+    // Get invoice with customer details
+    const result = await db.query(`
+      SELECT i.*,
+             c.company_name,
+             ct.email as contact_email,
+             ct.name as contact_name
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN contacts ct ON ct.customer_id = c.id AND ct.is_primary = 1
+      WHERE i.id = $1
+    `, [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'חשבונית לא נמצאה' });
+    }
+
+    const invoice = result.rows[0];
+    const email = req.body.email || invoice.contact_email;
+
+    if (!email) {
+      return res.status(400).json({ error: 'לא נמצא אימייל ללקוח. הוסף איש קשר עם אימייל.' });
+    }
+
+    const googleHelper = require('../utils/googleHelper');
+    if (!googleHelper.isConfigured()) {
+      return res.status(400).json({ error: 'Gmail לא מחובר. חבר Google בדף ההגדרות.' });
+    }
+
+    const invoiceNumber = invoice.invoice_number || invoice.id.slice(0, 8);
+    const customerName = invoice.contact_name || invoice.company_name;
+
+    const emailBody = `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #2563eb; color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+          <h1 style="margin: 0; font-size: 24px;">חשבונית #${invoiceNumber}</h1>
+          <p style="margin: 8px 0 0; opacity: 0.9;">צוות יהלום - שירותי אבטחה</p>
+        </div>
+        <div style="background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0;">
+          <p style="font-size: 16px;">שלום ${customerName},</p>
+          <p>מצורפת חשבונית מספר <strong>#${invoiceNumber}</strong>.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px 0; color: #64748b;">תאריך הפקה:</td>
+              <td style="padding: 8px 0; font-weight: bold;">${invoice.issue_date}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px 0; color: #64748b;">תאריך לתשלום:</td>
+              <td style="padding: 8px 0; font-weight: bold;">${invoice.due_date}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #64748b;">סכום לתשלום:</td>
+              <td style="padding: 8px 0; font-weight: bold; font-size: 18px; color: #2563eb;">₪${Number(invoice.total_amount).toLocaleString()}</td>
+            </tr>
+          </table>
+          ${invoice.description ? `<p style="color: #64748b;">פירוט: ${invoice.description}</p>` : ''}
+          ${invoice.document_url ? `<p style="margin-top: 16px;"><a href="${invoice.document_url}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">צפה בחשבונית</a></p>` : ''}
+          <p style="margin-top: 24px; color: #64748b;">לכל שאלה, אנו כאן לשירותכם.</p>
+        </div>
+        <div style="text-align: center; padding: 16px; color: #94a3b8; font-size: 12px;">
+          צוות יהלום - שירותי אבטחה ו-CRM
+        </div>
+      </div>
+    `;
+
+    await googleHelper.sendEmail(email, `חשבונית #${invoiceNumber} - צוות יהלום`, emailBody);
+
+    // Update invoice status to sent if it was draft
+    if (invoice.status === 'draft') {
+      await db.query(`UPDATE invoices SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [req.params.id]);
+    }
+
+    res.json({ message: `חשבונית נשלחה בהצלחה ל-${email}` });
+  } catch (error) {
+    console.error('Send invoice email error:', error);
+    res.status(500).json({ error: 'שגיאה בשליחת חשבונית במייל' });
+  }
+});
+
 // Update invoice status
 router.patch('/:id/status', requireManager, [
   body('status').isIn(['draft', 'sent', 'paid', 'overdue', 'cancelled']).withMessage('סטטוס לא תקין')
