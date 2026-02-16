@@ -8,6 +8,7 @@ import {
   PartyPopper,
   AlertCircle,
   TrendingUp,
+  TrendingDown,
   Clock,
   FileWarning,
   Shield,
@@ -23,6 +24,8 @@ import { usePermissions } from '../hooks/usePermissions';
 import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -55,6 +58,12 @@ export default function Dashboard() {
     queryFn: () => dashboardApi.getOperations().then((res) => res.data),
     enabled: !isEmployee && viewMode === 'operations',
     refetchInterval: 60000,
+  });
+
+  const { data: trendsData } = useQuery({
+    queryKey: ['dashboard-trends'],
+    queryFn: () => dashboardApi.getTrends().then((res) => res.data),
+    enabled: !isEmployee && viewMode === 'business',
   });
 
   const loading = isEmployee ? empLoading : (viewMode === 'business' ? isLoading : opsLoading);
@@ -117,7 +126,7 @@ export default function Dashboard() {
       {viewMode === 'operations' ? (
         <OperationsView data={opsData} />
       ) : (
-        <BusinessView data={data} />
+        <BusinessView data={data} trends={trendsData} />
       )}
     </div>
   );
@@ -616,8 +625,49 @@ function OperationsView({ data }: { data: any }) {
   );
 }
 
+/* ======== SPARKLINE MINI CHART ======== */
+function Sparkline({ data, color }: { data: { value: number }[]; color: string }) {
+  if (!data || data.length === 0) return null;
+  return (
+    <div className="w-16 h-8">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 2 }}>
+          <defs>
+            <linearGradient id={`spark-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={color}
+            strokeWidth={1.5}
+            fill={`url(#spark-${color.replace('#', '')})`}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function ChangeIndicator({ change }: { change: number | undefined }) {
+  if (change === undefined || change === null) return null;
+  const isPositive = change >= 0;
+  return (
+    <span className={`flex items-center gap-0.5 text-xs font-medium ${
+      isPositive ? 'text-emerald-600' : 'text-red-500'
+    }`}>
+      {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+      {Math.abs(change)}%
+    </span>
+  );
+}
+
 /* ======== BUSINESS VIEW ======== */
-function BusinessView({ data }: { data: any }) {
+function BusinessView({ data, trends }: { data: any; trends: any }) {
   const stats = [
     {
       name: 'לידים חדשים',
@@ -626,6 +676,8 @@ function BusinessView({ data }: { data: any }) {
       iconColor: 'text-sky-600',
       bgColor: 'bg-sky-50',
       href: '/leads?status=new',
+      trendKey: 'leads',
+      sparkColor: '#0ea5e9',
     },
     {
       name: 'לקוחות פעילים',
@@ -634,6 +686,8 @@ function BusinessView({ data }: { data: any }) {
       iconColor: 'text-emerald-600',
       bgColor: 'bg-emerald-50',
       href: '/customers',
+      trendKey: 'revenue',
+      sparkColor: '#22c55e',
     },
     {
       name: 'משמרות היום',
@@ -642,6 +696,8 @@ function BusinessView({ data }: { data: any }) {
       iconColor: 'text-violet-600',
       bgColor: 'bg-violet-50',
       href: '/shifts',
+      trendKey: 'shifts',
+      sparkColor: '#8b5cf6',
     },
     {
       name: 'אירועים השבוע',
@@ -650,30 +706,41 @@ function BusinessView({ data }: { data: any }) {
       iconColor: 'text-amber-600',
       bgColor: 'bg-amber-50',
       href: '/events',
+      trendKey: 'incidents',
+      sparkColor: '#f59e0b',
     },
   ];
 
   return (
     <>
-      {/* Stats */}
+      {/* Stats with sparklines */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {stats.map((stat) => (
-          <Link
-            key={stat.name}
-            to={stat.href}
-            className="stat-card hover:shadow-elevated transition-all duration-200"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="stat-card-value">{stat.value}</p>
-                <p className="stat-card-label">{stat.name}</p>
+        {stats.map((stat) => {
+          const trend = trends?.[stat.trendKey];
+          return (
+            <Link
+              key={stat.name}
+              to={stat.href}
+              className="stat-card hover:shadow-elevated transition-all duration-200"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="stat-card-value">{stat.value}</p>
+                    <ChangeIndicator change={trend?.change} />
+                  </div>
+                  <p className="stat-card-label">{stat.name}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <div className={`w-11 h-11 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                    <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
+                  </div>
+                  <Sparkline data={trend?.data} color={stat.sparkColor} />
+                </div>
               </div>
-              <div className={`w-11 h-11 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
-              </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -793,18 +860,24 @@ function BusinessView({ data }: { data: any }) {
 
         {/* Overdue invoices */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-              <FileWarning className="w-4 h-4 text-amber-600" />
-            </div>
-            חשבוניות באיחור
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                <FileWarning className="w-4 h-4 text-amber-600" />
+              </div>
+              חשבוניות באיחור
+            </h3>
+            <Link to="/invoices?status=overdue" className="text-xs text-primary-600 hover:text-primary-700 font-medium">
+              הצג הכל ←
+            </Link>
+          </div>
           {data?.overdueInvoices?.length > 0 ? (
             <div className="space-y-2.5">
               {data.overdueInvoices.map((invoice: any) => (
-                <div
+                <Link
                   key={invoice.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                  to={`/invoices`}
+                  className="block p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -824,7 +897,7 @@ function BusinessView({ data }: { data: any }) {
                       </p>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (

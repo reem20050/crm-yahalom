@@ -202,6 +202,88 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get 7-day trends for sparklines
+router.get('/trends', async (req, res) => {
+  try {
+    const [dailyShifts, dailyLeads, dailyRevenue, dailyIncidents] = await Promise.all([
+      // Daily shifts count (last 7 days)
+      db.query(`
+        SELECT date, COUNT(*) as count
+        FROM shifts
+        WHERE date BETWEEN date('now', '-6 days') AND date('now')
+        GROUP BY date
+        ORDER BY date
+      `),
+
+      // Daily new leads (last 7 days)
+      db.query(`
+        SELECT date(created_at) as date, COUNT(*) as count
+        FROM leads
+        WHERE created_at >= date('now', '-6 days')
+        GROUP BY date(created_at)
+        ORDER BY date
+      `),
+
+      // Daily revenue (last 7 days - paid invoices by payment date)
+      db.query(`
+        SELECT date(payment_date) as date,
+               COALESCE(SUM(total_amount), 0) as amount
+        FROM invoices
+        WHERE status = 'paid'
+          AND payment_date >= date('now', '-6 days')
+        GROUP BY date(payment_date)
+        ORDER BY date
+      `),
+
+      // Daily incidents (last 7 days)
+      db.query(`
+        SELECT date(created_at) as date, COUNT(*) as count
+        FROM incidents
+        WHERE created_at >= date('now', '-6 days')
+        GROUP BY date(created_at)
+        ORDER BY date
+      `)
+    ]);
+
+    // Fill in missing days with zeros
+    const fillDays = (rows, valueKey = 'count') => {
+      const map = {};
+      for (const row of rows) map[row.date] = row[valueKey] || 0;
+      const result = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        result.push({ date: dateStr, value: map[dateStr] || 0 });
+      }
+      return result;
+    };
+
+    // Calculate change percentages (current 3 days vs previous 4 days)
+    const calcChange = (data) => {
+      const recent = data.slice(-3).reduce((s, d) => s + d.value, 0);
+      const prev = data.slice(0, 4).reduce((s, d) => s + d.value, 0);
+      if (prev === 0) return recent > 0 ? 100 : 0;
+      return Math.round(((recent - prev) / prev) * 100);
+    };
+
+    const shifts = fillDays(dailyShifts.rows);
+    const leads = fillDays(dailyLeads.rows);
+    const revenue = fillDays(dailyRevenue.rows, 'amount');
+    const incidents = fillDays(dailyIncidents.rows);
+
+    res.json({
+      shifts: { data: shifts, change: calcChange(shifts) },
+      leads: { data: leads, change: calcChange(leads) },
+      revenue: { data: revenue, change: calcChange(revenue) },
+      incidents: { data: incidents, change: calcChange(incidents) },
+    });
+  } catch (error) {
+    console.error('Get trends error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת מגמות' });
+  }
+});
+
 // Get operations dashboard data
 router.get('/operations', async (req, res) => {
   try {

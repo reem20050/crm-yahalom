@@ -45,6 +45,7 @@ export const authApi = {
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
   getOperations: () => api.get('/dashboard/operations'),
+  getTrends: () => api.get('/dashboard/trends'),
   getNotifications: (unreadOnly = false) =>
     api.get('/dashboard/notifications', { params: { unread_only: unreadOnly } }),
   markNotificationRead: (id: string) =>
