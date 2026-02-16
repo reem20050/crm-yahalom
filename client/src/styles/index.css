@@ -137,6 +137,66 @@
   }
 }
 
+/* ── Dark Mode ───────────────────────────────────────────── */
+.dark body {
+  @apply bg-gray-900 text-gray-100;
+}
+
+.dark .card {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.dark .stat-card {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.dark .stat-card-value {
+  @apply text-white;
+}
+
+.dark .input {
+  @apply bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-500;
+}
+
+.dark .sidebar-link {
+  @apply text-gray-400 hover:bg-gray-800 hover:text-white;
+}
+
+.dark .sidebar-link-active {
+  @apply bg-primary-900/30 text-primary-400 hover:bg-primary-900/30;
+}
+
+.dark .badge-success {
+  @apply bg-emerald-900/30 text-emerald-400 border-emerald-800;
+}
+
+.dark .badge-warning {
+  @apply bg-amber-900/30 text-amber-400 border-amber-800;
+}
+
+.dark .badge-danger {
+  @apply bg-red-900/30 text-red-400 border-red-800;
+}
+
+.dark .table th {
+  @apply bg-gray-800/60 text-gray-400;
+}
+
+.dark .table td {
+  @apply text-gray-300;
+}
+
+.dark .table tbody tr {
+  @apply hover:bg-gray-800/50;
+}
+
+/* Mobile responsive table cards */
+@media (max-width: 768px) {
+  .table td {
+    @apply whitespace-normal;
+  }
+}
+
 /* ── Custom Scrollbar ─────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;

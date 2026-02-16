@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
@@ -22,6 +22,10 @@ import {
   ShieldCheck,
   AlertTriangle,
   Crosshair,
+  WifiOff,
+  Moon,
+  Sun,
+  Keyboard,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -29,6 +33,8 @@ import { dashboardApi } from '../services/api';
 import { clsx } from 'clsx';
 import SearchCommand from './SearchCommand';
 import NotificationCenter from './NotificationCenter';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useThemeStore } from '../stores/themeStore';
 
 const navigation = [
   { name: 'דשבורד', href: '/', icon: LayoutDashboard, permission: 'page:dashboard' },
@@ -51,10 +57,13 @@ export default function Layout() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const { user, logout } = useAuthStore();
   const { can } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
+  const isOnline = useOnlineStatus();
+  const { theme, setTheme } = useThemeStore();
 
   const filteredNavigation = navigation.filter((item) => can(item.permission));
 
@@ -74,12 +83,31 @@ export default function Layout() {
     (n: { is_read: number }) => !n.is_read
   ).length;
 
-  // Ctrl+K / Cmd+K keyboard shortcut to open search
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // Ctrl+K / Cmd+K → open search
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setIsSearchOpen(true);
+        return;
+      }
+
+      // Escape → close any open modal
+      if (e.key === 'Escape') {
+        setIsShortcutsOpen(false);
+        setIsNotificationsOpen(false);
+        setUserMenuOpen(false);
+        return;
+      }
+
+      // ? → open shortcuts modal (when not in input)
+      if (e.key === '?' && !isInput) {
+        e.preventDefault();
+        setIsShortcutsOpen(true);
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -96,8 +124,20 @@ export default function Layout() {
     (item) => item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href)
   );
 
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  }, [theme, setTheme]);
+
   return (
-    <div className="min-h-screen bg-gray-50/80">
+    <div className="min-h-screen bg-gray-50/80 dark:bg-gray-900">
+      {/* Offline Banner */}
+      {!isOnline && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-red-600 text-white text-center py-2 px-4 text-sm font-medium flex items-center justify-center gap-2 animate-slide-up">
+          <WifiOff className="w-4 h-4" />
+          אין חיבור לאינטרנט - חלק מהפעולות לא יהיו זמינות
+        </div>
+      )}
+
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -236,6 +276,24 @@ export default function Layout() {
                 </kbd>
               </button>
 
+              {/* Dark mode toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-xl hover:bg-gray-100 text-gray-500 transition-colors"
+                title={theme === 'dark' ? 'מצב בהיר' : 'מצב כהה'}
+              >
+                {theme === 'dark' ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+              </button>
+
+              {/* Keyboard shortcuts */}
+              <button
+                onClick={() => setIsShortcutsOpen(true)}
+                className="hidden md:flex p-2 rounded-xl hover:bg-gray-100 text-gray-500 transition-colors"
+                title="קיצורי מקלדת (?)"
+              >
+                <Keyboard className="w-[18px] h-[18px]" />
+              </button>
+
               {/* Notifications */}
               <div className="relative">
                 <button
@@ -266,6 +324,43 @@ export default function Layout() {
 
       {/* Search Command Palette */}
       <SearchCommand isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
+      {/* Keyboard Shortcuts Modal */}
+      {isShortcutsOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[60] bg-gray-900/40 backdrop-blur-sm animate-fade-in"
+            onClick={() => setIsShortcutsOpen(false)}
+          />
+          <div className="fixed inset-0 z-[61] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-modal w-full max-w-md animate-slide-up" dir="rtl">
+              <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900">קיצורי מקלדת</h3>
+                <button
+                  onClick={() => setIsShortcutsOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-3">
+                {[
+                  { keys: 'Ctrl + K', desc: 'חיפוש מהיר' },
+                  { keys: '?', desc: 'קיצורי מקלדת (חלון זה)' },
+                  { keys: 'Escape', desc: 'סגירת חלון / תפריט' },
+                ].map((shortcut) => (
+                  <div key={shortcut.keys} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{shortcut.desc}</span>
+                    <kbd className="px-2.5 py-1 text-xs font-mono text-gray-500 bg-gray-100 rounded-lg border border-gray-200">
+                      {shortcut.keys}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
