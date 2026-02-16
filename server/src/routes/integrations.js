@@ -124,7 +124,8 @@ router.get('/settings', async (req, res) => {
       },
       whatsapp: {
         connected: !!settings.whatsapp_phone_id,
-        phoneNumber: settings.whatsapp_phone_display
+        phoneNumber: settings.whatsapp_phone_display,
+        wahaUrl: settings.whatsapp_phone_id || null
       },
       greenInvoice: {
         connected: !!settings.green_invoice_api_key,
@@ -197,41 +198,100 @@ router.get('/google/calendar/events', async (req, res) => {
 });
 
 // ====================
-// WHATSAPP INTEGRATION
+// WHATSAPP INTEGRATION (WAHA - WhatsApp HTTP API)
 // ====================
 
-// Save WhatsApp settings (with validation)
+// Save WhatsApp WAHA settings (URL of WAHA instance)
 router.post('/whatsapp/settings', async (req, res) => {
   try {
-    const { phoneNumberId, accessToken, phoneDisplay } = req.body;
+    const { wahaUrl } = req.body;
 
-    if (!phoneNumberId || !accessToken) {
-      return res.status(400).json({ message: 'נדרש Phone Number ID ו-Access Token' });
+    if (!wahaUrl) {
+      return res.status(400).json({ message: 'נדרש כתובת שרת WAHA' });
+    }
+
+    // Validate URL by checking WAHA health
+    try {
+      const axios = require('axios');
+      await axios.get(`${wahaUrl}/api/sessions`, { timeout: 5000 });
+    } catch (e) {
+      return res.status(400).json({ message: 'לא ניתן להתחבר לשרת WAHA. ודא שהכתובת נכונה ושהשרת פעיל.' });
     }
 
     const existingSettings = query(`SELECT * FROM integration_settings WHERE id = 'main'`);
 
+    // Store WAHA URL in whatsapp_phone_id field, session name in whatsapp_access_token
     if (existingSettings.rows.length === 0) {
       query(`
-        INSERT INTO integration_settings (id, whatsapp_phone_id, whatsapp_access_token, whatsapp_phone_display, updated_at)
-        VALUES ('main', ?, ?, ?, datetime('now'))
-      `, [phoneNumberId, accessToken, phoneDisplay]);
+        INSERT INTO integration_settings (id, whatsapp_phone_id, whatsapp_access_token, updated_at)
+        VALUES ('main', ?, 'default', datetime('now'))
+      `, [wahaUrl]);
     } else {
       query(`
         UPDATE integration_settings
-        SET whatsapp_phone_id = ?, whatsapp_access_token = ?, whatsapp_phone_display = ?, updated_at = datetime('now')
+        SET whatsapp_phone_id = ?, whatsapp_access_token = 'default', updated_at = datetime('now')
         WHERE id = 'main'
-      `, [phoneNumberId, accessToken, phoneDisplay]);
+      `, [wahaUrl]);
     }
 
-    // Update service credentials in memory
-    whatsappService.phoneNumberId = phoneNumberId;
-    whatsappService.accessToken = accessToken;
+    // Update service in memory
+    whatsappService.wahaUrl = wahaUrl;
+    whatsappService.sessionName = 'default';
 
-    res.json({ message: 'הגדרות WhatsApp נשמרו בהצלחה' });
+    // Start WAHA session
+    const startResult = await whatsappService.startSession();
+
+    res.json({ message: 'WAHA מוגדר בהצלחה', sessionStarted: startResult.success });
   } catch (error) {
     console.error('WhatsApp settings error:', error);
     res.status(500).json({ message: 'שגיאה בשמירת הגדרות WhatsApp' });
+  }
+});
+
+// Get session status
+router.get('/whatsapp/status', async (req, res) => {
+  try {
+    whatsappService._ensureConfig();
+    const result = await whatsappService.getSessionStatus();
+    if (result.success) {
+      let phoneNumber = null;
+      if (result.status === 'WORKING') {
+        const accountInfo = await whatsappService.getAccountInfo();
+        if (accountInfo.success) {
+          phoneNumber = accountInfo.account?.id?.replace('@c.us', '') || accountInfo.account?.pushName;
+          // Save phone display
+          query(`UPDATE integration_settings SET whatsapp_phone_display = ? WHERE id = 'main'`, [phoneNumber || '']);
+        }
+      }
+      res.json({ status: result.status, phoneNumber, data: result.data });
+    } else {
+      res.json({ status: 'ERROR', error: result.error });
+    }
+  } catch (error) {
+    console.error('WhatsApp status error:', error);
+    res.status(500).json({ message: 'שגיאה בבדיקת סטטוס' });
+  }
+});
+
+// Get QR code for authentication
+router.get('/whatsapp/qr', async (req, res) => {
+  try {
+    whatsappService._ensureConfig();
+
+    // Make sure session is started
+    await whatsappService.startSession();
+
+    const result = await whatsappService.getQR();
+    if (result.success) {
+      res.json({ qr: result.qr });
+    } else if (result.error === 'already_authenticated') {
+      res.json({ authenticated: true, message: 'כבר מחובר!' });
+    } else {
+      res.status(400).json({ message: result.error });
+    }
+  } catch (error) {
+    console.error('WhatsApp QR error:', error);
+    res.status(500).json({ message: 'שגיאה בקבלת QR' });
   }
 });
 
@@ -254,14 +314,20 @@ router.post('/whatsapp/test', async (req, res) => {
   }
 });
 
-// Disconnect WhatsApp
+// Disconnect WhatsApp (logout + clear settings)
 router.post('/whatsapp/disconnect', async (req, res) => {
   try {
+    // Logout from WAHA session
+    await whatsappService.logoutSession();
+
     query(`
       UPDATE integration_settings
       SET whatsapp_phone_id = NULL, whatsapp_access_token = NULL, whatsapp_phone_display = NULL, updated_at = datetime('now')
       WHERE id = 'main'
     `);
+
+    whatsappService.wahaUrl = null;
+    whatsappService.connected = false;
 
     res.json({ message: 'WhatsApp נותק בהצלחה' });
   } catch (error) {

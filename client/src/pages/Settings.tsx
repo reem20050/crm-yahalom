@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -14,6 +14,10 @@ import {
   ExternalLink,
   RefreshCw,
   AlertTriangle,
+  QrCode,
+  Smartphone,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -26,17 +30,12 @@ interface IntegrationSettings {
   whatsapp: {
     connected: boolean;
     phoneNumber?: string;
+    wahaUrl?: string;
   };
   greenInvoice: {
     connected: boolean;
     businessName?: string;
   };
-}
-
-interface WhatsAppForm {
-  phoneNumberId: string;
-  accessToken: string;
-  phoneDisplay: string;
 }
 
 interface GreenInvoiceForm {
@@ -46,12 +45,18 @@ interface GreenInvoiceForm {
 
 export default function Settings() {
   const queryClient = useQueryClient();
-  const [showWhatsAppForm, setShowWhatsAppForm] = useState(false);
   const [showGreenInvoiceForm, setShowGreenInvoiceForm] = useState(false);
   const [testPhone, setTestPhone] = useState('');
-  const [showWhatsAppGuide, setShowWhatsAppGuide] = useState(false);
   const [googleSetupNeeded, setGoogleSetupNeeded] = useState(false);
   const [showGoogleGuide, setShowGoogleGuide] = useState(false);
+
+  // WAHA WhatsApp states
+  const [wahaStep, setWahaStep] = useState<'idle' | 'url' | 'qr' | 'connected'>('idle');
+  const [wahaUrl, setWahaUrl] = useState('');
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [wahaStatus, setWahaStatus] = useState<string | null>(null);
+  const [wahaPhone, setWahaPhone] = useState<string | null>(null);
+  const qrIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Handle Google OAuth redirect query params
   useEffect(() => {
@@ -60,7 +65,6 @@ export default function Settings() {
     if (googleStatus === 'connected') {
       toast.success('Google חובר בהצלחה! 🎉');
       queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
-      // Clean URL
       window.history.replaceState({}, '', '/settings');
     } else if (googleStatus === 'error') {
       const reason = params.get('reason') || '';
@@ -81,9 +85,6 @@ export default function Settings() {
       return res.data;
     },
   });
-
-  // WhatsApp form
-  const whatsAppForm = useForm<WhatsAppForm>();
 
   // Green Invoice form
   const greenInvoiceForm = useForm<GreenInvoiceForm>();
@@ -121,18 +122,98 @@ export default function Settings() {
     onError: () => toast.error('שגיאה בניתוק Google'),
   });
 
-  // WhatsApp save mutation
-  const whatsAppSaveMutation = useMutation({
-    mutationFn: (data: WhatsAppForm) => api.post('/integrations/whatsapp/settings', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
-      toast.success('WhatsApp הוגדר בהצלחה');
-      setShowWhatsAppForm(false);
+  // ========== WAHA WhatsApp Flow ==========
+
+  // Save WAHA URL and start session
+  const wahaSaveMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const res = await api.post('/integrations/whatsapp/settings', { wahaUrl: url });
+      return res.data;
     },
-    onError: () => {
-      toast.error('שגיאה בשמירת הגדרות WhatsApp');
+    onSuccess: () => {
+      toast.success('שרת WAHA מחובר! סרוק QR כדי לחבר את WhatsApp');
+      setWahaStep('qr');
+      startQrPolling();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'שגיאה בהתחברות לשרת WAHA');
     },
   });
+
+  // Fetch QR code
+  const fetchQR = useCallback(async () => {
+    try {
+      const res = await api.get('/integrations/whatsapp/qr');
+      if (res.data.authenticated) {
+        // Already connected!
+        setWahaStep('connected');
+        stopQrPolling();
+        queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
+        toast.success('WhatsApp מחובר בהצלחה! 🎉');
+        // Get phone number
+        const statusRes = await api.get('/integrations/whatsapp/status');
+        if (statusRes.data.phoneNumber) {
+          setWahaPhone(statusRes.data.phoneNumber);
+        }
+        return;
+      }
+      if (res.data.qr) {
+        setQrCode(res.data.qr);
+      }
+    } catch (err: any) {
+      // Ignore errors during polling
+    }
+  }, [queryClient]);
+
+  // Check status
+  const checkStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/integrations/whatsapp/status');
+      setWahaStatus(res.data.status);
+      if (res.data.status === 'WORKING') {
+        setWahaStep('connected');
+        setWahaPhone(res.data.phoneNumber);
+        stopQrPolling();
+        queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
+        toast.success('WhatsApp מחובר בהצלחה! 🎉');
+      }
+    } catch {
+      // ignore
+    }
+  }, [queryClient]);
+
+  // QR polling
+  const startQrPolling = useCallback(() => {
+    fetchQR();
+    if (qrIntervalRef.current) clearInterval(qrIntervalRef.current);
+    qrIntervalRef.current = setInterval(async () => {
+      await checkStatus();
+      // If still not connected, refresh QR
+      if (wahaStep === 'qr') {
+        await fetchQR();
+      }
+    }, 5000);
+  }, [fetchQR, checkStatus, wahaStep]);
+
+  const stopQrPolling = () => {
+    if (qrIntervalRef.current) {
+      clearInterval(qrIntervalRef.current);
+      qrIntervalRef.current = null;
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopQrPolling();
+  }, []);
+
+  // If already connected via settings, set step
+  useEffect(() => {
+    if (settings?.whatsapp.connected && wahaStep === 'idle') {
+      setWahaStep('connected');
+      setWahaPhone(settings.whatsapp.phoneNumber || null);
+    }
+  }, [settings, wahaStep]);
 
   // WhatsApp disconnect mutation
   const whatsAppDisconnectMutation = useMutation({
@@ -140,6 +221,10 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integrationSettings'] });
       toast.success('WhatsApp נותק בהצלחה');
+      setWahaStep('idle');
+      setQrCode(null);
+      setWahaUrl('');
+      setWahaPhone(null);
     },
     onError: () => toast.error('שגיאה בניתוק WhatsApp'),
   });
@@ -186,6 +271,186 @@ export default function Settings() {
       </div>
     );
   }
+
+  // ========== Render WhatsApp Section ==========
+  const renderWhatsAppContent = () => {
+    // Connected state
+    if (wahaStep === 'connected' || (settings?.whatsapp.connected && wahaStep !== 'qr' && wahaStep !== 'url')) {
+      return (
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Wifi className="w-4 h-4 text-green-500" />
+              <p className="text-sm text-gray-600">
+                {wahaPhone || settings?.whatsapp.phoneNumber ? (
+                  <>מחובר: <span className="font-medium" dir="ltr">{wahaPhone || settings?.whatsapp.phoneNumber}</span></>
+                ) : 'מחובר ופעיל'}
+              </p>
+            </div>
+            <button
+              onClick={() => whatsAppDisconnectMutation.mutate()}
+              disabled={whatsAppDisconnectMutation.isPending}
+              className="btn-secondary text-red-600 hover:bg-red-50 flex items-center gap-2"
+            >
+              <Unlink className="w-4 h-4" />
+              נתק
+            </button>
+          </div>
+          {/* Test connection */}
+          <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+            <input
+              type="text"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+              placeholder="מספר טלפון לבדיקה (050...)"
+              className="input flex-1 text-sm"
+              dir="ltr"
+            />
+            <button
+              onClick={() => { if (testPhone) whatsAppTestMutation.mutate(testPhone); }}
+              disabled={whatsAppTestMutation.isPending || !testPhone}
+              className="btn-success text-sm px-3 py-2 flex items-center gap-1"
+            >
+              {whatsAppTestMutation.isPending ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <MessageCircle className="w-4 h-4" />
+              )}
+              בדוק חיבור
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // QR code scanning step
+    if (wahaStep === 'qr') {
+      return (
+        <div className="mt-4 space-y-4">
+          <div className="text-center p-6 bg-green-50 rounded-xl border-2 border-green-200">
+            <Smartphone className="w-8 h-8 text-green-600 mx-auto mb-3" />
+            <h4 className="font-bold text-green-900 mb-2">סרוק QR Code עם WhatsApp</h4>
+            <p className="text-sm text-green-700 mb-4">
+              פתח WhatsApp בטלפון → הגדרות → מכשירים מקושרים → קשר מכשיר
+            </p>
+
+            {qrCode ? (
+              <div className="inline-block bg-white p-4 rounded-xl shadow-lg">
+                {typeof qrCode === 'string' && qrCode.startsWith('data:') ? (
+                  <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64" />
+                ) : (
+                  <div className="w-64 h-64 flex items-center justify-center bg-gray-50 rounded text-xs text-gray-500 break-all p-2 overflow-hidden">
+                    <QrCode className="w-16 h-16 text-gray-300" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="inline-block">
+                <div className="w-64 h-64 bg-white rounded-xl shadow-lg flex flex-col items-center justify-center gap-3">
+                  <RefreshCw className="w-8 h-8 text-green-500 animate-spin" />
+                  <p className="text-sm text-gray-500">טוען QR Code...</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-green-600">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              ממתין לסריקה... (מתרענן אוטומטית)
+            </div>
+          </div>
+
+          <button
+            onClick={() => { setWahaStep('idle'); stopQrPolling(); setQrCode(null); }}
+            className="btn-secondary w-full"
+          >
+            ביטול
+          </button>
+        </div>
+      );
+    }
+
+    // WAHA URL input step
+    if (wahaStep === 'url') {
+      return (
+        <div className="mt-4 space-y-4">
+          <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+            <h4 className="font-bold text-green-900 mb-2">חיבור שרת WAHA</h4>
+            <p className="text-sm text-green-700 mb-3">
+              הכנס את כתובת שרת ה-WAHA שלך. אם עדיין אין לך, לחץ על הכפתור למטה כדי להקים אחד ב-Railway בחינם.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="label">כתובת שרת WAHA</label>
+                <input
+                  type="url"
+                  value={wahaUrl}
+                  onChange={(e) => setWahaUrl(e.target.value)}
+                  className="input"
+                  dir="ltr"
+                  placeholder="https://your-waha.up.railway.app"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => wahaSaveMutation.mutate(wahaUrl)}
+                  disabled={!wahaUrl || wahaSaveMutation.isPending}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  {wahaSaveMutation.isPending ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Link className="w-4 h-4" />
+                  )}
+                  {wahaSaveMutation.isPending ? 'מתחבר...' : 'התחבר'}
+                </button>
+                <button onClick={() => setWahaStep('idle')} className="btn-secondary">
+                  ביטול
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-green-200">
+              <p className="text-xs text-green-800 font-medium mb-2">אין לך שרת WAHA? הקם אחד בחינם:</p>
+              <a
+                href="https://railway.com/new/template/waha"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors"
+              >
+                <img src="https://railway.com/button.svg" alt="" className="h-4 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                Deploy on Railway (חינם)
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              <p className="text-xs text-green-600 mt-2">
+                אחרי ההקמה, העתק את ה-URL של השרת (למשל: https://waha-production-xxxx.up.railway.app) והכנס אותו למעלה.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Idle - show connect button
+    return (
+      <div className="mt-4">
+        <p className="text-sm text-gray-600 mb-3">
+          חבר את WhatsApp שלך כדי לשלוח תזכורות משמרות, אישורי הזמנות ועוד ישירות מהמערכת.
+        </p>
+        <p className="text-xs text-gray-400 mb-3">
+          משתמש ב-WAHA (WhatsApp HTTP API) - חינמי, בלי Meta Business
+        </p>
+        <button
+          onClick={() => setWahaStep('url')}
+          className="btn-primary flex items-center gap-2"
+        >
+          <MessageCircle className="w-4 h-4" />
+          הגדר WhatsApp
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -322,7 +587,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* WhatsApp Business */}
+        {/* WhatsApp - WAHA */}
         <div className="card">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -331,13 +596,18 @@ export default function Settings() {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">WhatsApp Business</h3>
+                  <h3 className="font-semibold text-gray-900">WhatsApp</h3>
                   <p className="text-sm text-gray-500">שליחת הודעות אוטומטיות</p>
                 </div>
-                {settings?.whatsapp.connected ? (
+                {(wahaStep === 'connected' || settings?.whatsapp.connected) ? (
                   <span className="badge badge-success flex items-center gap-1">
                     <Check className="w-3 h-3" />
                     מחובר
+                  </span>
+                ) : wahaStep === 'qr' ? (
+                  <span className="badge bg-yellow-100 text-yellow-800 flex items-center gap-1">
+                    <QrCode className="w-3 h-3" />
+                    ממתין לסריקה
                   </span>
                 ) : (
                   <span className="badge badge-gray flex items-center gap-1">
@@ -347,151 +617,7 @@ export default function Settings() {
                 )}
               </div>
 
-              {settings?.whatsapp.connected && !showWhatsAppForm ? (
-                <div className="mt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600">
-                      מספר: <span className="font-medium">{settings.whatsapp.phoneNumber}</span>
-                    </p>
-                    <button
-                      onClick={() => whatsAppDisconnectMutation.mutate()}
-                      disabled={whatsAppDisconnectMutation.isPending}
-                      className="btn-secondary text-red-600 hover:bg-red-50 flex items-center gap-2"
-                    >
-                      <Unlink className="w-4 h-4" />
-                      נתק
-                    </button>
-                  </div>
-                  {/* Test connection */}
-                  <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-                    <input
-                      type="text"
-                      value={testPhone}
-                      onChange={(e) => setTestPhone(e.target.value)}
-                      placeholder="מספר טלפון לבדיקה (050...)"
-                      className="input flex-1 text-sm"
-                      dir="ltr"
-                    />
-                    <button
-                      onClick={() => { if (testPhone) whatsAppTestMutation.mutate(testPhone); }}
-                      disabled={whatsAppTestMutation.isPending || !testPhone}
-                      className="btn-success text-sm px-3 py-2 flex items-center gap-1"
-                    >
-                      {whatsAppTestMutation.isPending ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <MessageCircle className="w-4 h-4" />
-                      )}
-                      בדוק חיבור
-                    </button>
-                  </div>
-                </div>
-              ) : showWhatsAppForm ? (
-                <form
-                  onSubmit={whatsAppForm.handleSubmit((data) => whatsAppSaveMutation.mutate(data))}
-                  className="mt-4 space-y-4"
-                >
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="label">Phone Number ID</label>
-                      <input
-                        {...whatsAppForm.register('phoneNumberId', { required: true })}
-                        className="input"
-                        dir="ltr"
-                        placeholder="מתוך Meta Business"
-                      />
-                    </div>
-                    <div>
-                      <label className="label">מספר להצגה</label>
-                      <input
-                        {...whatsAppForm.register('phoneDisplay')}
-                        className="input"
-                        dir="ltr"
-                        placeholder="050-1234567"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="label">Access Token</label>
-                      <input
-                        {...whatsAppForm.register('accessToken', { required: true })}
-                        type="password"
-                        className="input"
-                        dir="ltr"
-                        placeholder="מתוך Meta Business"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      disabled={whatsAppSaveMutation.isPending}
-                      className="btn-primary"
-                    >
-                      {whatsAppSaveMutation.isPending ? 'שומר...' : 'שמור'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowWhatsAppForm(false)}
-                      className="btn-secondary"
-                    >
-                      ביטול
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowWhatsAppGuide(!showWhatsAppGuide)}
-                    className="text-primary-600 hover:underline text-sm flex items-center gap-1"
-                  >
-                    {showWhatsAppGuide ? '▲ הסתר מדריך' : '▼ איך להשיג את הפרטים?'}
-                  </button>
-                  {showWhatsAppGuide && (
-                    <div className="bg-blue-50 rounded-lg p-4 text-sm space-y-2 border border-blue-200">
-                      <h4 className="font-bold text-blue-900">מדריך הגדרת WhatsApp Business API</h4>
-                      <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                        <li>
-                          היכנס ל-
-                          <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">Meta Business Suite</a>
-                          {' '}עם חשבון הפייסבוק שלך
-                        </li>
-                        <li>
-                          ודא שיש לך WhatsApp Business Account (אם אין - צור חדש דרך ההגדרות)
-                        </li>
-                        <li>
-                          היכנס ל-
-                          <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">Meta Developer Console</a>
-                        </li>
-                        <li>לחץ על <span className="font-bold">"Create App"</span> → בחר סוג <span className="font-bold">"Business"</span></li>
-                        <li>הוסף את מוצר <span className="font-bold">"WhatsApp"</span> לאפליקציה (לחץ "Set up")</li>
-                        <li>
-                          בתפריט WhatsApp → API Setup:
-                          <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
-                            <li>העתק את <span className="font-bold">Phone Number ID</span> (מספר ארוך)</li>
-                            <li>לחץ <span className="font-bold">"Generate"</span> ליצירת Access Token זמני (24 שעות)</li>
-                            <li>ל-Token קבוע: System Users → Generate Token עם הרשאות whatsapp_business_messaging</li>
-                          </ul>
-                        </li>
-                        <li>הכנס את הפרטים למעלה ולחץ "שמור"</li>
-                      </ol>
-                      <p className="text-xs text-blue-600 mt-2">
-                        💡 מומלץ ליצור Token קבוע (System User) כדי שלא יפוג כל 24 שעות
-                      </p>
-                    </div>
-                  )}
-                </form>
-              ) : (
-                <div className="mt-4">
-                  <p className="text-sm text-gray-600 mb-3">
-                    חבר את WhatsApp Business כדי לשלוח תזכורות משמרות, אישורי הזמנות ועוד
-                  </p>
-                  <button
-                    onClick={() => setShowWhatsAppForm(true)}
-                    className="btn-primary flex items-center gap-2"
-                  >
-                    <Link className="w-4 h-4" />
-                    הגדר WhatsApp
-                  </button>
-                </div>
-              )}
+              {renderWhatsAppContent()}
             </div>
           </div>
         </div>
@@ -619,8 +745,8 @@ export default function Settings() {
             מדריך Google Workspace
             <ExternalLink className="w-3 h-3" />
           </a>
-          <a href="#" className="text-primary-600 text-sm hover:underline flex items-center gap-1">
-            מדריך WhatsApp Business
+          <a href="https://waha.devlike.pro/" target="_blank" rel="noopener noreferrer" className="text-primary-600 text-sm hover:underline flex items-center gap-1">
+            מדריך WhatsApp (WAHA)
             <ExternalLink className="w-3 h-3" />
           </a>
           <a href="#" className="text-primary-600 text-sm hover:underline flex items-center gap-1">

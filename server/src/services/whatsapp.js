@@ -1,24 +1,28 @@
 const axios = require('axios');
 require('dotenv').config();
 
-const DEFAULT_API_URL = 'https://graph.facebook.com/v17.0';
+// WAHA (WhatsApp HTTP API) - self-hosted WhatsApp Web API
+// Docs: https://waha.devlike.pro/
+const DEFAULT_WAHA_URL = process.env.WAHA_API_URL || 'http://localhost:3000';
+const SESSION_NAME = 'default';
 
 class WhatsAppService {
   constructor() {
-    this.apiUrl = process.env.WHATSAPP_API_URL || DEFAULT_API_URL;
-    this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    this.wahaUrl = DEFAULT_WAHA_URL;
+    this.sessionName = SESSION_NAME;
+    this.connected = false;
   }
 
-  // Load credentials from DB if not in memory/env
-  _ensureCredentials() {
-    if (this.phoneNumberId && this.accessToken) return true;
+  // Load WAHA URL from DB if set
+  _ensureConfig() {
     try {
       const { query } = require('../config/database');
-      const result = query("SELECT whatsapp_phone_id, whatsapp_access_token FROM integration_settings WHERE id = 'main'");
+      const result = query("SELECT whatsapp_phone_id, whatsapp_access_token, whatsapp_phone_display FROM integration_settings WHERE id = 'main'");
       if (result.rows.length > 0 && result.rows[0].whatsapp_phone_id) {
-        this.phoneNumberId = result.rows[0].whatsapp_phone_id;
-        this.accessToken = result.rows[0].whatsapp_access_token;
+        // whatsapp_phone_id stores WAHA URL, whatsapp_access_token stores session name
+        this.wahaUrl = result.rows[0].whatsapp_phone_id;
+        this.sessionName = result.rows[0].whatsapp_access_token || SESSION_NAME;
+        this.connected = true;
         return true;
       }
     } catch (e) {
@@ -27,42 +31,158 @@ class WhatsAppService {
     return false;
   }
 
+  // Get WAHA base URL
+  _getBaseUrl() {
+    return this.wahaUrl || DEFAULT_WAHA_URL;
+  }
+
+  // ========== Session Management ==========
+
+  // Get session status
+  async getSessionStatus() {
+    try {
+      const url = this._getBaseUrl();
+      const response = await axios.get(`${url}/api/sessions/${this.sessionName}`, {
+        timeout: 5000
+      });
+      return { success: true, status: response.data.status, data: response.data };
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return { success: true, status: 'STOPPED', data: null };
+      }
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Start session (creates if not exists)
+  async startSession() {
+    try {
+      const url = this._getBaseUrl();
+      // First try to create the session
+      try {
+        await axios.post(`${url}/api/sessions`, {
+          name: this.sessionName,
+          start: true,
+          config: {
+            proxy: null,
+            webhooks: [{
+              url: '',
+              events: ['message']
+            }]
+          }
+        }, { timeout: 10000 });
+      } catch (e) {
+        // Session might already exist, try to start it
+        if (e.response?.status === 422 || e.response?.status === 409) {
+          await axios.post(`${url}/api/sessions/${this.sessionName}/start`, {}, { timeout: 10000 });
+        } else {
+          throw e;
+        }
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('WAHA start session error:', error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  // Stop session
+  async stopSession() {
+    try {
+      const url = this._getBaseUrl();
+      await axios.post(`${url}/api/sessions/${this.sessionName}/stop`, {}, { timeout: 5000 });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Logout session (removes auth data)
+  async logoutSession() {
+    try {
+      const url = this._getBaseUrl();
+      await axios.post(`${url}/api/sessions/${this.sessionName}/logout`, {}, { timeout: 5000 });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get QR code for authentication
+  async getQR() {
+    try {
+      const url = this._getBaseUrl();
+      const response = await axios.get(`${url}/api/${this.sessionName}/auth/qr`, {
+        headers: { 'Accept': 'application/json' },
+        timeout: 10000
+      });
+      // Returns { value: "base64..." } or { value: "raw qr data" }
+      return { success: true, qr: response.data.value || response.data };
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return { success: false, error: 'Session not started. Start session first.' };
+      }
+      if (error.response?.status === 422) {
+        // Already authenticated
+        return { success: false, error: 'already_authenticated' };
+      }
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  // Get account info (who is logged in)
+  async getAccountInfo() {
+    try {
+      const url = this._getBaseUrl();
+      const response = await axios.get(`${url}/api/sessions/${this.sessionName}/me`, { timeout: 5000 });
+      return { success: true, account: response.data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ========== Messaging ==========
+
+  // Format phone number for WAHA (needs @c.us suffix)
+  _formatPhone(phone) {
+    let formatted = phone.replace(/[^0-9]/g, '');
+    // Israeli number: remove leading 0, add 972
+    if (formatted.startsWith('0')) {
+      formatted = '972' + formatted.slice(1);
+    }
+    // If doesn't have country code (less than 11 digits), assume Israel
+    if (formatted.length <= 10) {
+      formatted = '972' + formatted;
+    }
+    return formatted + '@c.us';
+  }
+
   async sendMessage(to, message) {
     try {
-      if (!this._ensureCredentials()) {
+      if (!this._ensureConfig() && !this.wahaUrl) {
         return { success: false, error: 'WhatsApp לא מוגדר. הגדר את הפרטים בדף ההגדרות.' };
       }
 
-      // Format phone number (remove leading 0, add country code)
-      let formattedPhone = to.replace(/[^0-9]/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '972' + formattedPhone.slice(1);
-      }
+      const chatId = this._formatPhone(to);
+      const url = this._getBaseUrl();
 
-      const apiUrl = this.apiUrl || DEFAULT_API_URL;
-      const response = await axios.post(
-        `${apiUrl}/${this.phoneNumberId}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: formattedPhone,
-          type: 'text',
-          text: { body: message },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const response = await axios.post(`${url}/api/sendText`, {
+        session: this.sessionName,
+        chatId: chatId,
+        text: message
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000
+      });
 
-      return { success: true, messageId: response.data.messages?.[0]?.id };
+      return { success: true, messageId: response.data.id };
     } catch (error) {
       console.error('WhatsApp send error:', error.response?.data || error.message);
-      return { success: false, error: error.response?.data?.error?.message || error.message };
+      return { success: false, error: error.response?.data?.message || error.message };
     }
   }
+
+  // ========== Business Message Templates ==========
 
   // Send shift reminder to employee
   async sendShiftReminder(employee, shift) {
@@ -127,35 +247,41 @@ class WhatsAppService {
     return await this.sendMessage(contact.phone, message);
   }
 
-  // Handle incoming webhook
+  // Handle incoming webhook from WAHA
   async handleWebhook(webhookData) {
     try {
+      // WAHA webhook format
+      if (webhookData.event === 'message') {
+        const msg = webhookData.payload;
+        return {
+          type: 'message',
+          from: msg.from?.replace('@c.us', ''),
+          text: msg.body || msg.text,
+          timestamp: new Date(msg.timestamp * 1000),
+        };
+      }
+
+      if (webhookData.event === 'message.ack') {
+        return {
+          type: 'status',
+          messageId: webhookData.payload?.id,
+          status: webhookData.payload?.ack,
+          timestamp: new Date(),
+        };
+      }
+
+      // Also support Meta-style format for backwards compatibility
       const entry = webhookData.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
 
       if (value?.messages) {
         const message = value.messages[0];
-        const from = message.from; // Phone number
-        const text = message.text?.body;
-        const timestamp = message.timestamp;
-
-        // Return parsed message for processing
         return {
           type: 'message',
-          from,
-          text,
-          timestamp: new Date(parseInt(timestamp) * 1000),
-        };
-      }
-
-      if (value?.statuses) {
-        const status = value.statuses[0];
-        return {
-          type: 'status',
-          messageId: status.id,
-          status: status.status, // sent, delivered, read
-          timestamp: new Date(parseInt(status.timestamp) * 1000),
+          from: message.from,
+          text: message.text?.body,
+          timestamp: new Date(parseInt(message.timestamp) * 1000),
         };
       }
 
