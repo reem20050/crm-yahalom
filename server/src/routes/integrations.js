@@ -122,30 +122,52 @@ router.get('/settings', async (req, res) => {
       SELECT * FROM integration_settings WHERE id = 'main'
     `);
 
-    if (result.rows.length === 0) {
-      // Return default empty settings
-      return res.json({
-        google: { connected: false },
-        whatsapp: { connected: false },
-        greenInvoice: { connected: false }
-      });
+    const settings = result.rows.length > 0 ? result.rows[0] : null;
+
+    // Check WhatsApp status in real-time (DB config OR env vars)
+    let whatsappConnected = false;
+    let whatsappPhone = settings?.whatsapp_phone_display || null;
+    let wahaUrl = null;
+
+    // First check if DB has config
+    if (settings?.whatsapp_phone_id) {
+      wahaUrl = settings.whatsapp_phone_id.split('|')[0];
     }
 
-    const settings = result.rows[0];
+    // Try to check WAHA status in real-time
+    try {
+      whatsappService._ensureConfig();
+      const wahaStatus = await whatsappService.getSessionStatus();
+      if (wahaStatus.success && wahaStatus.status === 'WORKING') {
+        whatsappConnected = true;
+        // Try to get phone number if we don't have it
+        if (!whatsappPhone) {
+          try {
+            const accountInfo = await whatsappService.getAccountInfo();
+            if (accountInfo.success) {
+              whatsappPhone = accountInfo.account?.id?.replace('@c.us', '') || accountInfo.account?.pushName;
+            }
+          } catch (e) { /* ignore */ }
+        }
+      }
+    } catch (e) {
+      // WAHA not reachable, fall back to DB check
+      whatsappConnected = !!settings?.whatsapp_phone_id;
+    }
 
     res.json({
       google: {
-        connected: !!settings.google_tokens,
-        email: settings.google_email
+        connected: !!settings?.google_tokens,
+        email: settings?.google_email || null
       },
       whatsapp: {
-        connected: !!settings.whatsapp_phone_id,
-        phoneNumber: settings.whatsapp_phone_display,
-        wahaUrl: settings.whatsapp_phone_id ? settings.whatsapp_phone_id.split('|')[0] : null
+        connected: whatsappConnected,
+        phoneNumber: whatsappPhone,
+        wahaUrl: wahaUrl
       },
       greenInvoice: {
-        connected: !!settings.green_invoice_api_key,
-        businessName: settings.green_invoice_business_name
+        connected: !!settings?.green_invoice_api_key,
+        businessName: settings?.green_invoice_business_name || null
       }
     });
   } catch (error) {
