@@ -260,7 +260,7 @@ router.post('/:id/contracts', requireManager, [
       INSERT INTO contracts (id, customer_id, start_date, end_date, monthly_value, terms, document_url, auto_renewal, renewal_reminder_days)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [contractId, req.params.id, start_date, end_date, monthly_value, terms, document_url, auto_renewal ?? true, renewal_reminder_days || 30]);
+    `, [contractId, req.params.id, start_date, end_date, monthly_value || null, terms || null, document_url || null, auto_renewal !== false ? 1 : 0, renewal_reminder_days || 30]);
 
     res.status(201).json({ contract: result.rows[0] });
   } catch (error) {
@@ -272,7 +272,13 @@ router.post('/:id/contracts', requireManager, [
 // Delete customer (admin/manager only)
 router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   try {
-    // Delete related data first
+    // Delete related data first (order matters for FK constraints)
+    await db.query('DELETE FROM invoices WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM shift_assignments WHERE shift_id IN (SELECT id FROM shifts WHERE customer_id = $1)', [req.params.id]);
+    await db.query('DELETE FROM shifts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM event_assignments WHERE event_id IN (SELECT id FROM events WHERE customer_id = $1)', [req.params.id]);
+    await db.query('DELETE FROM events WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM incidents WHERE customer_id = $1', [req.params.id]);
     await db.query('DELETE FROM contacts WHERE customer_id = $1', [req.params.id]);
     await db.query('DELETE FROM sites WHERE customer_id = $1', [req.params.id]);
     await db.query('DELETE FROM contracts WHERE customer_id = $1', [req.params.id]);

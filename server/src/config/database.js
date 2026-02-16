@@ -22,6 +22,14 @@ const generateUUID = () => crypto.randomUUID();
 // Helper function to run queries with params (similar to pg interface)
 const query = (sql, params = []) => {
   try {
+    // Convert undefined to null and booleans to integers - better-sqlite3 requirements
+    params = params.map(p => {
+      if (p === undefined) return null;
+      if (p === true) return 1;
+      if (p === false) return 0;
+      return p;
+    });
+
     // Convert $1, $2 params to ? for SQLite
     // Handle repeated parameter references (e.g. $1 used multiple times)
     let sqliteQuery = sql;
