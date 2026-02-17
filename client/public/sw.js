@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yahalom-crm-v1';
+const CACHE_NAME = 'yahalom-crm-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -22,10 +22,17 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch - network first, fallback to cache
+// Fetch - network first, fallback to cache (same-origin only)
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET and API requests
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+  const url = new URL(event.request.url);
+
+  // Only handle same-origin GET requests, skip everything else
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Skip API requests
+  if (url.pathname.startsWith('/api/')) {
     return;
   }
 
