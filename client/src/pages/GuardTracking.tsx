@@ -107,6 +107,7 @@ function GuardTrackingContent() {
           defaultZoom={8}
           gestureHandling="greedy"
           className="w-full h-full"
+          mapId="b7ef17e439471657dd56ff74"
         >
           {/* Site markers (smaller, gray) */}
           {sites.map((site: any) => (
