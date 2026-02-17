@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { APIProvider } from '@vis.gl/react-google-maps';
+import { LoadScript } from '@react-google-maps/api';
 import { mapsApi } from '../services/api';
 
 interface Props {
@@ -32,8 +32,8 @@ export default function GoogleMapProvider({ children }: Props) {
   }
 
   return (
-    <APIProvider apiKey={apiKey} language="he" region="IL">
+    <LoadScript googleMapsApiKey={apiKey} language="he" region="IL">
       {children}
-    </APIProvider>
+    </LoadScript>
   );
 }

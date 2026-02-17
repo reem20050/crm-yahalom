@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Map, Marker, InfoWindow } from '@vis.gl/react-google-maps';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { Navigation, User, Clock, MapPin, AlertCircle } from 'lucide-react';
 import GoogleMapProvider from '../components/GoogleMapProvider';
 import { shiftsApi, sitesGlobalApi } from '../services/api';
@@ -26,13 +26,33 @@ function minutesAgo(dateStr: string | null): number {
   return Math.round((Date.now() - new Date(dateStr + 'Z').getTime()) / 60000);
 }
 
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%',
+};
+
+const defaultCenter = { lat: 31.5, lng: 34.8 };
+
+const siteIcon = {
+  url: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8" fill="%239CA3AF" stroke="white" stroke-width="2"/></svg>'),
+  scaledSize: { width: 20, height: 20 } as google.maps.Size,
+};
+
+function getGuardIcon(isRecent: boolean) {
+  const color = isRecent ? '%233B82F6' : '%23F59E0B';
+  return {
+    url: 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">&#x1F464;</text></svg>`),
+    scaledSize: { width: 32, height: 32 } as google.maps.Size,
+  };
+}
+
 function GuardTrackingContent() {
   const [selectedGuard, setSelectedGuard] = useState<ActiveGuard | null>(null);
 
   const { data: guards = [], isLoading } = useQuery({
     queryKey: ['active-guards'],
     queryFn: () => shiftsApi.getActiveGuards().then(res => res.data),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
   const { data: sites = [] } = useQuery({
@@ -41,7 +61,6 @@ function GuardTrackingContent() {
   });
 
   const guardsWithLocation = guards.filter((g: ActiveGuard) => g.latitude && g.longitude);
-  const guardsWithoutLocation = guards.filter((g: ActiveGuard) => !g.latitude || !g.longitude);
 
   return (
     <div className="h-[calc(100vh-4rem)] flex">
@@ -91,7 +110,7 @@ function GuardTrackingContent() {
                   <p className="text-xs text-gray-500 mt-1">{guard.site_name} - {guard.company_name}</p>
                   <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    {noLocation ? 'אין מיקום' : isRecent ? `לפני ${mins} דקות` : `לפני ${mins} דקות`}
+                    {noLocation ? 'אין מיקום' : `לפני ${mins} דקות`}
                   </p>
                 </button>
               );
@@ -102,12 +121,13 @@ function GuardTrackingContent() {
 
       {/* Map */}
       <div className="flex-1 relative">
-        <Map
-          defaultCenter={{ lat: 31.5, lng: 34.8 }}
-          defaultZoom={8}
-          gestureHandling="greedy"
-          className="w-full h-full"
-          mapId="b7ef17e439471657dd56ff74"
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={defaultCenter}
+          zoom={8}
+          options={{
+            gestureHandling: 'greedy',
+          }}
         >
           {/* Site markers (smaller, gray) */}
           {sites.map((site: any) => (
@@ -115,10 +135,7 @@ function GuardTrackingContent() {
               key={`site-${site.id}`}
               position={{ lat: site.latitude, lng: site.longitude }}
               title={site.name}
-              icon={{
-                url: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8" fill="%239CA3AF" stroke="white" stroke-width="2"/></svg>'),
-                scaledSize: { width: 20, height: 20, equals: () => false } as google.maps.Size,
-              }}
+              icon={siteIcon}
             />
           ))}
 
@@ -126,7 +143,6 @@ function GuardTrackingContent() {
           {guardsWithLocation.map((guard: ActiveGuard) => {
             const mins = minutesAgo(guard.recorded_at);
             const isRecent = mins < 10;
-            const color = isRecent ? '%233B82F6' : '%23F59E0B';
 
             return (
               <Marker
@@ -134,10 +150,7 @@ function GuardTrackingContent() {
                 position={{ lat: guard.latitude!, lng: guard.longitude! }}
                 onClick={() => setSelectedGuard(guard)}
                 title={guard.employee_name}
-                icon={{
-                  url: 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>`),
-                  scaledSize: { width: 32, height: 32, equals: () => false } as google.maps.Size,
-                }}
+                icon={getGuardIcon(isRecent)}
               />
             );
           })}
@@ -160,7 +173,7 @@ function GuardTrackingContent() {
               </div>
             </InfoWindow>
           )}
-        </Map>
+        </GoogleMap>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Map, Marker, InfoWindow } from '@vis.gl/react-google-maps';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { MapPin, Search, Navigation, Building2, Shield, RefreshCw, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -20,6 +20,13 @@ interface Site {
   company_name: string;
   geofence_radius_meters: number;
 }
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%',
+};
+
+const defaultCenter = { lat: 31.5, lng: 34.8 };
 
 function SitesMapContent() {
   const queryClient = useQueryClient();
@@ -131,12 +138,13 @@ function SitesMapContent() {
           {sidebarOpen ? 'הסתר רשימה' : 'הצג רשימה'}
         </button>
 
-        <Map
-          defaultCenter={{ lat: 31.5, lng: 34.8 }}
-          defaultZoom={8}
-          gestureHandling="greedy"
-          className="w-full h-full"
-          mapId="b7ef17e439471657dd56ff74"
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={defaultCenter}
+          zoom={8}
+          options={{
+            gestureHandling: 'greedy',
+          }}
         >
           {filteredSites.map((site: Site) => (
             <Marker
@@ -183,7 +191,7 @@ function SitesMapContent() {
               </div>
             </InfoWindow>
           )}
-        </Map>
+        </GoogleMap>
       </div>
     </div>
   );
