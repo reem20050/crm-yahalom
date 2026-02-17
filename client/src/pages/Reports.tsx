@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
@@ -11,7 +11,6 @@ import {
   Printer,
   Shield,
   Star,
-  FileSpreadsheet,
 } from 'lucide-react';
 import {
   BarChart,
@@ -31,7 +30,6 @@ import {
 import { reportsApi, performanceApi, incidentsApi } from '../services/api';
 import { FileText } from 'lucide-react';
 import { exportTableToPDF } from '../utils/pdfExport';
-import { exportToExcel } from '../utils/excelExport';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -60,61 +58,12 @@ function exportToCSV(data: Record<string, unknown>[], headers: Record<string, st
   URL.revokeObjectURL(url);
 }
 
-// Date range helper
-function getDatePreset(preset: string): { start: string; end: string } {
-  const now = new Date();
-  const end = now.toISOString().split('T')[0];
-  let start: Date;
-  switch (preset) {
-    case 'month':
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      break;
-    case 'last_month': {
-      start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { start: start.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] };
-    }
-    case 'quarter':
-      start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-      break;
-    case 'half_year':
-      start = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-      break;
-    case 'year':
-      start = new Date(now.getFullYear(), 0, 1);
-      break;
-    default:
-      start = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-  }
-  return { start: start.toISOString().split('T')[0], end };
-}
-
-const DATE_PRESETS = [
-  { value: 'month', label: 'החודש' },
-  { value: 'last_month', label: 'חודש שעבר' },
-  { value: 'quarter', label: 'רבעון' },
-  { value: 'half_year', label: '6 חודשים' },
-  { value: 'year', label: 'שנה' },
-];
-
 export default function Reports() {
   const [activeTab, setActiveTab] = useState<ReportTab>('sales');
-  const [datePreset, setDatePreset] = useState('half_year');
-  const [startDate, setStartDate] = useState(() => getDatePreset('half_year').start);
-  const [endDate, setEndDate] = useState(() => getDatePreset('half_year').end);
-
-  const dateParams = useMemo(() => ({ start_date: startDate, end_date: endDate }), [startDate, endDate]);
-
-  const handlePreset = (preset: string) => {
-    setDatePreset(preset);
-    const { start, end } = getDatePreset(preset);
-    setStartDate(start);
-    setEndDate(end);
-  };
 
   const { data: salesData } = useQuery({
-    queryKey: ['reports', 'sales', dateParams],
-    queryFn: () => reportsApi.sales(dateParams).then((res) => res.data),
+    queryKey: ['reports', 'sales'],
+    queryFn: () => reportsApi.sales().then((res) => res.data),
     enabled: activeTab === 'sales',
   });
 
@@ -199,100 +148,6 @@ export default function Reports() {
             first_name: 'שם פרטי', last_name: 'שם משפחה', avg_rating: 'דירוג ממוצע',
             total_ratings: 'דירוגים', shifts_completed: 'משמרות הושלמו', shifts_total: 'סה"כ משמרות'
           }, 'guard-performance.csv');
-        }
-        break;
-    }
-  };
-
-  const handleExcelExport = () => {
-    switch (activeTab) {
-      case 'sales':
-        if (salesData?.leadsBySource) {
-          exportToExcel({
-            title: 'דוח מכירות - לידים לפי מקור',
-            columns: [
-              { header: 'מקור', dataKey: 'source' },
-              { header: 'כמות', dataKey: 'count' },
-            ],
-            data: salesData.leadsBySource,
-            filename: 'sales-report.xlsx',
-          });
-        }
-        break;
-      case 'customers':
-        if (customersData?.revenueByCustomer) {
-          exportToExcel({
-            title: 'דוח לקוחות - הכנסות',
-            columns: [
-              { header: 'חברה', dataKey: 'company_name' },
-              { header: 'הכנסות', dataKey: 'total_revenue', width: 15 },
-              { header: 'חשבוניות', dataKey: 'invoice_count' },
-            ],
-            data: customersData.revenueByCustomer,
-            filename: 'customers-revenue.xlsx',
-          });
-        }
-        break;
-      case 'employees':
-        if (employeesData?.hoursBreakdown) {
-          exportToExcel({
-            title: 'דוח עובדים - שעות עבודה',
-            columns: [
-              { header: 'עובד', dataKey: 'name', width: 20 },
-              { header: 'שעות', dataKey: 'total_hours', width: 10 },
-              { header: 'ימי עבודה', dataKey: 'days_worked', width: 12 },
-              { header: 'שעות שבת', dataKey: 'saturday_hours', width: 12 },
-            ],
-            data: employeesData.hoursBreakdown,
-            filename: 'employees-hours.xlsx',
-          });
-        }
-        break;
-      case 'financial':
-        if (financialData?.revenueByCustomer) {
-          exportToExcel({
-            title: 'דוח כספי - הכנסות לפי לקוח',
-            columns: [
-              { header: 'לקוח', dataKey: 'company_name', width: 25 },
-              { header: 'שולם', dataKey: 'paid', width: 15 },
-              { header: 'ממתין', dataKey: 'pending', width: 15 },
-            ],
-            data: financialData.revenueByCustomer,
-            filename: 'financial-report.xlsx',
-          });
-        }
-        break;
-      case 'profitloss':
-        if (profitLossData?.customerProfitability) {
-          exportToExcel({
-            title: 'דוח רווח והפסד - לפי לקוח',
-            columns: [
-              { header: 'לקוח', dataKey: 'company_name', width: 25 },
-              { header: 'הכנסות', dataKey: 'revenue', width: 15 },
-              { header: 'עלות עבודה', dataKey: 'labor_cost', width: 15 },
-              { header: 'רווח', dataKey: 'profit', width: 15 },
-              { header: 'מרווח %', dataKey: 'margin', width: 10 },
-              { header: 'שעות', dataKey: 'hours', width: 10 },
-            ],
-            data: profitLossData.customerProfitability,
-            filename: 'profit-loss.xlsx',
-          });
-        }
-        break;
-      case 'performance':
-        if (rankingsData?.rankings) {
-          exportToExcel({
-            title: 'דוח ביצועי מאבטחים',
-            columns: [
-              { header: 'שם פרטי', dataKey: 'first_name', width: 15 },
-              { header: 'שם משפחה', dataKey: 'last_name', width: 15 },
-              { header: 'דירוג ממוצע', dataKey: 'avg_rating', width: 12 },
-              { header: 'דירוגים', dataKey: 'total_ratings', width: 10 },
-              { header: 'משמרות הושלמו', dataKey: 'shifts_completed', width: 15 },
-            ],
-            data: rankingsData.rankings,
-            filename: 'guard-performance.xlsx',
-          });
         }
         break;
     }
@@ -404,68 +259,24 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">דוחות</h1>
           <p className="text-gray-500">ניתוח נתונים וביצועים</p>
         </div>
-        <div className="flex items-center gap-2 no-print flex-wrap">
-          <button onClick={handleExcelExport} className="btn-primary flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5" />
-            Excel
-          </button>
+        <div className="flex items-center gap-2 no-print">
           <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
             <Download className="w-5 h-5" />
-            CSV
+            ייצוא לאקסל
           </button>
           <button onClick={handlePDFExport} className="btn-secondary flex items-center gap-2">
             <FileText className="w-5 h-5" />
-            PDF
+            ייצוא PDF
           </button>
           <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2">
             <Printer className="w-5 h-5" />
             הדפס
           </button>
-        </div>
-      </div>
-
-      {/* Date Range Picker */}
-      <div className="card no-print">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-600">טווח תאריכים:</span>
-          </div>
-          <div className="flex gap-1.5">
-            {DATE_PRESETS.map((preset) => (
-              <button
-                key={preset.value}
-                onClick={() => handlePreset(preset.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  datePreset === preset.value
-                    ? 'bg-primary-100 text-primary-700 shadow-sm'
-                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 mr-auto">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setDatePreset(''); }}
-              className="input text-sm py-1.5 px-2 w-36"
-            />
-            <span className="text-gray-400 text-sm">עד</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setDatePreset(''); }}
-              className="input text-sm py-1.5 px-2 w-36"
-            />
-          </div>
         </div>
       </div>
 

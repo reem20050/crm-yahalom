@@ -111,6 +111,17 @@ router.post('/whatsapp/webhook', async (req, res) => {
 router.use(authenticateToken);
 
 // ====================
+// GOOGLE MAPS
+// ====================
+
+// Get Google Maps API key (for frontend map components)
+router.get('/google-maps-key', (req, res) => {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return res.status(404).json({ error: 'Google Maps API key not configured' });
+  res.json({ apiKey: key });
+});
+
+// ====================
 // INTEGRATION SETTINGS
 // ====================
 

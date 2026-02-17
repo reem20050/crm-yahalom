@@ -31,8 +31,6 @@ interface IntegrationSettings {
     connected: boolean;
     phoneNumber?: string;
     wahaUrl?: string;
-    wahaConfigured?: boolean;
-    wahaSessionStatus?: string | null;
   };
   greenInvoice: {
     connected: boolean;
@@ -210,20 +208,30 @@ export default function Settings() {
     return () => stopQrPolling();
   }, []);
 
-  // Auto-detect WhatsApp state from settings
+  // If already connected via settings, verify actual WAHA status
   useEffect(() => {
-    if (!settings || wahaStep !== 'idle') return;
-
-    if (settings.whatsapp.connected) {
-      // Already working - show connected
-      setWahaStep('connected');
-      setWahaPhone(settings.whatsapp.phoneNumber || null);
-    } else if (settings.whatsapp.wahaConfigured && settings.whatsapp.wahaSessionStatus === 'SCAN_QR_CODE') {
-      // WAHA configured, session waiting for QR scan - go straight to QR
-      setWahaStep('qr');
-      startQrPolling();
+    if (settings?.whatsapp.connected && wahaStep === 'idle') {
+      // Check actual WAHA session status
+      api.get('/integrations/whatsapp/status').then(res => {
+        const status = res.data.status;
+        if (status === 'WORKING') {
+          setWahaStep('connected');
+          setWahaPhone(res.data.phoneNumber || settings.whatsapp.phoneNumber || null);
+        } else if (status === 'SCAN_QR_CODE') {
+          setWahaStep('qr');
+          startQrPolling();
+        } else {
+          // Session exists but not authenticated - show QR flow
+          setWahaStep('qr');
+          startQrPolling();
+        }
+      }).catch(() => {
+        // Can't reach WAHA - show as connected based on DB
+        setWahaStep('connected');
+        setWahaPhone(settings.whatsapp.phoneNumber || null);
+      });
     }
-  }, [settings, wahaStep, startQrPolling]);
+  }, [settings, wahaStep]);
 
   // WhatsApp disconnect mutation
   const whatsAppDisconnectMutation = useMutation({
@@ -455,33 +463,6 @@ export default function Settings() {
     }
 
     // Idle - show connect button
-    // If WAHA is configured via ENV, show direct connect button (skip URL input)
-    if (settings?.whatsapp.wahaConfigured) {
-      return (
-        <div className="mt-4">
-          <p className="text-sm text-gray-600 mb-3">
-            חבר את WhatsApp שלך כדי לשלוח תזכורות משמרות, אישורי הזמנות ועוד ישירות מהמערכת.
-          </p>
-          <button
-            onClick={async () => {
-              try {
-                setWahaStep('qr');
-                await api.post('/integrations/whatsapp/start-session');
-                startQrPolling();
-              } catch (err: any) {
-                toast.error(err.response?.data?.message || 'שגיאה בהפעלת WhatsApp');
-                setWahaStep('idle');
-              }
-            }}
-            className="btn-primary flex items-center gap-2"
-          >
-            <MessageCircle className="w-4 h-4" />
-            חבר WhatsApp
-          </button>
-        </div>
-      );
-    }
-
     return (
       <div className="mt-4">
         <p className="text-sm text-gray-600 mb-3">

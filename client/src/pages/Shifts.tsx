@@ -24,6 +24,8 @@ interface ShiftAssignment {
   status: string;
   check_in_time?: string;
   check_out_time?: string;
+  check_in_distance_meters?: number;
+  check_out_distance_meters?: number;
 }
 
 interface ShiftSummary {
@@ -78,6 +80,22 @@ const shiftSchema = z.object({
 });
 
 type ShiftForm = z.infer<typeof shiftSchema>;
+
+// ── GPS Helper ──────────────────────────────────────────────────────────────
+
+function getLocation(): Promise<{ latitude: number; longitude: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+}
 
 // ── Shift Detail Modal Component ────────────────────────────────────────────
 
@@ -154,43 +172,42 @@ function ShiftDetailModal({
     },
   });
 
-  // WhatsApp CRM reminder via API
-  const remindOneMutation = useMutation({
-    mutationFn: (assignmentId: string) => shiftsApi.remindOne(shiftId, assignmentId),
-    onSuccess: () => toast.success('תזכורת WhatsApp נשלחה!'),
-    onError: () => toast.error('שגיאה בשליחת תזכורת'),
-  });
-
-  const remindAllMutation = useMutation({
-    mutationFn: () => shiftsApi.remindAll(shiftId),
-    onSuccess: (res) => toast.success(res.data.message || 'תזכורות נשלחו'),
-    onError: () => toast.error('שגיאה בשליחת תזכורות'),
-  });
-
-  // Fallback: open WhatsApp Web
+  // WhatsApp reminder - opens WhatsApp Web with pre-filled message
   const sendReminder = (phone: string, name: string) => {
     const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${shift?.date}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}\n\nצוות יהלום`;
     openWhatsApp(phone, msg);
   };
 
-  // Check-in mutation
+  // Check-in mutation (with GPS)
   const checkInMutation = useMutation({
-    mutationFn: (assignmentId: string) => shiftsApi.checkIn(assignmentId),
-    onSuccess: () => {
+    mutationFn: async (assignmentId: string) => {
+      const location = await getLocation();
+      return shiftsApi.checkIn(assignmentId, location ? { latitude: location.latitude, longitude: location.longitude } : undefined);
+    },
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['shift-detail', shiftId] });
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
       toast.success('צ\'ק-אין בוצע בהצלחה');
+      if (data?.data?.location_warning) {
+        toast(data.data.location_warning, { icon: '\u26A0\uFE0F', duration: 6000 });
+      }
     },
     onError: () => toast.error('שגיאה בביצוע צ\'ק-אין'),
   });
 
-  // Check-out mutation
+  // Check-out mutation (with GPS)
   const checkOutMutation = useMutation({
-    mutationFn: (assignmentId: string) => shiftsApi.checkOut(assignmentId),
-    onSuccess: () => {
+    mutationFn: async (assignmentId: string) => {
+      const location = await getLocation();
+      return shiftsApi.checkOut(assignmentId, location ? { latitude: location.latitude, longitude: location.longitude } : undefined);
+    },
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['shift-detail', shiftId] });
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
       toast.success('צ\'ק-אאוט בוצע בהצלחה');
+      if (data?.data?.location_warning) {
+        toast(data.data.location_warning, { icon: '\u26A0\uFE0F', duration: 6000 });
+      }
     },
     onError: () => toast.error('שגיאה בביצוע צ\'ק-אאוט'),
   });
@@ -198,7 +215,16 @@ function ShiftDetailModal({
   const isToday = shift?.date === format(new Date(), 'yyyy-MM-dd');
 
   const sendReminderToAll = () => {
-    remindAllMutation.mutate();
+    const withPhone = assignments.filter((a) => a.employee_phone);
+    if (withPhone.length === 0) {
+      toast.error('אין מספרי טלפון לעובדים המשובצים');
+      return;
+    }
+    // Open WhatsApp Web for each employee (each in a new tab)
+    withPhone.forEach((a) => {
+      sendReminder(a.employee_phone!, a.employee_name);
+    });
+    toast.success(`נפתחו ${withPhone.length} חלונות WhatsApp - שלח את ההודעות`);
   };
 
   const handleAssign = () => {
@@ -356,17 +382,40 @@ function ShiftDetailModal({
                             {new Date(assignment.check_in_time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         )}
+                        {assignment.check_in_distance_meters != null && (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                              assignment.check_in_distance_meters <= 200
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-orange-100 text-orange-700'
+                            }`}
+                            title="מרחק כניסה מהאתר"
+                          >
+                            {Math.round(assignment.check_in_distance_meters)}מ'
+                          </span>
+                        )}
                         {assignment.check_out_time && (
                           <span className="text-xs text-gray-400" title="שעת יציאה">
                             - {new Date(assignment.check_out_time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         )}
+                        {assignment.check_out_distance_meters != null && (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                              assignment.check_out_distance_meters <= 200
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-orange-100 text-orange-700'
+                            }`}
+                            title="מרחק יציאה מהאתר"
+                          >
+                            {Math.round(assignment.check_out_distance_meters)}מ'
+                          </span>
+                        )}
                         {assignment.employee_phone && (
                           <button
-                            onClick={() => remindOneMutation.mutate(assignment.id)}
-                            disabled={remindOneMutation.isPending}
+                            onClick={() => sendReminder(assignment.employee_phone!, assignment.employee_name)}
                             className="text-green-500 hover:text-green-700 hover:bg-green-50 p-1.5 rounded-lg transition-colors"
-                            title="שלח תזכורת WhatsApp (CRM)"
+                            title="שלח תזכורת WhatsApp"
                           >
                             <MessageCircle className="w-4 h-4" />
                           </button>

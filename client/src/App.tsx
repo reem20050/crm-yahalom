@@ -26,6 +26,8 @@ const Profile = lazy(() => import('./pages/Profile'));
 const Users = lazy(() => import('./pages/Users'));
 const Incidents = lazy(() => import('./pages/Incidents'));
 const WeaponsEquipment = lazy(() => import('./pages/WeaponsEquipment'));
+const SitesMap = lazy(() => import('./pages/SitesMap'));
+const GuardTracking = lazy(() => import('./pages/GuardTracking'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -79,6 +81,8 @@ function App() {
             <Route path="reports" element={<RoleRoute permission="page:reports"><Reports /></RoleRoute>} />
             <Route path="users" element={<RoleRoute permission="page:users"><Users /></RoleRoute>} />
             <Route path="settings" element={<RoleRoute permission="page:settings"><Settings /></RoleRoute>} />
+            <Route path="sites-map" element={<RoleRoute permission="page:sites-map"><SitesMap /></RoleRoute>} />
+            <Route path="guard-tracking" element={<RoleRoute permission="page:guard-tracking"><GuardTracking /></RoleRoute>} />
             <Route path="profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Route>

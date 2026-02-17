@@ -33,6 +33,7 @@ const patrolsRoutes = require('./routes/patrols');
 const performanceRoutes = require('./routes/performance');
 const equipmentRoutes = require('./routes/equipment');
 const documentsRoutes = require('./routes/documents');
+const sitesRoutes = require('./routes/sites');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
@@ -44,13 +45,13 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com", "https://maps.googleapis.com"],
       scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://fonts.googleapis.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://fonts.googleapis.com", "https://maps.googleapis.com", "https://maps.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://accounts.google.com", "https://graph.facebook.com", "https://api.greeninvoice.co.il"],
-      frameSrc: ["'self'", "https://accounts.google.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: ["'self'", "https://accounts.google.com", "https://graph.facebook.com", "https://api.greeninvoice.co.il", "https://maps.googleapis.com"],
+      frameSrc: ["'self'", "https://accounts.google.com", "https://maps.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://maps.gstatic.com"],
     },
   },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
@@ -107,6 +108,7 @@ app.use('/api/certifications', certificationsRoutes);
 app.use('/api/weapons', weaponsRoutes);
 app.use('/api/shift-templates', shiftTemplatesRoutes);
 app.use('/api/patrols', patrolsRoutes);
+app.use('/api/sites', sitesRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/equipment', equipmentRoutes);
 app.use('/api/documents', documentsRoutes);

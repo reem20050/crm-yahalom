@@ -73,6 +73,11 @@ class Scheduler {
       await this.checkGuardNoShows();
     });
 
+    // Every day at 03:00 - Cleanup old guard location data (30+ days)
+    this.addJob('0 3 * * *', 'guard-location-cleanup', async () => {
+      await this.cleanupGuardLocations();
+    });
+
     console.log(`${this.jobs.length} scheduled tasks registered`);
   }
 
@@ -678,6 +683,21 @@ class Scheduler {
       }
     } catch (error) {
       console.error('[CRON] checkGuardNoShows error:', error.message);
+    }
+  }
+
+  /**
+   * Cleanup old guard location data (older than 30 days)
+   */
+  async cleanupGuardLocations() {
+    try {
+      const result = query(`
+        DELETE FROM guard_locations
+        WHERE recorded_at < datetime('now', '-30 days')
+      `);
+      console.log(`[CRON] Cleaned up old guard locations`);
+    } catch (error) {
+      console.error('[CRON] cleanupGuardLocations error:', error.message);
     }
   }
 

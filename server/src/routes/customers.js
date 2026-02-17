@@ -215,14 +215,25 @@ router.post('/:id/sites', requireManager, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, address, city, requirements, requires_weapon, notes } = req.body;
+    const { name, address, city, requirements, requires_weapon, notes, latitude, longitude } = req.body;
+
+    // Auto-geocode if no coordinates provided
+    let lat = latitude || null;
+    let lng = longitude || null;
+    if (!lat && address) {
+      try {
+        const { geocodeAddress } = require('../utils/geocoder');
+        const geo = await geocodeAddress(address, city);
+        if (geo) { lat = geo.latitude; lng = geo.longitude; }
+      } catch (e) { /* geocoding optional */ }
+    }
 
     const siteId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO sites (id, customer_id, name, address, city, requirements, requires_weapon, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO sites (id, customer_id, name, address, city, requirements, requires_weapon, notes, latitude, longitude)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
-    `, [siteId, req.params.id, name, address, city, requirements, requires_weapon ? 1 : 0, notes]);
+    `, [siteId, req.params.id, name, address, city, requirements, requires_weapon ? 1 : 0, notes, lat, lng]);
 
     res.status(201).json({ site: result.rows[0] });
   } catch (error) {
@@ -234,13 +245,13 @@ router.post('/:id/sites', requireManager, [
 // Update site
 router.put('/:id/sites/:siteId', requireManager, async (req, res) => {
   try {
-    const { name, address, city, requirements, requires_weapon, notes } = req.body;
+    const { name, address, city, requirements, requires_weapon, notes, latitude, longitude } = req.body;
     const result = await db.query(`
       UPDATE sites SET name = $1, address = $2, city = $3, requirements = $4,
-        requires_weapon = $5, notes = $6
-      WHERE id = $7 AND customer_id = $8
+        requires_weapon = $5, notes = $6, latitude = $7, longitude = $8
+      WHERE id = $9 AND customer_id = $10
       RETURNING *
-    `, [name, address, city, requirements, requires_weapon ? 1 : 0, notes, req.params.siteId, req.params.id]);
+    `, [name, address, city, requirements, requires_weapon ? 1 : 0, notes, latitude || null, longitude || null, req.params.siteId, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
     res.json({ site: result.rows[0] });
   } catch (error) {
@@ -261,6 +272,40 @@ router.delete('/:id/sites/:siteId', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Delete site error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת אתר' });
+  }
+});
+
+// Geocode a site's address
+router.post('/:id/sites/:siteId/geocode', requireManager, async (req, res) => {
+  try {
+    const site = await db.query('SELECT * FROM sites WHERE id = $1 AND customer_id = $2', [req.params.siteId, req.params.id]);
+    if (site.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+
+    const { geocodeAddress } = require('../utils/geocoder');
+    const geo = await geocodeAddress(site.rows[0].address, site.rows[0].city);
+    if (!geo) return res.status(400).json({ error: 'לא ניתן למצוא קואורדינטות לכתובת זו' });
+
+    await db.query('UPDATE sites SET latitude = $1, longitude = $2 WHERE id = $3', [geo.latitude, geo.longitude, req.params.siteId]);
+    res.json({ latitude: geo.latitude, longitude: geo.longitude, formatted_address: geo.formatted_address });
+  } catch (error) {
+    console.error('Geocode site error:', error);
+    res.status(500).json({ error: 'שגיאה ב-geocoding' });
+  }
+});
+
+// Manually set site coordinates (from map pin drag)
+router.patch('/:id/sites/:siteId/coordinates', requireManager, async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+    if (latitude == null || longitude == null) return res.status(400).json({ error: 'נדרשים latitude ו-longitude' });
+
+    const result = await db.query('UPDATE sites SET latitude = $1, longitude = $2 WHERE id = $3 AND customer_id = $4 RETURNING *',
+      [latitude, longitude, req.params.siteId, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+    res.json({ site: result.rows[0] });
+  } catch (error) {
+    console.error('Set coordinates error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון קואורדינטות' });
   }
 });
 

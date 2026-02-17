@@ -422,6 +422,36 @@ const initializeDatabase = () => {
     // Column already exists, ignore
   }
 
+  // Google Maps: add lat/lng to sites
+  const siteLocationCols = ['latitude REAL DEFAULT NULL', 'longitude REAL DEFAULT NULL', 'geofence_radius_meters INTEGER DEFAULT 200'];
+  for (const col of siteLocationCols) {
+    try { db.exec(`ALTER TABLE sites ADD COLUMN ${col}`); } catch (e) { /* exists */ }
+  }
+
+  // GPS check-in/out location columns
+  const checkLocationCols = [
+    'check_in_latitude REAL DEFAULT NULL', 'check_in_longitude REAL DEFAULT NULL', 'check_in_distance_meters REAL DEFAULT NULL',
+    'check_out_latitude REAL DEFAULT NULL', 'check_out_longitude REAL DEFAULT NULL', 'check_out_distance_meters REAL DEFAULT NULL'
+  ];
+  for (const col of checkLocationCols) {
+    try { db.exec(`ALTER TABLE shift_assignments ADD COLUMN ${col}`); } catch (e) { /* exists */ }
+  }
+
+  // Guard real-time location tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guard_locations (
+      id TEXT PRIMARY KEY,
+      shift_assignment_id TEXT,
+      employee_id TEXT,
+      site_id TEXT,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      accuracy REAL,
+      recorded_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Soft delete columns (Phase 4)
   const softDeleteTables = ['customers', 'leads', 'employees', 'events', 'invoices'];
   for (const table of softDeleteTables) {
@@ -728,6 +758,12 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_contracts_customer ON contracts(customer_id);
     CREATE INDEX IF NOT EXISTS idx_contracts_end_date ON contracts(end_date);
     CREATE INDEX IF NOT EXISTS idx_events_date_status ON events(event_date, status);
+
+    -- Guard location tracking indexes
+    CREATE INDEX IF NOT EXISTS idx_guard_locations_assignment ON guard_locations(shift_assignment_id);
+    CREATE INDEX IF NOT EXISTS idx_guard_locations_employee ON guard_locations(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_guard_locations_recorded ON guard_locations(recorded_at);
+    CREATE INDEX IF NOT EXISTS idx_sites_lat_lng ON sites(latitude, longitude);
   `);
 
   // Create default admin user if not exists

@@ -367,16 +367,46 @@ router.delete('/:id/assign/:assignmentId', requireManager, async (req, res) => {
   }
 });
 
-// Employee check-in
+// Employee check-in (with optional GPS location)
 router.post('/check-in/:assignmentId', async (req, res) => {
   try {
+    const { latitude, longitude } = req.body || {};
+    let distanceMeters = null;
+    let locationWarning = null;
+
+    // Calculate distance from site if location provided
+    if (latitude && longitude) {
+      try {
+        const siteResult = await db.query(`
+          SELECT si.latitude, si.longitude, si.geofence_radius_meters, si.name
+          FROM shift_assignments sa
+          JOIN shifts s ON sa.shift_id = s.id
+          JOIN sites si ON s.site_id = si.id
+          WHERE sa.id = $1 AND si.latitude IS NOT NULL
+        `, [req.params.assignmentId]);
+
+        if (siteResult.rows.length > 0 && siteResult.rows[0].latitude) {
+          const { calculateDistance } = require('../utils/geocoder');
+          const site = siteResult.rows[0];
+          distanceMeters = calculateDistance(latitude, longitude, site.latitude, site.longitude);
+          const radius = site.geofence_radius_meters || 200;
+          if (distanceMeters > radius) {
+            locationWarning = `המרחק מהאתר ${site.name} הוא ${distanceMeters} מטר (מותר: ${radius} מטר)`;
+          }
+        }
+      } catch (e) { /* location check optional */ }
+    }
+
     const result = await db.query(`
       UPDATE shift_assignments SET
         status = 'checked_in',
-        check_in_time = datetime('now')
+        check_in_time = datetime('now'),
+        check_in_latitude = $2,
+        check_in_longitude = $3,
+        check_in_distance_meters = $4
       WHERE id = $1
       RETURNING *
-    `, [req.params.assignmentId]);
+    `, [req.params.assignmentId, latitude || null, longitude || null, distanceMeters]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'שיבוץ לא נמצא' });
@@ -389,16 +419,46 @@ router.post('/check-in/:assignmentId', async (req, res) => {
       AND status = 'scheduled'
     `, [req.params.assignmentId]);
 
-    res.json({ assignment: result.rows[0], message: 'דווח כניסה בהצלחה' });
+    const response = { assignment: result.rows[0], message: 'דווח כניסה בהצלחה' };
+    if (locationWarning) response.location_warning = locationWarning;
+    if (distanceMeters !== null) response.distance_meters = distanceMeters;
+    res.json(response);
   } catch (error) {
     console.error('Check-in error:', error);
     res.status(500).json({ error: 'שגיאה בדיווח כניסה' });
   }
 });
 
-// Employee check-out
+// Employee check-out (with optional GPS location)
 router.post('/check-out/:assignmentId', async (req, res) => {
   try {
+    const { latitude, longitude } = req.body || {};
+    let distanceMeters = null;
+    let locationWarning = null;
+
+    // Calculate distance from site if location provided
+    if (latitude && longitude) {
+      try {
+        const siteResult = await db.query(`
+          SELECT si.latitude, si.longitude, si.geofence_radius_meters, si.name
+          FROM shift_assignments sa
+          JOIN shifts s ON sa.shift_id = s.id
+          JOIN sites si ON s.site_id = si.id
+          WHERE sa.id = $1 AND si.latitude IS NOT NULL
+        `, [req.params.assignmentId]);
+
+        if (siteResult.rows.length > 0 && siteResult.rows[0].latitude) {
+          const { calculateDistance } = require('../utils/geocoder');
+          const site = siteResult.rows[0];
+          distanceMeters = calculateDistance(latitude, longitude, site.latitude, site.longitude);
+          const radius = site.geofence_radius_meters || 200;
+          if (distanceMeters > radius) {
+            locationWarning = `המרחק מהאתר ${site.name} הוא ${distanceMeters} מטר (מותר: ${radius} מטר)`;
+          }
+        }
+      } catch (e) { /* location check optional */ }
+    }
+
     // Get check-in time to calculate hours
     const assignmentResult = await db.query(
       'SELECT check_in_time FROM shift_assignments WHERE id = $1',
@@ -421,10 +481,13 @@ router.post('/check-out/:assignmentId', async (req, res) => {
       UPDATE shift_assignments SET
         status = 'checked_out',
         check_out_time = datetime('now'),
-        actual_hours = $2
+        actual_hours = $2,
+        check_out_latitude = $3,
+        check_out_longitude = $4,
+        check_out_distance_meters = $5
       WHERE id = $1
       RETURNING *
-    `, [req.params.assignmentId, actualHours.toFixed(2)]);
+    `, [req.params.assignmentId, actualHours.toFixed(2), latitude || null, longitude || null, distanceMeters]);
 
     // Check if all assignments are checked out
     const shiftId = (await db.query('SELECT shift_id FROM shift_assignments WHERE id = $1', [req.params.assignmentId])).rows[0].shift_id;
@@ -438,7 +501,10 @@ router.post('/check-out/:assignmentId', async (req, res) => {
       await db.query("UPDATE shifts SET status = 'completed' WHERE id = $1", [shiftId]);
     }
 
-    res.json({ assignment: result.rows[0], message: 'דווח יציאה בהצלחה' });
+    const response = { assignment: result.rows[0], message: 'דווח יציאה בהצלחה' };
+    if (locationWarning) response.location_warning = locationWarning;
+    if (distanceMeters !== null) response.distance_meters = distanceMeters;
+    res.json(response);
   } catch (error) {
     console.error('Check-out error:', error);
     res.status(500).json({ error: 'שגיאה בדיווח יציאה' });
@@ -554,6 +620,96 @@ router.post('/:id/remind/:assignmentId', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Shift remind single error:', error);
     res.status(500).json({ error: 'שגיאה בשליחת תזכורת' });
+  }
+});
+
+// Guard location report (every 5 minutes from frontend)
+router.post('/location-report', async (req, res) => {
+  try {
+    const assignment_id = req.body.assignment_id || req.body.shift_assignment_id;
+    const { latitude, longitude, accuracy } = req.body;
+    if (!assignment_id || !latitude || !longitude) {
+      return res.status(400).json({ error: 'חסרים פרמטרים' });
+    }
+
+    // Verify the assignment belongs to this user and is checked_in
+    const assignment = await db.query(`
+      SELECT sa.id, sa.employee_id, s.site_id
+      FROM shift_assignments sa
+      JOIN shifts s ON sa.shift_id = s.id
+      JOIN employees e ON sa.employee_id = e.id
+      JOIN users u ON u.employee_id = e.id
+      WHERE sa.id = $1 AND u.id = $2 AND sa.status = 'checked_in'
+    `, [assignment_id, req.user.id]);
+
+    if (assignment.rows.length === 0) {
+      return res.status(403).json({ error: 'שיבוץ לא תקין או שהעובד לא בצ\'ק-אין' });
+    }
+
+    const crypto = require('crypto');
+    const id = crypto.randomUUID();
+    await db.query(`
+      INSERT INTO guard_locations (id, shift_assignment_id, employee_id, site_id, latitude, longitude, accuracy, recorded_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, datetime('now'))
+    `, [id, assignment_id, assignment.rows[0].employee_id, assignment.rows[0].site_id, latitude, longitude, accuracy || null]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Location report error:', error);
+    res.status(500).json({ error: 'שגיאה בדיווח מיקום' });
+  }
+});
+
+// Get active guards with latest location (for guard tracking map)
+router.get('/active-guards', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT sa.id as assignment_id, sa.employee_id,
+             e.first_name || ' ' || e.last_name as employee_name,
+             s.site_id, si.name as site_name, si.address as site_address,
+             si.latitude as site_latitude, si.longitude as site_longitude,
+             c.company_name,
+             gl.latitude, gl.longitude, gl.accuracy, gl.recorded_at
+      FROM shift_assignments sa
+      JOIN shifts s ON sa.shift_id = s.id
+      JOIN employees e ON sa.employee_id = e.id
+      LEFT JOIN sites si ON s.site_id = si.id
+      LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN (
+        SELECT gl1.shift_assignment_id, gl1.latitude, gl1.longitude, gl1.accuracy, gl1.recorded_at
+        FROM guard_locations gl1
+        INNER JOIN (
+          SELECT shift_assignment_id, MAX(recorded_at) as max_recorded
+          FROM guard_locations
+          GROUP BY shift_assignment_id
+        ) gl2 ON gl1.shift_assignment_id = gl2.shift_assignment_id AND gl1.recorded_at = gl2.max_recorded
+      ) gl ON gl.shift_assignment_id = sa.id
+      WHERE sa.status = 'checked_in'
+      AND s.date = date('now')
+      ORDER BY e.first_name
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Active guards error:', error);
+    res.status(500).json({ error: 'שגיאה בשליפת שומרים פעילים' });
+  }
+});
+
+// Get guard location history for an assignment
+router.get('/guard-location-history/:assignmentId', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT latitude, longitude, accuracy, recorded_at
+      FROM guard_locations
+      WHERE shift_assignment_id = $1
+      ORDER BY recorded_at ASC
+    `, [req.params.assignmentId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Guard location history error:', error);
+    res.status(500).json({ error: 'שגיאה בשליפת היסטוריית מיקום' });
   }
 });
 

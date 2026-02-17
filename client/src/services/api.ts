@@ -45,7 +45,6 @@ export const authApi = {
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
   getOperations: () => api.get('/dashboard/operations'),
-  getTrends: () => api.get('/dashboard/trends'),
   getNotifications: (unreadOnly = false) =>
     api.get('/dashboard/notifications', { params: { unread_only: unreadOnly } }),
   markNotificationRead: (id: string) =>
@@ -99,7 +98,7 @@ export const employeesApi = {
     api.get(`/employees/${id}/hours/${year}/${month}`),
 };
 
-// Sites
+// Sites (per customer)
 export const sitesApi = {
   getByCustomer: (customerId: string) => api.get(`/customers/${customerId}/sites`),
   create: (customerId: string, data: Record<string, unknown>) =>
@@ -108,13 +107,28 @@ export const sitesApi = {
     api.put(`/customers/${customerId}/sites/${siteId}`, data),
   delete: (customerId: string, siteId: string) =>
     api.delete(`/customers/${customerId}/sites/${siteId}`),
+  geocode: (customerId: string, siteId: string) =>
+    api.post(`/customers/${customerId}/sites/${siteId}/geocode`),
+  setCoordinates: (customerId: string, siteId: string, data: { latitude: number; longitude: number }) =>
+    api.patch(`/customers/${customerId}/sites/${siteId}/coordinates`, data),
+};
+
+// Sites (global - for map)
+export const sitesGlobalApi = {
+  getAll: () => api.get('/sites'),
+  getWithCoordinates: () => api.get('/sites/with-coordinates'),
+  geocodeAll: () => api.post('/sites/geocode-all'),
+};
+
+// Maps
+export const mapsApi = {
+  getApiKey: () => api.get('/integrations/google-maps-key'),
 };
 
 // Shifts
 export const shiftsApi = {
   getAll: (params?: Record<string, unknown>) => api.get('/shifts', { params }),
   getOne: (id: string) => api.get(`/shifts/${id}`),
-  update: (id: string, data: Record<string, unknown>) => api.patch(`/shifts/${id}`, data),
   delete: (id: string) => api.delete(`/shifts/${id}`),
   create: (data: Record<string, unknown>) => api.post('/shifts', data),
   createRecurring: (data: Record<string, unknown>) => api.post('/shifts/recurring', data),
@@ -122,15 +136,16 @@ export const shiftsApi = {
     api.post(`/shifts/${shiftId}/assign`, data),
   unassign: (shiftId: string, assignmentId: string) =>
     api.delete(`/shifts/${shiftId}/assign/${assignmentId}`),
-  remindAll: (shiftId: string) =>
-    api.post(`/shifts/${shiftId}/remind`),
-  remindOne: (shiftId: string, assignmentId: string) =>
-    api.post(`/shifts/${shiftId}/remind/${assignmentId}`),
   checkIn: (assignmentId: string, data?: Record<string, unknown>) =>
     api.post(`/shifts/check-in/${assignmentId}`, data),
   checkOut: (assignmentId: string, data?: Record<string, unknown>) =>
     api.post(`/shifts/check-out/${assignmentId}`, data),
   getTodaySummary: () => api.get('/shifts/summary/today'),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/shifts/${id}`, data),
+  locationReport: (data: { shift_assignment_id: string; latitude: number; longitude: number; accuracy?: number }) =>
+    api.post('/shifts/location-report', data),
+  getActiveGuards: () => api.get('/shifts/active-guards'),
+  getGuardLocationHistory: (assignmentId: string) => api.get(`/shifts/guard-location-history/${assignmentId}`),
 };
 
 // Events
@@ -182,16 +197,8 @@ export const searchApi = {
 // Integrations
 export const integrationsApi = {
   getSettings: () => api.get('/integrations/settings'),
-  sendWhatsApp: (to: string, message: string, entityType?: string, entityId?: string) =>
-    api.post('/integrations/whatsapp/send', { to, message, entityType, entityId }),
-  getWhatsAppMessages: (params: Record<string, string>) =>
-    api.get('/integrations/whatsapp/messages', { params }),
-  getWhatsAppConversations: () =>
-    api.get('/integrations/whatsapp/conversations'),
-  sendWhatsAppChat: (phone: string, message: string, entityType?: string, entityId?: string) =>
-    api.post('/integrations/whatsapp/chat/send', { phone, message, entityType, entityId }),
-  sendInvoiceReminder: (invoiceId: string) =>
-    api.post(`/integrations/whatsapp/invoice-remind/${invoiceId}`),
+  sendWhatsApp: (to: string, message: string) =>
+    api.post('/integrations/whatsapp/send', { to, message }),
   createGreenInvoice: (data: Record<string, unknown>) =>
     api.post('/integrations/green-invoice/create-invoice', data),
   syncGreenInvoices: (fromDate?: string) =>

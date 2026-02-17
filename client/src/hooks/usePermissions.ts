@@ -16,6 +16,8 @@ const permissions: Record<string, UserRole[]> = {
   'page:weapons': ['admin', 'manager', 'employee'],
   'page:invoices': ['admin', 'manager'],
   'page:reports': ['admin', 'manager'],
+  'page:sites-map': ['admin', 'manager'],
+  'page:guard-tracking': ['admin', 'manager'],
   'page:users': ['admin'],
   'page:settings': ['admin'],
   'page:profile': ['admin', 'manager', 'employee'],
