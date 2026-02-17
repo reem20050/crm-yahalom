@@ -134,6 +134,61 @@ router.get('/summary/today', async (req, res) => {
   }
 });
 
+// Get active guards with latest location (for guard tracking map)
+// MUST be before /:id route to avoid being caught by the param route
+router.get('/active-guards', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT sa.id as assignment_id, sa.employee_id,
+             e.first_name || ' ' || e.last_name as employee_name,
+             s.site_id, si.name as site_name, si.address as site_address,
+             si.latitude as site_latitude, si.longitude as site_longitude,
+             c.company_name,
+             gl.latitude, gl.longitude, gl.accuracy, gl.recorded_at
+      FROM shift_assignments sa
+      JOIN shifts s ON sa.shift_id = s.id
+      JOIN employees e ON sa.employee_id = e.id
+      LEFT JOIN sites si ON s.site_id = si.id
+      LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN (
+        SELECT gl1.shift_assignment_id, gl1.latitude, gl1.longitude, gl1.accuracy, gl1.recorded_at
+        FROM guard_locations gl1
+        INNER JOIN (
+          SELECT shift_assignment_id, MAX(recorded_at) as max_recorded
+          FROM guard_locations
+          GROUP BY shift_assignment_id
+        ) gl2 ON gl1.shift_assignment_id = gl2.shift_assignment_id AND gl1.recorded_at = gl2.max_recorded
+      ) gl ON gl.shift_assignment_id = sa.id
+      WHERE sa.status = 'checked_in'
+      AND s.date = date('now')
+      ORDER BY e.first_name
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Active guards error:', error);
+    res.status(500).json({ error: 'שגיאה בשליפת שומרים פעילים' });
+  }
+});
+
+// Get guard location history for an assignment
+// MUST be before /:id route
+router.get('/guard-location-history/:assignmentId', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT latitude, longitude, accuracy, recorded_at
+      FROM guard_locations
+      WHERE shift_assignment_id = $1
+      ORDER BY recorded_at ASC
+    `, [req.params.assignmentId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Guard location history error:', error);
+    res.status(500).json({ error: 'שגיאה בשליפת היסטוריית מיקום' });
+  }
+});
+
 // Get single shift
 router.get('/:id', async (req, res) => {
   try {
@@ -657,59 +712,6 @@ router.post('/location-report', async (req, res) => {
   } catch (error) {
     console.error('Location report error:', error);
     res.status(500).json({ error: 'שגיאה בדיווח מיקום' });
-  }
-});
-
-// Get active guards with latest location (for guard tracking map)
-router.get('/active-guards', requireManager, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT sa.id as assignment_id, sa.employee_id,
-             e.first_name || ' ' || e.last_name as employee_name,
-             s.site_id, si.name as site_name, si.address as site_address,
-             si.latitude as site_latitude, si.longitude as site_longitude,
-             c.company_name,
-             gl.latitude, gl.longitude, gl.accuracy, gl.recorded_at
-      FROM shift_assignments sa
-      JOIN shifts s ON sa.shift_id = s.id
-      JOIN employees e ON sa.employee_id = e.id
-      LEFT JOIN sites si ON s.site_id = si.id
-      LEFT JOIN customers c ON s.customer_id = c.id
-      LEFT JOIN (
-        SELECT gl1.shift_assignment_id, gl1.latitude, gl1.longitude, gl1.accuracy, gl1.recorded_at
-        FROM guard_locations gl1
-        INNER JOIN (
-          SELECT shift_assignment_id, MAX(recorded_at) as max_recorded
-          FROM guard_locations
-          GROUP BY shift_assignment_id
-        ) gl2 ON gl1.shift_assignment_id = gl2.shift_assignment_id AND gl1.recorded_at = gl2.max_recorded
-      ) gl ON gl.shift_assignment_id = sa.id
-      WHERE sa.status = 'checked_in'
-      AND s.date = date('now')
-      ORDER BY e.first_name
-    `);
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Active guards error:', error);
-    res.status(500).json({ error: 'שגיאה בשליפת שומרים פעילים' });
-  }
-});
-
-// Get guard location history for an assignment
-router.get('/guard-location-history/:assignmentId', requireManager, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT latitude, longitude, accuracy, recorded_at
-      FROM guard_locations
-      WHERE shift_assignment_id = $1
-      ORDER BY recorded_at ASC
-    `, [req.params.assignmentId]);
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Guard location history error:', error);
-    res.status(500).json({ error: 'שגיאה בשליפת היסטוריית מיקום' });
   }
 });
 

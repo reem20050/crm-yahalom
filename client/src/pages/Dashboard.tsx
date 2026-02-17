@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Users,
@@ -17,8 +17,11 @@ import {
   ArrowLeftRight,
   CheckCircle,
   Package,
+  LogIn,
+  LogOut,
+  Loader2,
 } from 'lucide-react';
-import { dashboardApi } from '../services/api';
+import { dashboardApi, shiftsApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 import {
   LineChart,
@@ -124,14 +127,65 @@ export default function Dashboard() {
 }
 
 /* ======== EMPLOYEE VIEW ======== */
+
+function getLocation(): Promise<{ latitude: number; longitude: number } | null> {
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
 function EmployeeView({ data }: { data: any }) {
   const myShifts = data?.myShiftsToday || [];
   const myEvents = data?.myUpcomingEvents || [];
   const myRecent = data?.myRecentShifts || [];
   const myEquipment = data?.myEquipment || [];
 
+  const queryClient = useQueryClient();
+  const [locationWarning, setLocationWarning] = useState<string | null>(null);
+
+  const checkInMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const loc = await getLocation();
+      const res = await shiftsApi.checkIn(assignmentId, loc || {});
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-employee'] });
+      queryClient.invalidateQueries({ queryKey: ['my-active-assignment'] });
+      if (data?.location_warning) {
+        setLocationWarning(data.location_warning);
+        setTimeout(() => setLocationWarning(null), 8000);
+      }
+    },
+  });
+
+  const checkOutMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const loc = await getLocation();
+      const res = await shiftsApi.checkOut(assignmentId, loc || {});
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-employee'] });
+      queryClient.invalidateQueries({ queryKey: ['my-active-assignment'] });
+    },
+  });
+
   return (
     <div className="space-y-6">
+      {/* Location warning */}
+      {locationWarning && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {locationWarning}
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         <div className="stat-card">
@@ -191,38 +245,79 @@ function EmployeeView({ data }: { data: any }) {
           </h3>
           {myShifts.length > 0 ? (
             <div className="space-y-2.5">
-              {myShifts.map((shift: any) => (
-                <div
-                  key={shift.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
-                >
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <p className="font-medium text-sm text-gray-900">
-                        {shift.site_name || shift.company_name}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {shift.start_time} - {shift.end_time}
-                      </p>
+              {myShifts.map((shift: any) => {
+                const isAssigned = shift.assignment_status === 'assigned';
+                const isCheckedIn = shift.assignment_status === 'checked_in';
+                const isCompleted = shift.assignment_status === 'completed';
+                const isBusy = checkInMutation.isPending || checkOutMutation.isPending;
+
+                return (
+                  <div
+                    key={shift.assignment_id || shift.id}
+                    className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className="font-medium text-sm text-gray-900">
+                          {shift.site_name || shift.company_name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {shift.start_time} - {shift.end_time}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {shift.check_in_time ? (
+                          <span className="badge badge-success flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            צ'ק-אין {shift.check_in_time}
+                          </span>
+                        ) : (
+                          <span className="badge badge-warning">ממתין לצ'ק-אין</span>
+                        )}
+                        {shift.check_out_time && (
+                          <span className="badge badge-gray">
+                            צ'ק-אאוט {shift.check_out_time}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {shift.check_in_time ? (
-                        <span className="badge badge-success flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          צ'ק-אין {shift.check_in_time}
-                        </span>
-                      ) : (
-                        <span className="badge badge-warning">ממתין לצ'ק-אין</span>
-                      )}
-                      {shift.check_out_time && (
-                        <span className="badge badge-gray">
-                          צ'ק-אאוט {shift.check_out_time}
-                        </span>
-                      )}
-                    </div>
+
+                    {/* Check-in / Check-out buttons */}
+                    {shift.assignment_id && !isCompleted && (
+                      <div className="mt-3 flex gap-2">
+                        {isAssigned && (
+                          <button
+                            onClick={() => checkInMutation.mutate(shift.assignment_id)}
+                            disabled={isBusy}
+                            className="flex-1 btn-success text-sm py-2 flex items-center justify-center gap-1.5"
+                          >
+                            {checkInMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <LogIn className="w-4 h-4" />
+                            )}
+                            צ'ק-אין
+                          </button>
+                        )}
+                        {isCheckedIn && !shift.check_out_time && (
+                          <button
+                            onClick={() => checkOutMutation.mutate(shift.assignment_id)}
+                            disabled={isBusy}
+                            className="flex-1 btn-danger text-sm py-2 flex items-center justify-center gap-1.5"
+                          >
+                            {checkOutMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <LogOut className="w-4 h-4" />
+                            )}
+                            צ'ק-אאוט
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-10">
