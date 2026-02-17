@@ -157,26 +157,16 @@ app.use('/api/documents', documentsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  const db = require('./config/database');
-  let dbOk = false;
-  let tz = process.env.TZ;
-  let serverTime = new Date().toISOString();
-  try {
-    const result = db.query("SELECT date('now', 'localtime') as today_localtime, datetime('now', 'localtime') as now_localtime, date('now') as today_utc, datetime('now') as now_utc");
-    const nodeLocal = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
-    res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', tz, serverTime, nodeLocal, ...result.rows[0] });
-  } catch (e) {
-    res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', tz, serverTime, dbError: e.message });
-  }
+  res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running' });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', err.message, err.stack);
+  console.error(err.stack);
   if (!res.headersSent) {
     res.status(500).json({
       error: 'שגיאה בשרת',
-      detail: err.message
+      message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 });
