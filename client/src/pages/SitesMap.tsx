@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Map, AdvancedMarker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
+import { Map, Marker, InfoWindow } from '@vis.gl/react-google-maps';
 import { MapPin, Search, Navigation, Building2, Shield, RefreshCw, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -135,22 +135,15 @@ function SitesMapContent() {
           defaultCenter={{ lat: 31.5, lng: 34.8 }}
           defaultZoom={8}
           gestureHandling="greedy"
-          mapId="sites-map"
           className="w-full h-full"
         >
           {filteredSites.map((site: Site) => (
-            <AdvancedMarker
+            <Marker
               key={site.id}
               position={{ lat: site.latitude, lng: site.longitude }}
               onClick={() => setSelectedSite(site)}
               title={site.name}
-            >
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full shadow-lg border-2 border-white ${
-                site.requires_weapon ? 'bg-red-500' : 'bg-primary-500'
-              }`}>
-                <Building2 className="w-4 h-4 text-white" />
-              </div>
-            </AdvancedMarker>
+            />
           ))}
 
           {selectedSite && (

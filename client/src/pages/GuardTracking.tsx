@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Map, AdvancedMarker, InfoWindow } from '@vis.gl/react-google-maps';
+import { Map, Marker, InfoWindow } from '@vis.gl/react-google-maps';
 import { Navigation, User, Clock, MapPin, AlertCircle } from 'lucide-react';
 import GoogleMapProvider from '../components/GoogleMapProvider';
 import { shiftsApi, sitesGlobalApi } from '../services/api';
@@ -106,39 +106,38 @@ function GuardTrackingContent() {
           defaultCenter={{ lat: 31.5, lng: 34.8 }}
           defaultZoom={8}
           gestureHandling="greedy"
-          mapId="guard-tracking-map"
           className="w-full h-full"
         >
           {/* Site markers (smaller, gray) */}
           {sites.map((site: any) => (
-            <AdvancedMarker
+            <Marker
               key={`site-${site.id}`}
               position={{ lat: site.latitude, lng: site.longitude }}
               title={site.name}
-            >
-              <div className="w-5 h-5 rounded-full bg-gray-300 border border-white shadow flex items-center justify-center">
-                <MapPin className="w-3 h-3 text-gray-600" />
-              </div>
-            </AdvancedMarker>
+              icon={{
+                url: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8" fill="%239CA3AF" stroke="white" stroke-width="2"/></svg>'),
+                scaledSize: { width: 20, height: 20, equals: () => false } as google.maps.Size,
+              }}
+            />
           ))}
 
           {/* Guard markers */}
           {guardsWithLocation.map((guard: ActiveGuard) => {
             const mins = minutesAgo(guard.recorded_at);
             const isRecent = mins < 10;
-            const bgColor = isRecent ? 'bg-blue-500' : 'bg-amber-500';
+            const color = isRecent ? '%233B82F6' : '%23F59E0B';
 
             return (
-              <AdvancedMarker
+              <Marker
                 key={guard.assignment_id}
                 position={{ lat: guard.latitude!, lng: guard.longitude! }}
                 onClick={() => setSelectedGuard(guard)}
                 title={guard.employee_name}
-              >
-                <div className={`w-9 h-9 rounded-full ${bgColor} border-2 border-white shadow-lg flex items-center justify-center`}>
-                  <User className="w-4 h-4 text-white" />
-                </div>
-              </AdvancedMarker>
+                icon={{
+                  url: 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>`),
+                  scaledSize: { width: 32, height: 32, equals: () => false } as google.maps.Size,
+                }}
+              />
             );
           })}
 
