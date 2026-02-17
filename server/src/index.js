@@ -45,13 +45,14 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com", "https://maps.googleapis.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com", "https://maps.googleapis.com", "https://maps.gstatic.com"],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://fonts.googleapis.com", "https://maps.googleapis.com", "https://maps.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://accounts.google.com", "https://graph.facebook.com", "https://api.greeninvoice.co.il", "https://maps.googleapis.com"],
+      connectSrc: ["'self'", "https://accounts.google.com", "https://graph.facebook.com", "https://api.greeninvoice.co.il", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.googleapis.com", "https://*.gstatic.com"],
       frameSrc: ["'self'", "https://accounts.google.com", "https://maps.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://maps.gstatic.com"],
+      workerSrc: ["'self'", "blob:"],
     },
   },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
