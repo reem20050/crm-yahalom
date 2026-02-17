@@ -12,11 +12,11 @@ router.get('/expiring', async (req, res) => {
     const result = db.query(`
       SELECT gc.*,
              e.first_name || ' ' || e.last_name as employee_name, e.phone as employee_phone,
-             CAST(julianday(gc.expiry_date) - julianday('now') AS INTEGER) as days_until_expiry
+             CAST(julianday(gc.expiry_date) - julianday('now', 'localtime') AS INTEGER) as days_until_expiry
       FROM guard_certifications gc
       JOIN employees e ON gc.employee_id = e.id
       WHERE gc.expiry_date IS NOT NULL
-      AND gc.expiry_date BETWEEN date('now') AND date('now', '+30 days')
+      AND gc.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
       AND gc.status != 'expired'
       ORDER BY gc.expiry_date
     `);
@@ -34,7 +34,7 @@ router.get('/employee/:employeeId', async (req, res) => {
       SELECT *,
              CASE
                WHEN expiry_date IS NULL THEN 'no_expiry'
-               WHEN expiry_date < date('now') THEN 'expired'
+               WHEN expiry_date < date('now', 'localtime') THEN 'expired'
                WHEN expiry_date < date('now', '+30 days') THEN 'expiring_soon'
                WHEN expiry_date < date('now', '+60 days') THEN 'expiring'
                ELSE 'valid'

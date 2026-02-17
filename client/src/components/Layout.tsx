@@ -20,10 +20,12 @@ import {
   Search,
   User,
   ShieldCheck,
+  Shield,
   AlertTriangle,
   Crosshair,
   MapIcon,
   Navigation,
+  CalendarPlus,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -44,6 +46,8 @@ const navigation = [
   { name: 'לוח שנה', href: '/calendar', icon: CalendarDays, permission: 'page:calendar' },
   { name: 'אירועי אבטחה', href: '/incidents', icon: AlertTriangle, permission: 'page:incidents' },
   { name: 'מפת אתרים', href: '/sites-map', icon: MapIcon, permission: 'page:sites-map' },
+  { name: 'פאנל שומר', href: '/guard-panel', icon: Shield, permission: 'page:guard-panel' },
+  { name: 'משמרות פתוחות', href: '/open-shifts', icon: CalendarPlus, permission: 'page:open-shifts' },
   { name: 'מעקב שומרים', href: '/guard-tracking', icon: Navigation, permission: 'page:guard-tracking' },
   { name: 'נשק וציוד', href: '/weapons', icon: Crosshair, permission: 'page:weapons' },
   { name: 'חשבוניות', href: '/invoices', icon: Receipt, permission: 'page:invoices' },

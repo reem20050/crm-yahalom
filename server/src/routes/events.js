@@ -92,7 +92,7 @@ router.get('/upcoming/week', async (req, res) => {
              (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
       FROM events e
       LEFT JOIN customers c ON e.customer_id = c.id
-      WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
+      WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', '+7 days')
       AND e.status NOT IN ('completed', 'cancelled')
       AND e.deleted_at IS NULL
       ORDER BY e.event_date, e.start_time

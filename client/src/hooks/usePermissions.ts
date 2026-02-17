@@ -18,6 +18,8 @@ const permissions: Record<string, UserRole[]> = {
   'page:reports': ['admin', 'manager'],
   'page:sites-map': ['admin', 'manager'],
   'page:guard-tracking': ['admin', 'manager'],
+  'page:guard-panel': ['admin', 'manager', 'employee'],
+  'page:open-shifts': ['admin', 'manager', 'employee'],
   'page:users': ['admin'],
   'page:settings': ['admin'],
   'page:profile': ['admin', 'manager', 'employee'],

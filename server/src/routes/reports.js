@@ -274,8 +274,8 @@ router.get('/financial', async (req, res) => {
       // Outstanding payments
       db.query(`
         SELECT
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date >= date('now') THEN total_amount ELSE 0 END), 0) as pending,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now') THEN total_amount ELSE 0 END), 0) as overdue,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date >= date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as pending,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as overdue,
           COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-30 days') THEN total_amount ELSE 0 END), 0) as overdue_30,
           COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-60 days') THEN total_amount ELSE 0 END), 0) as overdue_60,
           COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-90 days') THEN total_amount ELSE 0 END), 0) as overdue_90

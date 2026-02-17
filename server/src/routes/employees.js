@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
       SELECT e.*,
              (SELECT COUNT(*) FROM shift_assignments sa
               JOIN shifts s ON sa.shift_id = s.id
-              WHERE sa.employee_id = e.id AND s.date = date('now')) as shifts_today
+              WHERE sa.employee_id = e.id AND s.date = date('now', 'localtime')) as shifts_today
       FROM employees e
       ${whereString}
       ORDER BY e.first_name, e.last_name

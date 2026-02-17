@@ -28,6 +28,8 @@ const Incidents = lazy(() => import('./pages/Incidents'));
 const WeaponsEquipment = lazy(() => import('./pages/WeaponsEquipment'));
 const SitesMap = lazy(() => import('./pages/SitesMap'));
 const GuardTracking = lazy(() => import('./pages/GuardTracking'));
+const GuardPanel = lazy(() => import('./pages/GuardPanel'));
+const OpenShifts = lazy(() => import('./pages/OpenShifts'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -83,6 +85,8 @@ function App() {
             <Route path="settings" element={<RoleRoute permission="page:settings"><Settings /></RoleRoute>} />
             <Route path="sites-map" element={<RoleRoute permission="page:sites-map"><SitesMap /></RoleRoute>} />
             <Route path="guard-tracking" element={<RoleRoute permission="page:guard-tracking"><GuardTracking /></RoleRoute>} />
+            <Route path="guard-panel" element={<GuardPanel />} />
+            <Route path="open-shifts" element={<OpenShifts />} />
             <Route path="profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Route>

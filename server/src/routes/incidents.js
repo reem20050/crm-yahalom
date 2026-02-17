@@ -239,7 +239,7 @@ router.patch('/:id/resolve', requireManager, async (req, res) => {
 
     db.query(`
       UPDATE incidents SET
-        status = 'resolved', resolution = ?, resolution_date = date('now'),
+        status = 'resolved', resolution = ?, resolution_date = date('now', 'localtime'),
         updated_at = datetime('now')
       WHERE id = ?
     `, [resolution, req.params.id]);

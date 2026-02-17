@@ -146,6 +146,9 @@ export const shiftsApi = {
     api.post('/shifts/location-report', data),
   getActiveGuards: () => api.get('/shifts/active-guards'),
   getGuardLocationHistory: (assignmentId: string) => api.get(`/shifts/guard-location-history/${assignmentId}`),
+  getMyActiveAssignment: () => api.get('/shifts/my-active-assignment'),
+  getOpen: () => api.get('/shifts/open'),
+  selfAssign: (shiftId: string) => api.post(`/shifts/${shiftId}/self-assign`),
 };
 
 // Events

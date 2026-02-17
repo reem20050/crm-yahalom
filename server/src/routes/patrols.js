@@ -117,7 +117,7 @@ router.get('/site/:siteId/today', async (req, res) => {
       LEFT JOIN site_checkpoints sc ON pl.checkpoint_id = sc.id
       LEFT JOIN employees e ON pl.employee_id = e.id
       WHERE pl.site_id = ?
-      AND date(pl.checked_at) = date('now')
+      AND date(pl.checked_at) = date('now', 'localtime')
       ORDER BY pl.checked_at DESC
     `, [req.params.siteId]);
 

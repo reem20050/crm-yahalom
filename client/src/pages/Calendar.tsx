@@ -12,6 +12,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { shiftsApi, eventsApi, integrationsApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ function formatMonthRange(year: number, month: number) {
 
 export default function Calendar() {
   const navigate = useNavigate();
+  const { isEmployee } = usePermissions();
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
@@ -157,7 +159,7 @@ export default function Calendar() {
         .then((res) => res.data),
   });
 
-  // Fetch Google Calendar events for the displayed month
+  // Fetch Google Calendar events for the displayed month (managers/admins only)
   const { data: googleData } = useQuery({
     queryKey: ['google-calendar-events', start_date, end_date],
     queryFn: () =>
@@ -165,6 +167,7 @@ export default function Calendar() {
         .getGoogleCalendarEvents(start_date, end_date)
         .then((res) => res.data),
     retry: false,
+    enabled: !isEmployee,
   });
 
   const isLoading = isLoadingShifts || isLoadingEvents;
@@ -338,7 +341,7 @@ export default function Calendar() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">לוח שנה</h1>
-          <p className="text-gray-500">תצוגה חודשית של משמרות ואירועים</p>
+          <p className="text-gray-500">{isEmployee ? 'המשמרות והאירועים שלי' : 'תצוגה חודשית של משמרות ואירועים'}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -351,7 +354,7 @@ export default function Calendar() {
               <span className="w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-300"></span>
               אירועים ({totalEventsThisMonth})
             </span>
-            {googleConnected && (
+            {googleConnected && !isEmployee && (
               <span className="flex items-center gap-1">
                 <span className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-300"></span>
                 Google ({totalGoogleEventsThisMonth})
@@ -428,7 +431,7 @@ export default function Calendar() {
               <PartyPopper className="w-3.5 h-3.5" />
               אירועים
             </button>
-            {googleConnected && (
+            {googleConnected && !isEmployee && (
               <button
                 onClick={() => {
                   if (filter === 'google') {
@@ -542,7 +545,7 @@ export default function Calendar() {
 
       {/* Monthly summary footer */}
       {!isLoading && (
-        <div className={`grid grid-cols-1 ${googleConnected ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+        <div className={`grid grid-cols-1 ${googleConnected && !isEmployee ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
           <div className="card flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Shield className="w-6 h-6 text-blue-600" />
@@ -563,7 +566,7 @@ export default function Calendar() {
             </div>
           </div>
 
-          {googleConnected && (
+          {googleConnected && !isEmployee && (
             <div className="card flex items-center gap-4">
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                 <CalendarIcon className="w-6 h-6 text-purple-600" />

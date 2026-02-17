@@ -110,9 +110,9 @@ router.get('/summary/today', async (req, res) => {
         SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed,
         (SELECT COUNT(*) FROM shift_assignments sa
          JOIN shifts sh ON sa.shift_id = sh.id
-         WHERE sh.date = date('now') AND sa.status = 'no_show') as no_shows
+         WHERE sh.date = date('now', 'localtime') AND sa.status = 'no_show') as no_shows
       FROM shifts s
-      WHERE s.date = date('now')
+      WHERE s.date = date('now', 'localtime')
     `);
 
     const unassignedResult = await db.query(`
@@ -120,7 +120,7 @@ router.get('/summary/today', async (req, res) => {
       FROM shifts s
       LEFT JOIN customers c ON s.customer_id = c.id
       LEFT JOIN sites si ON s.site_id = si.id
-      WHERE s.date = date('now')
+      WHERE s.date = date('now', 'localtime')
       AND (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) < s.required_employees
     `);
 
@@ -160,7 +160,7 @@ router.get('/active-guards', requireManager, async (req, res) => {
         ) gl2 ON gl1.shift_assignment_id = gl2.shift_assignment_id AND gl1.recorded_at = gl2.max_recorded
       ) gl ON gl.shift_assignment_id = sa.id
       WHERE sa.status = 'checked_in'
-      AND s.date = date('now')
+      AND s.date = date('now', 'localtime')
       ORDER BY e.first_name
     `);
 
@@ -186,6 +186,162 @@ router.get('/guard-location-history/:assignmentId', requireManager, async (req, 
   } catch (error) {
     console.error('Guard location history error:', error);
     res.status(500).json({ error: 'שגיאה בשליפת היסטוריית מיקום' });
+  }
+});
+
+// Get my active assignment for today (for guard panel)
+// MUST be before /:id route
+router.get('/my-active-assignment', async (req, res) => {
+  try {
+    // Find employee_id for the current user
+    const empResult = await db.query(
+      'SELECT id FROM employees WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (empResult.rows.length === 0) {
+      return res.json({ assignment: null });
+    }
+    const employeeId = empResult.rows[0].id;
+
+    const result = await db.query(`
+      SELECT sa.id as assignment_id, sa.shift_id, sa.status, sa.check_in_time, sa.check_out_time,
+             s.date, s.start_time, s.end_time,
+             si.name as site_name, si.address as site_address,
+             c.company_name as customer_name
+      FROM shift_assignments sa
+      JOIN shifts s ON sa.shift_id = s.id
+      LEFT JOIN sites si ON s.site_id = si.id
+      LEFT JOIN customers c ON s.customer_id = c.id
+      WHERE sa.employee_id = $1
+      AND s.date = date('now', 'localtime')
+      AND sa.status IN ('assigned', 'checked_in')
+      ORDER BY s.start_time ASC
+      LIMIT 1
+    `, [employeeId]);
+
+    res.json({ assignment: result.rows[0] || null });
+  } catch (error) {
+    console.error('My active assignment error:', error);
+    res.status(500).json({ error: 'שגיאה בשליפת המשמרת הפעילה' });
+  }
+});
+
+// Get open shifts (understaffed future shifts for self-assignment)
+// MUST be before /:id route
+router.get('/open', async (req, res) => {
+  try {
+    // Find employee_id for the current user
+    let employeeId = null;
+    const empResult = await db.query(
+      'SELECT id FROM employees WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (empResult.rows.length > 0) {
+      employeeId = empResult.rows[0].id;
+    }
+
+    const result = await db.query(`
+      SELECT s.id as shift_id, s.date, s.start_time, s.end_time, s.required_employees,
+             si.name as site_name, si.address as site_address,
+             c.company_name as customer_name,
+             (SELECT COUNT(*) FROM shift_assignments sa2 WHERE sa2.shift_id = s.id AND sa2.status != 'cancelled') as assigned_count
+      FROM shifts s
+      LEFT JOIN sites si ON s.site_id = si.id
+      LEFT JOIN customers c ON s.customer_id = c.id
+      WHERE s.date >= date('now', 'localtime')
+      AND s.status IN ('scheduled', 'in_progress')
+      AND s.required_employees > (SELECT COUNT(*) FROM shift_assignments sa3 WHERE sa3.shift_id = s.id AND sa3.status != 'cancelled')
+      ORDER BY s.date ASC, s.start_time ASC
+    `);
+
+    // Filter out shifts where the employee is already assigned
+    let shifts = result.rows.map(row => ({
+      ...row,
+      slots_available: row.required_employees - row.assigned_count
+    }));
+
+    if (employeeId) {
+      const myAssignments = await db.query(
+        `SELECT shift_id FROM shift_assignments WHERE employee_id = $1 AND status != 'cancelled'`,
+        [employeeId]
+      );
+      const myShiftIds = new Set(myAssignments.rows.map(r => r.shift_id));
+      shifts = shifts.filter(s => !myShiftIds.has(s.shift_id));
+    }
+
+    res.json({ shifts });
+  } catch (error) {
+    console.error('Open shifts error:', error);
+    res.status(500).json({ error: 'שגיאה בשליפת משמרות פתוחות' });
+  }
+});
+
+// Self-assign to a shift
+router.post('/:shiftId/self-assign', async (req, res) => {
+  try {
+    const { shiftId } = req.params;
+
+    // Find employee_id for the current user
+    const empResult = await db.query(
+      'SELECT id, first_name, last_name FROM employees WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (empResult.rows.length === 0) {
+      return res.status(400).json({ error: 'לא נמצא פרופיל עובד עבור המשתמש' });
+    }
+    const employee = empResult.rows[0];
+
+    // Check shift exists and is in the future
+    const shiftResult = await db.query(
+      `SELECT s.*, si.name as site_name FROM shifts s LEFT JOIN sites si ON s.site_id = si.id WHERE s.id = $1`,
+      [shiftId]
+    );
+    if (shiftResult.rows.length === 0) {
+      return res.status(404).json({ error: 'משמרת לא נמצאה' });
+    }
+    const shift = shiftResult.rows[0];
+
+    if (shift.date < new Date().toISOString().split('T')[0]) {
+      return res.status(400).json({ error: 'לא ניתן להירשם למשמרת שעברה' });
+    }
+
+    // Check not already assigned
+    const existingAssignment = await db.query(
+      `SELECT id FROM shift_assignments WHERE shift_id = $1 AND employee_id = $2 AND status != 'cancelled'`,
+      [shiftId, employee.id]
+    );
+    if (existingAssignment.rows.length > 0) {
+      return res.status(400).json({ error: 'כבר משובץ למשמרת זו' });
+    }
+
+    // Check available slots
+    const assignedCount = await db.query(
+      `SELECT COUNT(*) as cnt FROM shift_assignments WHERE shift_id = $1 AND status != 'cancelled'`,
+      [shiftId]
+    );
+    if (assignedCount.rows[0].cnt >= shift.required_employees) {
+      return res.status(400).json({ error: 'אין מקומות פנויים במשמרת זו' });
+    }
+
+    // Create assignment
+    const assignmentId = db.generateUUID();
+    await db.query(
+      `INSERT INTO shift_assignments (id, shift_id, employee_id, status)
+       VALUES ($1, $2, $3, 'assigned')`,
+      [assignmentId, shiftId, employee.id]
+    );
+
+    res.status(201).json({
+      id: assignmentId,
+      shift_id: shiftId,
+      employee_id: employee.id,
+      employee_name: `${employee.first_name} ${employee.last_name}`,
+      status: 'assigned',
+      message: 'נרשמת למשמרת בהצלחה'
+    });
+  } catch (error) {
+    console.error('Self-assign error:', error);
+    res.status(500).json({ error: 'שגיאה ברישום למשמרת' });
   }
 });
 

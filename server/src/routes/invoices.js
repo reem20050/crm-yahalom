@@ -59,11 +59,11 @@ router.get('/', async (req, res) => {
       SELECT i.*,
              c.company_name,
              CASE
-               WHEN i.status = 'sent' AND i.due_date < date('now') THEN 'overdue'
+               WHEN i.status = 'sent' AND i.due_date < date('now', 'localtime') THEN 'overdue'
                ELSE i.status
              END as computed_status,
              CASE
-               WHEN i.due_date < date('now') THEN CAST(julianday('now') - julianday(i.due_date) AS INTEGER)
+               WHEN i.due_date < date('now', 'localtime') THEN CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER)
                ELSE 0
              END as days_overdue
       FROM invoices i
@@ -89,11 +89,11 @@ router.get('/status/overdue', async (req, res) => {
     const result = await db.query(`
       SELECT i.*,
              c.company_name,
-             CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+             CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) as days_overdue
       FROM invoices i
       LEFT JOIN customers c ON i.customer_id = c.id
       WHERE i.status = 'sent'
-      AND i.due_date < date('now')
+      AND i.due_date < date('now', 'localtime')
       AND i.deleted_at IS NULL
       ORDER BY i.due_date
     `);

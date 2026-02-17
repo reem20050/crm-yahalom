@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
           JOIN shifts s ON sa.shift_id = s.id
           LEFT JOIN customers c ON s.customer_id = c.id
           LEFT JOIN sites si ON s.site_id = si.id
-          WHERE sa.employee_id = $1 AND s.date = date('now')
+          WHERE sa.employee_id = $1 AND s.date = date('now', 'localtime')
           ORDER BY s.start_time
         `, [empId]),
 
@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
           JOIN events e ON ea.event_id = e.id
           LEFT JOIN customers c ON e.customer_id = c.id
           WHERE ea.employee_id = $1
-            AND e.event_date BETWEEN date('now') AND date('now', '+7 days')
+            AND e.event_date BETWEEN date('now', 'localtime') AND date('now', '+7 days')
             AND e.status NOT IN ('completed', 'cancelled')
           ORDER BY e.event_date, e.start_time
         `, [empId]),
@@ -111,7 +111,7 @@ router.get('/', async (req, res) => {
           SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
         FROM shifts
-        WHERE date = date('now')
+        WHERE date = date('now', 'localtime')
       `),
 
       // Upcoming events (next 7 days)
@@ -122,7 +122,7 @@ router.get('/', async (req, res) => {
                (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
         FROM events e
         LEFT JOIN customers c ON e.customer_id = c.id
-        WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
+        WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', '+7 days')
         AND e.status NOT IN ('completed', 'cancelled')
         ORDER BY e.event_date, e.start_time
         LIMIT 5
@@ -132,10 +132,10 @@ router.get('/', async (req, res) => {
       db.query(`
         SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
                c.company_name,
-               CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+               CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) as days_overdue
         FROM invoices i
         LEFT JOIN customers c ON i.customer_id = c.id
-        WHERE i.status = 'sent' AND i.due_date < date('now')
+        WHERE i.status = 'sent' AND i.due_date < date('now', 'localtime')
         ORDER BY i.due_date
         LIMIT 5
       `),
@@ -168,7 +168,7 @@ router.get('/', async (req, res) => {
         FROM contracts ct
         JOIN customers c ON ct.customer_id = c.id
         WHERE ct.status = 'active'
-        AND ct.end_date BETWEEN date('now') AND date('now', '+30 days')
+        AND ct.end_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
         ORDER BY ct.end_date
         LIMIT 5
       `),
@@ -179,7 +179,7 @@ router.get('/', async (req, res) => {
         FROM shifts s
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN sites si ON s.site_id = si.id
-        WHERE s.date = date('now')
+        WHERE s.date = date('now', 'localtime')
         AND (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) < s.required_employees
         ORDER BY s.start_time
       `)
@@ -210,7 +210,7 @@ router.get('/trends', async (req, res) => {
       db.query(`
         SELECT date, COUNT(*) as count
         FROM shifts
-        WHERE date BETWEEN date('now', '-6 days') AND date('now')
+        WHERE date BETWEEN date('now', '-6 days') AND date('now', 'localtime')
         GROUP BY date
         ORDER BY date
       `),
@@ -307,21 +307,21 @@ router.get('/operations', async (req, res) => {
         SELECT COUNT(DISTINCT sa.employee_id) as count
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
-        WHERE s.date = date('now') AND sa.status = 'checked_in'
+        WHERE s.date = date('now', 'localtime') AND sa.status = 'checked_in'
       `),
       // Guards expected today
       safeQuery(`
         SELECT COUNT(DISTINCT sa.employee_id) as count
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
-        WHERE s.date = date('now')
+        WHERE s.date = date('now', 'localtime')
       `),
       // Sites with at least one checked-in guard
       safeQuery(`
         SELECT COUNT(DISTINCT s.site_id) as count
         FROM shifts s
         JOIN shift_assignments sa ON sa.shift_id = s.id
-        WHERE s.date = date('now') AND s.site_id IS NOT NULL AND sa.status = 'checked_in'
+        WHERE s.date = date('now', 'localtime') AND s.site_id IS NOT NULL AND sa.status = 'checked_in'
       `),
       // Open incidents
       safeQuery(`
@@ -335,7 +335,7 @@ router.get('/operations', async (req, res) => {
                e.first_name || ' ' || e.last_name as employee_name
         FROM certifications c
         JOIN employees e ON c.employee_id = e.id
-        WHERE c.expiry_date BETWEEN date('now') AND date('now', '+30 days')
+        WHERE c.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
         ORDER BY c.expiry_date
         LIMIT 10
       `),
@@ -349,7 +349,7 @@ router.get('/operations', async (req, res) => {
         JOIN employees e ON sa.employee_id = e.id
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN sites si ON s.site_id = si.id
-        WHERE s.date = date('now')
+        WHERE s.date = date('now', 'localtime')
           AND sa.status = 'assigned'
           AND s.start_time <= strftime('%H:%M', 'now', '+30 minutes')
         ORDER BY s.start_time
@@ -361,7 +361,7 @@ router.get('/operations', async (req, res) => {
         FROM shifts s
         LEFT JOIN sites si ON s.site_id = si.id
         LEFT JOIN customers c ON s.customer_id = c.id
-        WHERE s.date = date('now')
+        WHERE s.date = date('now', 'localtime')
           AND s.site_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM shift_assignments sa

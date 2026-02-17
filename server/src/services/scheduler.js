@@ -122,7 +122,7 @@ class Scheduler {
         JOIN shifts s ON sa.shift_id = s.id
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN sites si ON s.site_id = si.id
-        WHERE s.date = date('now')
+        WHERE s.date = date('now', 'localtime')
         AND sa.status = 'assigned'
         AND e.phone IS NOT NULL
       `);
@@ -211,11 +211,11 @@ class Scheduler {
       const result = query(`
         SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
                c.company_name,
-               CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+               CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) as days_overdue
         FROM invoices i
         LEFT JOIN customers c ON i.customer_id = c.id
         WHERE i.status = 'sent'
-        AND i.due_date < date('now')
+        AND i.due_date < date('now', 'localtime')
         ORDER BY i.due_date
       `);
 
@@ -263,13 +263,13 @@ class Scheduler {
         SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
                i.customer_id, c.company_name,
                ct.name as contact_name, ct.phone as contact_phone, ct.customer_id,
-               CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+               CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) as days_overdue
         FROM invoices i
         LEFT JOIN customers c ON i.customer_id = c.id
         LEFT JOIN contacts ct ON ct.customer_id = i.customer_id AND ct.is_primary = 1
         WHERE i.status = 'sent'
-        AND i.due_date < date('now')
-        AND CAST(julianday('now') - julianday(i.due_date) AS INTEGER) IN (3, 7, 14, 30)
+        AND i.due_date < date('now', 'localtime')
+        AND CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) IN (3, 7, 14, 30)
         AND ct.phone IS NOT NULL
         ORDER BY i.due_date
       `);
@@ -313,13 +313,13 @@ class Scheduler {
           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
           SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
         FROM shifts
-        WHERE date BETWEEN date('now', '-7 days') AND date('now')
+        WHERE date BETWEEN date('now', '-7 days') AND date('now', 'localtime')
       `);
 
       const eventsResult = query(`
         SELECT COUNT(*) as total
         FROM events
-        WHERE event_date BETWEEN date('now') AND date('now', '+7 days')
+        WHERE event_date BETWEEN date('now', 'localtime') AND date('now', '+7 days')
       `);
 
       const leadsResult = query(`
@@ -333,9 +333,9 @@ class Scheduler {
       const invoiceResult = query(`
         SELECT
           COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as paid,
-          COUNT(CASE WHEN status = 'sent' AND due_date < date('now') THEN 1 END) as overdue_count
+          COUNT(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime') THEN 1 END) as overdue_count
         FROM invoices
-        WHERE issue_date >= date('now', '-7 days') OR (status = 'sent' AND due_date < date('now'))
+        WHERE issue_date >= date('now', '-7 days') OR (status = 'sent' AND due_date < date('now', 'localtime'))
       `);
 
       const shifts = shiftsResult.rows[0] || {};
@@ -384,11 +384,11 @@ class Scheduler {
       const result = query(`
         SELECT ed.id, ed.document_type, ed.expiry_date,
                e.first_name, e.last_name, e.phone,
-               CAST(julianday(ed.expiry_date) - julianday('now') AS INTEGER) as days_until_expiry
+               CAST(julianday(ed.expiry_date) - julianday('now', 'localtime') AS INTEGER) as days_until_expiry
         FROM employee_documents ed
         JOIN employees e ON ed.employee_id = e.id
         WHERE ed.expiry_date IS NOT NULL
-        AND ed.expiry_date BETWEEN date('now') AND date('now', '+14 days')
+        AND ed.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+14 days')
         ORDER BY ed.expiry_date
       `);
 
@@ -440,11 +440,11 @@ class Scheduler {
       const result = query(`
         SELECT cc.id, cc.end_date, cc.monthly_value,
                c.company_name,
-               CAST(julianday(cc.end_date) - julianday('now') AS INTEGER) as days_until_expiry
+               CAST(julianday(cc.end_date) - julianday('now', 'localtime') AS INTEGER) as days_until_expiry
         FROM customer_contracts cc
         JOIN customers c ON cc.customer_id = c.id
         WHERE cc.status = 'active'
-        AND cc.end_date BETWEEN date('now') AND date('now', '+30 days')
+        AND cc.end_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
         ORDER BY cc.end_date
       `);
 
@@ -487,7 +487,7 @@ class Scheduler {
                c.company_name
         FROM events e
         LEFT JOIN customers c ON e.customer_id = c.id
-        WHERE e.event_date BETWEEN date('now') AND date('now', '+3 days')
+        WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', '+3 days')
         AND e.status NOT IN ('completed', 'cancelled')
         AND (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) < e.required_guards
         ORDER BY e.event_date, e.start_time
@@ -530,12 +530,12 @@ class Scheduler {
       const result = query(`
         SELECT gc.id, gc.cert_type, gc.cert_name, gc.expiry_date,
                e.first_name, e.last_name, e.phone,
-               CAST(julianday(gc.expiry_date) - julianday('now') AS INTEGER) as days_until_expiry
+               CAST(julianday(gc.expiry_date) - julianday('now', 'localtime') AS INTEGER) as days_until_expiry
         FROM guard_certifications gc
         JOIN employees e ON gc.employee_id = e.id
         WHERE gc.expiry_date IS NOT NULL
         AND gc.status = 'active'
-        AND gc.expiry_date BETWEEN date('now') AND date('now', '+14 days')
+        AND gc.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+14 days')
         ORDER BY gc.expiry_date
       `);
 
@@ -582,7 +582,7 @@ class Scheduler {
       const result = query(`
         SELECT i.id, i.title, i.severity, i.incident_type, i.incident_date, i.status,
                c.company_name, s.name as site_name,
-               CAST(julianday('now') - julianday(i.created_at) AS INTEGER) as days_open
+               CAST(julianday('now', 'localtime') - julianday(i.created_at) AS INTEGER) as days_open
         FROM incidents i
         LEFT JOIN customers c ON i.customer_id = c.id
         LEFT JOIN sites s ON i.site_id = s.id
@@ -632,7 +632,7 @@ class Scheduler {
         JOIN shifts s ON sa.shift_id = s.id
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN sites si ON s.site_id = si.id
-        WHERE s.date = date('now')
+        WHERE s.date = date('now', 'localtime')
         AND sa.status = 'assigned'
         AND sa.check_in_time IS NULL
         AND time('now', 'localtime') > time(s.start_time, '+15 minutes')
