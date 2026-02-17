@@ -96,7 +96,7 @@ router.get('/stats/summary', async (req, res) => {
         SUM(CASE WHEN status = 'proposal_sent' THEN 1 ELSE 0 END) as proposals,
         SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
         SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END) as lost,
-        SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as this_month,
+        SUM(CASE WHEN created_at >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as this_month,
         COALESCE(SUM(CASE WHEN status != 'lost' THEN expected_value ELSE 0 END), 0) as pipeline_value
       FROM leads
       WHERE deleted_at IS NULL

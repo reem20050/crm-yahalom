@@ -71,10 +71,10 @@ router.get('/stats', async (req, res) => {
       SELECT
         SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
         SUM(CASE WHEN status = 'investigating' THEN 1 ELSE 0 END) as investigating_count,
-        SUM(CASE WHEN status = 'resolved' AND resolution_date >= date('now', 'start of month') THEN 1 ELSE 0 END) as resolved_this_month,
-        SUM(CASE WHEN status = 'closed' AND resolution_date >= date('now', 'start of month') THEN 1 ELSE 0 END) as closed_this_month,
+        SUM(CASE WHEN status = 'resolved' AND resolution_date >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as resolved_this_month,
+        SUM(CASE WHEN status = 'closed' AND resolution_date >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as closed_this_month,
         SUM(CASE WHEN severity = 'critical' AND status IN ('open', 'investigating') THEN 1 ELSE 0 END) as critical_open,
-        SUM(CASE WHEN incident_date >= date('now', 'start of month') THEN 1 ELSE 0 END) as total_this_month
+        SUM(CASE WHEN incident_date >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as total_this_month
       FROM incidents
     `);
     res.json(result.rows[0] || {});

@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
           JOIN events e ON ea.event_id = e.id
           LEFT JOIN customers c ON e.customer_id = c.id
           WHERE ea.employee_id = $1
-            AND e.event_date BETWEEN date('now', 'localtime') AND date('now', '+7 days')
+            AND e.event_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')
             AND e.status NOT IN ('completed', 'cancelled')
           ORDER BY e.event_date, e.start_time
         `, [empId]),
@@ -91,7 +91,7 @@ router.get('/', async (req, res) => {
         SELECT
           SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_leads,
           SUM(CASE WHEN status IN ('contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation') THEN 1 ELSE 0 END) as active_leads,
-          SUM(CASE WHEN status = 'won' AND updated_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as won_this_month
+          SUM(CASE WHEN status = 'won' AND updated_at >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as won_this_month
         FROM leads
       `),
 
@@ -99,7 +99,7 @@ router.get('/', async (req, res) => {
       db.query(`
         SELECT
           SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_customers,
-          SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as new_this_month
+          SUM(CASE WHEN created_at >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as new_this_month
         FROM customers
       `),
 
@@ -122,7 +122,7 @@ router.get('/', async (req, res) => {
                (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
         FROM events e
         LEFT JOIN customers c ON e.customer_id = c.id
-        WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', '+7 days')
+        WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')
         AND e.status NOT IN ('completed', 'cancelled')
         ORDER BY e.event_date, e.start_time
         LIMIT 5
@@ -147,7 +147,7 @@ router.get('/', async (req, res) => {
           SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END) as revenue,
           SUM(total_amount) as total_invoiced
         FROM invoices
-        WHERE issue_date >= date('now', 'start of month', '-5 months')
+        WHERE issue_date >= date('now', 'localtime', 'start of month', '-5 months')
         GROUP BY strftime('%Y-%m', issue_date)
         ORDER BY month
       `),
@@ -168,7 +168,7 @@ router.get('/', async (req, res) => {
         FROM contracts ct
         JOIN customers c ON ct.customer_id = c.id
         WHERE ct.status = 'active'
-        AND ct.end_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
+        AND ct.end_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+30 days')
         ORDER BY ct.end_date
         LIMIT 5
       `),
@@ -210,7 +210,7 @@ router.get('/trends', async (req, res) => {
       db.query(`
         SELECT date, COUNT(*) as count
         FROM shifts
-        WHERE date BETWEEN date('now', '-6 days') AND date('now', 'localtime')
+        WHERE date BETWEEN date('now', 'localtime', '-6 days') AND date('now', 'localtime')
         GROUP BY date
         ORDER BY date
       `),
@@ -219,7 +219,7 @@ router.get('/trends', async (req, res) => {
       db.query(`
         SELECT date(created_at) as date, COUNT(*) as count
         FROM leads
-        WHERE created_at >= date('now', '-6 days')
+        WHERE created_at >= date('now', 'localtime', '-6 days')
         GROUP BY date(created_at)
         ORDER BY date
       `),
@@ -230,7 +230,7 @@ router.get('/trends', async (req, res) => {
                COALESCE(SUM(total_amount), 0) as amount
         FROM invoices
         WHERE status = 'paid'
-          AND payment_date >= date('now', '-6 days')
+          AND payment_date >= date('now', 'localtime', '-6 days')
         GROUP BY date(payment_date)
         ORDER BY date
       `),
@@ -239,7 +239,7 @@ router.get('/trends', async (req, res) => {
       db.query(`
         SELECT date(created_at) as date, COUNT(*) as count
         FROM incidents
-        WHERE created_at >= date('now', '-6 days')
+        WHERE created_at >= date('now', 'localtime', '-6 days')
         GROUP BY date(created_at)
         ORDER BY date
       `)
@@ -335,7 +335,7 @@ router.get('/operations', async (req, res) => {
                e.first_name || ' ' || e.last_name as employee_name
         FROM certifications c
         JOIN employees e ON c.employee_id = e.id
-        WHERE c.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
+        WHERE c.expiry_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+30 days')
         ORDER BY c.expiry_date
         LIMIT 10
       `),

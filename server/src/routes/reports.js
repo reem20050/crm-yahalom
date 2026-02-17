@@ -108,7 +108,7 @@ router.get('/customers', async (req, res) => {
         LEFT JOIN events e ON e.customer_id = c.id
         WHERE c.status = 'active'
         GROUP BY c.id, c.company_name, c.created_at
-        HAVING COALESCE(MAX(s.date), MAX(e.event_date), date(c.created_at)) < date('now', '-90 days')
+        HAVING COALESCE(MAX(s.date), MAX(e.event_date), date(c.created_at)) < date('now', 'localtime', '-90 days')
         ORDER BY COALESCE(MAX(s.date), MAX(e.event_date), date(c.created_at)) DESC
         LIMIT 10
       `)
@@ -276,9 +276,9 @@ router.get('/financial', async (req, res) => {
         SELECT
           COALESCE(SUM(CASE WHEN status = 'sent' AND due_date >= date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as pending,
           COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as overdue,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-30 days') THEN total_amount ELSE 0 END), 0) as overdue_30,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-60 days') THEN total_amount ELSE 0 END), 0) as overdue_60,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', '-90 days') THEN total_amount ELSE 0 END), 0) as overdue_90
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime', '-30 days') THEN total_amount ELSE 0 END), 0) as overdue_30,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime', '-60 days') THEN total_amount ELSE 0 END), 0) as overdue_60,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime', '-90 days') THEN total_amount ELSE 0 END), 0) as overdue_90
         FROM invoices
       `),
 

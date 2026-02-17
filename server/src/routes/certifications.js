@@ -16,7 +16,7 @@ router.get('/expiring', async (req, res) => {
       FROM guard_certifications gc
       JOIN employees e ON gc.employee_id = e.id
       WHERE gc.expiry_date IS NOT NULL
-      AND gc.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
+      AND gc.expiry_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+30 days')
       AND gc.status != 'expired'
       ORDER BY gc.expiry_date
     `);
@@ -35,8 +35,8 @@ router.get('/employee/:employeeId', async (req, res) => {
              CASE
                WHEN expiry_date IS NULL THEN 'no_expiry'
                WHEN expiry_date < date('now', 'localtime') THEN 'expired'
-               WHEN expiry_date < date('now', '+30 days') THEN 'expiring_soon'
-               WHEN expiry_date < date('now', '+60 days') THEN 'expiring'
+               WHEN expiry_date < date('now', 'localtime', '+30 days') THEN 'expiring_soon'
+               WHEN expiry_date < date('now', 'localtime', '+60 days') THEN 'expiring'
                ELSE 'valid'
              END as expiry_status
       FROM guard_certifications

@@ -171,7 +171,7 @@ class Scheduler {
         JOIN shifts s ON sa.shift_id = s.id
         LEFT JOIN customers c ON s.customer_id = c.id
         LEFT JOIN sites si ON s.site_id = si.id
-        WHERE s.date = date('now', '+1 day')
+        WHERE s.date = date('now', 'localtime', '+1 day')
         AND sa.status = 'assigned'
         AND e.phone IS NOT NULL
       `);
@@ -313,13 +313,13 @@ class Scheduler {
           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
           SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
         FROM shifts
-        WHERE date BETWEEN date('now', '-7 days') AND date('now', 'localtime')
+        WHERE date BETWEEN date('now', 'localtime', '-7 days') AND date('now', 'localtime')
       `);
 
       const eventsResult = query(`
         SELECT COUNT(*) as total
         FROM events
-        WHERE event_date BETWEEN date('now', 'localtime') AND date('now', '+7 days')
+        WHERE event_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')
       `);
 
       const leadsResult = query(`
@@ -327,7 +327,7 @@ class Scheduler {
           COUNT(*) as new_leads,
           SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won
         FROM leads
-        WHERE created_at >= date('now', '-7 days')
+        WHERE created_at >= date('now', 'localtime', '-7 days')
       `);
 
       const invoiceResult = query(`
@@ -335,7 +335,7 @@ class Scheduler {
           COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as paid,
           COUNT(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime') THEN 1 END) as overdue_count
         FROM invoices
-        WHERE issue_date >= date('now', '-7 days') OR (status = 'sent' AND due_date < date('now', 'localtime'))
+        WHERE issue_date >= date('now', 'localtime', '-7 days') OR (status = 'sent' AND due_date < date('now', 'localtime'))
       `);
 
       const shifts = shiftsResult.rows[0] || {};
@@ -388,7 +388,7 @@ class Scheduler {
         FROM employee_documents ed
         JOIN employees e ON ed.employee_id = e.id
         WHERE ed.expiry_date IS NOT NULL
-        AND ed.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+14 days')
+        AND ed.expiry_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+14 days')
         ORDER BY ed.expiry_date
       `);
 
@@ -444,7 +444,7 @@ class Scheduler {
         FROM customer_contracts cc
         JOIN customers c ON cc.customer_id = c.id
         WHERE cc.status = 'active'
-        AND cc.end_date BETWEEN date('now', 'localtime') AND date('now', '+30 days')
+        AND cc.end_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+30 days')
         ORDER BY cc.end_date
       `);
 
@@ -487,7 +487,7 @@ class Scheduler {
                c.company_name
         FROM events e
         LEFT JOIN customers c ON e.customer_id = c.id
-        WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', '+3 days')
+        WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+3 days')
         AND e.status NOT IN ('completed', 'cancelled')
         AND (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) < e.required_guards
         ORDER BY e.event_date, e.start_time
@@ -535,7 +535,7 @@ class Scheduler {
         JOIN employees e ON gc.employee_id = e.id
         WHERE gc.expiry_date IS NOT NULL
         AND gc.status = 'active'
-        AND gc.expiry_date BETWEEN date('now', 'localtime') AND date('now', '+14 days')
+        AND gc.expiry_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+14 days')
         ORDER BY gc.expiry_date
       `);
 

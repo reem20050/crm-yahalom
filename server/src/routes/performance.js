@@ -32,7 +32,7 @@ router.get('/employee/:employeeId', async (req, res) => {
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
       WHERE sa.employee_id = ?
-      AND s.date >= date('now', '-3 months')
+      AND s.date >= date('now', 'localtime', '-3 months')
     `, [employeeId]);
 
     // This month's shifts
@@ -41,7 +41,7 @@ router.get('/employee/:employeeId', async (req, res) => {
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
       WHERE sa.employee_id = ?
-      AND s.date >= date('now', 'start of month')
+      AND s.date >= date('now', 'localtime', 'start of month')
     `, [employeeId]);
 
     // Total hours (last 3 months)
@@ -50,7 +50,7 @@ router.get('/employee/:employeeId', async (req, res) => {
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
       WHERE sa.employee_id = ?
-      AND s.date >= date('now', '-3 months')
+      AND s.date >= date('now', 'localtime', '-3 months')
     `, [employeeId]);
 
     // Incidents handled
@@ -65,7 +65,7 @@ router.get('/employee/:employeeId', async (req, res) => {
       SELECT COUNT(*) as total_patrols
       FROM patrol_logs
       WHERE employee_id = ?
-      AND date(checked_at) >= date('now', '-3 months')
+      AND date(checked_at) >= date('now', 'localtime', '-3 months')
     `, [employeeId]);
 
     // Recent ratings
@@ -134,11 +134,11 @@ router.get('/rankings', async (req, res) => {
         COUNT(gr.id) as total_ratings,
         (SELECT COUNT(*) FROM shift_assignments sa
          JOIN shifts s ON sa.shift_id = s.id
-         WHERE sa.employee_id = e.id AND s.date >= date('now', '-3 months')
+         WHERE sa.employee_id = e.id AND s.date >= date('now', 'localtime', '-3 months')
          AND sa.check_in_time IS NOT NULL) as shifts_completed,
         (SELECT COUNT(*) FROM shift_assignments sa
          JOIN shifts s ON sa.shift_id = s.id
-         WHERE sa.employee_id = e.id AND s.date >= date('now', '-3 months')) as shifts_total
+         WHERE sa.employee_id = e.id AND s.date >= date('now', 'localtime', '-3 months')) as shifts_total
       FROM employees e
       LEFT JOIN guard_ratings gr ON e.id = gr.employee_id
       WHERE e.status = 'active'
