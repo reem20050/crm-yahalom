@@ -31,7 +31,8 @@ import { dashboardApi } from '../services/api';
 import { clsx } from 'clsx';
 import SearchCommand from './SearchCommand';
 import NotificationCenter from './NotificationCenter';
-import LocationReporter from './LocationReporter';
+// LocationReporter disabled - GPS only on check-in/check-out
+// import LocationReporter from './LocationReporter';
 
 const navigation = [
   { name: 'דשבורד', href: '/', icon: LayoutDashboard, permission: 'page:dashboard' },
@@ -272,8 +273,8 @@ export default function Layout() {
       {/* Search Command Palette */}
       <SearchCommand isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
 
-      {/* GPS Location Reporter */}
-      <LocationReporter />
+      {/* GPS Location Reporter - disabled, GPS only on check-in/check-out */}
+      {/* <LocationReporter /> */}
     </div>
   );
 }

@@ -444,7 +444,7 @@ router.post('/check-in/:assignmentId', async (req, res) => {
           const { calculateDistance } = require('../utils/geocoder');
           const site = siteResult.rows[0];
           distanceMeters = calculateDistance(latitude, longitude, site.latitude, site.longitude);
-          const radius = site.geofence_radius_meters || 200;
+          const radius = site.geofence_radius_meters || 1000;
           if (distanceMeters > radius) {
             locationWarning = `המרחק מהאתר ${site.name} הוא ${distanceMeters} מטר (מותר: ${radius} מטר)`;
           }
@@ -506,7 +506,7 @@ router.post('/check-out/:assignmentId', async (req, res) => {
           const { calculateDistance } = require('../utils/geocoder');
           const site = siteResult.rows[0];
           distanceMeters = calculateDistance(latitude, longitude, site.latitude, site.longitude);
-          const radius = site.geofence_radius_meters || 200;
+          const radius = site.geofence_radius_meters || 1000;
           if (distanceMeters > radius) {
             locationWarning = `המרחק מהאתר ${site.name} הוא ${distanceMeters} מטר (מותר: ${radius} מטר)`;
           }

@@ -423,7 +423,7 @@ const initializeDatabase = () => {
   }
 
   // Google Maps: add lat/lng to sites
-  const siteLocationCols = ['latitude REAL DEFAULT NULL', 'longitude REAL DEFAULT NULL', 'geofence_radius_meters INTEGER DEFAULT 200'];
+  const siteLocationCols = ['latitude REAL DEFAULT NULL', 'longitude REAL DEFAULT NULL', 'geofence_radius_meters INTEGER DEFAULT 1000'];
   for (const col of siteLocationCols) {
     try { db.exec(`ALTER TABLE sites ADD COLUMN ${col}`); } catch (e) { /* exists */ }
   }
