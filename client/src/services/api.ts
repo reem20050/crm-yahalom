@@ -222,6 +222,7 @@ export const usersApi = {
   delete: (id: string) => api.delete(`/users/${id}`),
   resetPassword: (id: string, new_password: string) =>
     api.post(`/users/${id}/reset-password`, { new_password }),
+  getUnlinkedEmployees: () => api.get('/users/unlinked-employees'),
 };
 
 // Incidents (security incidents)

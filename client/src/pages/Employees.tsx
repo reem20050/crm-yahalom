@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Search, UserCircle, Phone, Shield, Plus, X, Trash2 } from 'lucide-react';
+import { Search, UserCircle, Phone, Shield, Plus, X, Trash2, UserPlus } from 'lucide-react';
 import { employeesApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { WhatsAppIcon } from '../components/WhatsAppButton';
@@ -26,6 +26,9 @@ const employeeSchema = z.object({
   driving_license_type: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
+  create_user_account: z.boolean().optional(),
+  user_password: z.string().optional(),
+  user_role: z.string().optional(),
 });
 
 type EmployeeForm = z.infer<typeof employeeSchema>;
@@ -42,14 +45,17 @@ export default function Employees() {
 
   const createMutation = useMutation({
     mutationFn: (data: EmployeeForm) => employeesApi.create(data),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('עובד נוצר בהצלחה');
+      const msg = res.data?.user_created
+        ? 'עובד נוצר בהצלחה + חשבון משתמש נוצר'
+        : 'עובד נוצר בהצלחה';
+      toast.success(msg);
       setIsModalOpen(false);
       reset();
     },
-    onError: () => {
-      toast.error('שגיאה ביצירת עובד');
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'שגיאה ביצירת עובד');
     },
   });
 
@@ -68,6 +74,7 @@ export default function Employees() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<EmployeeForm>({
     resolver: zodResolver(employeeSchema),
@@ -76,8 +83,12 @@ export default function Employees() {
       employment_type: 'hourly',
       has_weapon_license: false,
       has_driving_license: false,
+      create_user_account: false,
+      user_role: 'employee',
     },
   });
+
+  const watchCreateUser = watch('create_user_account');
 
   const { can } = usePermissions();
 
@@ -316,6 +327,43 @@ export default function Employees() {
                       <input {...register('emergency_contact_phone')} className="input" dir="ltr" />
                     </div>
                   </div>
+                </div>
+
+                {/* Create User Account */}
+                <div className="col-span-1 sm:col-span-2 border-t border-gray-100 pt-4">
+                  <label className="flex items-center gap-2 cursor-pointer mb-3">
+                    <input
+                      {...register('create_user_account')}
+                      type="checkbox"
+                      className="w-4 h-4 text-primary-600 rounded border-gray-300"
+                    />
+                    <UserPlus className="w-4 h-4 text-primary-600" />
+                    <span className="text-sm font-semibold text-gray-900">צור חשבון משתמש לעובד</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">מאפשר לעובד להתחבר למערכת ולבצע צ'ק-אין עצמאי. נדרש אימייל.</p>
+
+                  {watchCreateUser && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-primary-50/50 rounded-xl border border-primary-100">
+                      <div>
+                        <label className="label">סיסמה למשתמש *</label>
+                        <input
+                          {...register('user_password')}
+                          type="password"
+                          className="input"
+                          dir="ltr"
+                          placeholder="לפחות 6 תווים"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">תפקיד</label>
+                        <select {...register('user_role')} className="input">
+                          <option value="employee">עובד</option>
+                          <option value="manager">מנהל משמרות</option>
+                          <option value="admin">מנהל</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

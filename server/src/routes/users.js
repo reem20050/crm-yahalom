@@ -23,10 +23,27 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/users/unlinked-employees - Employees without a user account
+router.get('/unlinked-employees', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, first_name, last_name, phone, email
+       FROM employees
+       WHERE (user_id IS NULL OR user_id = '')
+       AND status = 'active'
+       ORDER BY first_name, last_name`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching unlinked employees:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת עובדים' });
+  }
+});
+
 // POST /api/users - Create new user
 router.post('/', async (req, res) => {
   try {
-    const { email, password, first_name, last_name, phone, role } = req.body;
+    const { email, password, first_name, last_name, phone, role, employee_id } = req.body;
 
     // Validation
     if (!email || !password || !first_name || !last_name) {
@@ -48,6 +65,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'כתובת האימייל כבר קיימת במערכת' });
     }
 
+    // If linking to employee, verify employee exists and isn't already linked
+    if (employee_id) {
+      const emp = await query('SELECT id, user_id FROM employees WHERE id = $1', [employee_id]);
+      if (emp.rows.length === 0) {
+        return res.status(400).json({ error: 'עובד לא נמצא' });
+      }
+      if (emp.rows[0].user_id) {
+        return res.status(400).json({ error: 'העובד כבר משויך למשתמש אחר' });
+      }
+    }
+
     const id = crypto.randomUUID();
     const password_hash = await bcrypt.hash(password, 10);
 
@@ -56,6 +84,11 @@ router.post('/', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [id, email.toLowerCase(), password_hash, first_name, last_name, phone || null, role || 'employee']
     );
+
+    // Link employee to user
+    if (employee_id) {
+      await query('UPDATE employees SET user_id = $1 WHERE id = $2', [id, employee_id]);
+    }
 
     const newUser = await query(
       `SELECT id, email, first_name, last_name, phone, role, is_active, created_at

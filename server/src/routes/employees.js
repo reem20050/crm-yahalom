@@ -1,5 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const bcrypt = require('bcryptjs');
 const db = require('../config/database');
 const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 
@@ -169,8 +170,29 @@ router.post('/', requireManager, [
       first_name, last_name, id_number, phone, email, address, city,
       birth_date, hire_date, employment_type, hourly_rate, monthly_salary,
       has_weapon_license, weapon_license_expiry, has_driving_license, driving_license_type,
-      emergency_contact_name, emergency_contact_phone, notes
+      emergency_contact_name, emergency_contact_phone, notes,
+      create_user_account, user_password, user_role
     } = req.body;
+
+    // If creating user account, validate
+    let userId = null;
+    if (create_user_account && email) {
+      if (!user_password || user_password.length < 6) {
+        return res.status(400).json({ error: 'סיסמה חייבת להכיל לפחות 6 תווים' });
+      }
+      // Check email uniqueness in users
+      const existingUser = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+      if (existingUser.rows.length > 0) {
+        return res.status(400).json({ error: 'כתובת האימייל כבר קיימת כמשתמש במערכת' });
+      }
+      userId = db.generateUUID();
+      const password_hash = await bcrypt.hash(user_password, 10);
+      await db.query(
+        `INSERT INTO users (id, email, password_hash, first_name, last_name, phone, role)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, email.toLowerCase(), password_hash, first_name, last_name, phone || null, user_role || 'employee']
+      );
+    }
 
     const employeeId = db.generateUUID();
     const result = await db.query(`
@@ -178,20 +200,23 @@ router.post('/', requireManager, [
         id, first_name, last_name, id_number, phone, email, address, city,
         birth_date, hire_date, employment_type, hourly_rate, monthly_salary,
         has_weapon_license, weapon_license_expiry, has_driving_license, driving_license_type,
-        emergency_contact_name, emergency_contact_phone, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        emergency_contact_name, emergency_contact_phone, notes, user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
     `, [employeeId, first_name, last_name, id_number, phone, email, address, city,
         birth_date, hire_date, employment_type || 'hourly', hourly_rate, monthly_salary,
         has_weapon_license ? 1 : 0, weapon_license_expiry, has_driving_license ? 1 : 0, driving_license_type,
-        emergency_contact_name, emergency_contact_phone, notes]);
+        emergency_contact_name, emergency_contact_phone, notes, userId]);
 
     await db.query(`
       INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
       VALUES ($1, $2, 'employee', $3, 'create', $4)
     `, [db.generateUUID(), req.user.id, result.rows[0].id, JSON.stringify({ name: `${first_name} ${last_name}` })]);
 
-    res.status(201).json({ employee: result.rows[0] });
+    res.status(201).json({
+      employee: result.rows[0],
+      user_created: !!userId,
+    });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'מספר ת.ז כבר קיים במערכת' });

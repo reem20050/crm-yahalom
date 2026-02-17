@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { usersApi } from '../services/api';
-import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X } from 'lucide-react';
+import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X, Link2 } from 'lucide-react';
 
 interface User {
   id: string;
@@ -17,6 +17,14 @@ interface User {
   updated_at: string;
 }
 
+interface UnlinkedEmployee {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string | null;
+}
+
 interface UserForm {
   email: string;
   password: string;
@@ -24,6 +32,7 @@ interface UserForm {
   last_name: string;
   phone: string;
   role: string;
+  employee_id: string;
 }
 
 const emptyForm: UserForm = {
@@ -33,6 +42,7 @@ const emptyForm: UserForm = {
   last_name: '',
   phone: '',
   role: 'employee',
+  employee_id: '',
 };
 
 const roleLabels: Record<string, string> = {
@@ -64,10 +74,19 @@ export default function Users() {
     },
   });
 
+  const { data: unlinkedEmployees = [] } = useQuery({
+    queryKey: ['unlinked-employees'],
+    queryFn: async () => {
+      const res = await usersApi.getUnlinkedEmployees();
+      return res.data as UnlinkedEmployee[];
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => usersApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['unlinked-employees'] });
       toast.success('משתמש נוצר בהצלחה');
       closeModal();
     },
@@ -134,6 +153,7 @@ export default function Users() {
       last_name: user.last_name,
       phone: user.phone || '',
       role: user.role,
+      employee_id: '',
     });
     setError('');
     setShowModal(true);
@@ -157,7 +177,9 @@ export default function Users() {
         setError('נא להזין סיסמה');
         return;
       }
-      createMutation.mutate({ ...form });
+      const payload: Record<string, unknown> = { ...form };
+      if (!form.employee_id) delete payload.employee_id;
+      createMutation.mutate(payload);
     }
   };
 
@@ -400,6 +422,47 @@ export default function Users() {
                   <option value="admin">מנהל</option>
                 </select>
               </div>
+
+              {!editingUser && unlinkedEmployees.length > 0 && (
+                <div className="border-t pt-4">
+                  <label className="label flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5" />
+                    שייך לעובד קיים
+                  </label>
+                  <select
+                    className="input"
+                    value={form.employee_id}
+                    onChange={(e) => {
+                      const empId = e.target.value;
+                      setForm({ ...form, employee_id: empId });
+                      // Auto-fill name and phone from selected employee
+                      if (empId) {
+                        const emp = unlinkedEmployees.find((emp: UnlinkedEmployee) => emp.id === empId);
+                        if (emp) {
+                          setForm((prev) => ({
+                            ...prev,
+                            employee_id: empId,
+                            first_name: prev.first_name || emp.first_name,
+                            last_name: prev.last_name || emp.last_name,
+                            phone: prev.phone || emp.phone || '',
+                            email: prev.email || emp.email || '',
+                          }));
+                        }
+                      }
+                    }}
+                  >
+                    <option value="">-- ללא שיוך --</option>
+                    {unlinkedEmployees.map((emp: UnlinkedEmployee) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name} {emp.phone ? `(${emp.phone})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    שיוך למשתמש מאפשר לעובד להתחבר ולבצע צ'ק-אין
+                  </p>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4 border-t">
                 <button
