@@ -162,9 +162,9 @@ app.get('/api/health', (req, res) => {
   let tz = process.env.TZ;
   let serverTime = new Date().toISOString();
   try {
-    const result = db.query("SELECT date('now', 'localtime') as today, datetime('now', 'localtime') as now_local");
-    dbOk = true;
-    res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', tz, serverTime, dbToday: result.rows[0].today, dbNowLocal: result.rows[0].now_local });
+    const result = db.query("SELECT date('now', 'localtime') as today_localtime, datetime('now', 'localtime') as now_localtime, date('now') as today_utc, datetime('now') as now_utc");
+    const nodeLocal = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
+    res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', tz, serverTime, nodeLocal, ...result.rows[0] });
   } catch (e) {
     res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', tz, serverTime, dbError: e.message });
   }
