@@ -10,8 +10,10 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3
-RUN apk add --no-cache python3 make g++
+# Install build dependencies for better-sqlite3 + timezone data
+RUN apk add --no-cache python3 make g++ tzdata
+ENV TZ=Asia/Jerusalem
+RUN cp /usr/share/zoneinfo/Asia/Jerusalem /etc/localtime && echo "Asia/Jerusalem" > /etc/timezone
 
 # Install server dependencies
 COPY server/package*.json ./
