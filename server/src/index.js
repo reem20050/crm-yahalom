@@ -157,16 +157,28 @@ app.use('/api/documents', documentsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running' });
+  const db = require('./config/database');
+  let dbOk = false;
+  let tz = process.env.TZ;
+  let serverTime = new Date().toISOString();
+  try {
+    const result = db.query("SELECT date('now', 'localtime') as today, datetime('now', 'localtime') as now_local");
+    dbOk = true;
+    res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', tz, serverTime, dbToday: result.rows[0].today, dbNowLocal: result.rows[0].now_local });
+  } catch (e) {
+    res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', tz, serverTime, dbError: e.message });
+  }
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'שגיאה בשרת',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
+  console.error('Global error handler:', err.message, err.stack);
+  if (!res.headersSent) {
+    res.status(500).json({
+      error: 'שגיאה בשרת',
+      detail: err.message
+    });
+  }
 });
 
 // Serve static files in production

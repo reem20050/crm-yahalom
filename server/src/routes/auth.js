@@ -78,8 +78,10 @@ router.post('/login', [
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'שגיאה בהתחברות' });
+    console.error('Login error:', error.message, error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'שגיאה בהתחברות' });
+    }
   }
 });
 
