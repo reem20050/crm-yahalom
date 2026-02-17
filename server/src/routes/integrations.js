@@ -128,6 +128,8 @@ router.get('/settings', async (req, res) => {
     let whatsappConnected = false;
     let whatsappPhone = settings?.whatsapp_phone_display || null;
     let wahaUrl = null;
+    let wahaConfigured = false;
+    let sessionStatus = null;
 
     // First check if DB has config
     if (settings?.whatsapp_phone_id) {
@@ -136,23 +138,29 @@ router.get('/settings', async (req, res) => {
 
     // Try to check WAHA status in real-time
     try {
-      whatsappService._ensureConfig();
+      const hasConfig = whatsappService._ensureConfig();
+      // WAHA is configured if DB has config OR ENV has WAHA_API_URL
+      wahaConfigured = hasConfig || !!process.env.WAHA_API_URL;
+
       const wahaStatus = await whatsappService.getSessionStatus();
-      if (wahaStatus.success && wahaStatus.status === 'WORKING') {
-        whatsappConnected = true;
-        // Try to get phone number if we don't have it
-        if (!whatsappPhone) {
-          try {
-            const accountInfo = await whatsappService.getAccountInfo();
-            if (accountInfo.success) {
-              whatsappPhone = accountInfo.account?.id?.replace('@c.us', '') || accountInfo.account?.pushName;
-            }
-          } catch (e) { /* ignore */ }
+      if (wahaStatus.success) {
+        sessionStatus = wahaStatus.status;
+        if (wahaStatus.status === 'WORKING') {
+          whatsappConnected = true;
+          if (!whatsappPhone) {
+            try {
+              const accountInfo = await whatsappService.getAccountInfo();
+              if (accountInfo.success) {
+                whatsappPhone = accountInfo.account?.id?.replace('@c.us', '') || accountInfo.account?.pushName;
+              }
+            } catch (e) { /* ignore */ }
+          }
         }
       }
     } catch (e) {
       // WAHA not reachable, fall back to DB check
-      whatsappConnected = !!settings?.whatsapp_phone_id;
+      wahaConfigured = !!settings?.whatsapp_phone_id || !!process.env.WAHA_API_URL;
+      whatsappConnected = false;
     }
 
     res.json({
@@ -163,7 +171,9 @@ router.get('/settings', async (req, res) => {
       whatsapp: {
         connected: whatsappConnected,
         phoneNumber: whatsappPhone,
-        wahaUrl: wahaUrl
+        wahaUrl: wahaUrl,
+        wahaConfigured: wahaConfigured,
+        wahaSessionStatus: sessionStatus
       },
       greenInvoice: {
         connected: !!settings?.green_invoice_api_key,
@@ -355,6 +365,22 @@ router.post('/whatsapp/test', async (req, res) => {
   } catch (error) {
     console.error('WhatsApp test error:', error);
     res.status(500).json({ message: 'שגיאה בבדיקת חיבור WhatsApp' });
+  }
+});
+
+// Start WAHA session (uses ENV config, no URL input needed)
+router.post('/whatsapp/start-session', async (req, res) => {
+  try {
+    whatsappService._ensureConfig();
+    const startResult = await whatsappService.startSession();
+    const statusResult = await whatsappService.getSessionStatus();
+    res.json({
+      success: startResult.success,
+      status: statusResult.success ? statusResult.status : 'UNKNOWN'
+    });
+  } catch (error) {
+    console.error('WhatsApp start-session error:', error);
+    res.status(500).json({ message: 'שגיאה בהפעלת session של WhatsApp' });
   }
 });
 
