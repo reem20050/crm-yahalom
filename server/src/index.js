@@ -42,7 +42,55 @@ const app = express();
 
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        "https://maps.googleapis.com",
+        "https://maps.gstatic.com",
+        "https://accounts.google.com",
+        "https://apis.google.com",
+        "https://ssl.gstatic.com",
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+        "https://maps.googleapis.com",
+        "https://maps.gstatic.com",
+        "https://accounts.google.com",
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "blob:",
+        "https://maps.googleapis.com",
+        "https://maps.gstatic.com",
+        "https://*.ggpht.com",
+        "https://*.googleusercontent.com",
+        "https://lh3.googleusercontent.com",
+      ],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
+      connectSrc: [
+        "'self'",
+        "https://maps.googleapis.com",
+        "https://accounts.google.com",
+        "https://api.greeninvoice.co.il",
+        "https://wa.me",
+        "https://api.whatsapp.com",
+      ],
+      frameSrc: [
+        "'self'",
+        "https://accounts.google.com",
+        "https://maps.google.com",
+        "https://www.google.com",
+      ],
+      workerSrc: ["'self'", "blob:"],
+    },
+  },
   crossOriginOpenerPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: false,
