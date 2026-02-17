@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { usersApi } from '../services/api';
-import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X, Link2 } from 'lucide-react';
+import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X, Link2, Unlink, Loader2 } from 'lucide-react';
 
 interface User {
   id: string;
@@ -15,14 +15,20 @@ interface User {
   last_login: string | null;
   created_at: string;
   updated_at: string;
+  employee_id: string | null;
+  employee_first_name: string | null;
+  employee_last_name: string | null;
 }
 
-interface UnlinkedEmployee {
+interface Employee {
   id: string;
   first_name: string;
   last_name: string;
   phone: string;
   email: string | null;
+  user_id: string | null;
+  linked_user_first_name: string | null;
+  linked_user_last_name: string | null;
 }
 
 interface UserForm {
@@ -65,6 +71,8 @@ export default function Users() {
   const [resetPasswordModal, setResetPasswordModal] = useState<{ userId: string; userName: string } | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
+  const [linkModal, setLinkModal] = useState<User | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -78,7 +86,15 @@ export default function Users() {
     queryKey: ['unlinked-employees'],
     queryFn: async () => {
       const res = await usersApi.getUnlinkedEmployees();
-      return res.data as UnlinkedEmployee[];
+      return res.data as Employee[];
+    },
+  });
+
+  const { data: allEmployees = [] } = useQuery({
+    queryKey: ['all-employees'],
+    queryFn: async () => {
+      const res = await usersApi.getAllEmployees();
+      return res.data as Employee[];
     },
   });
 
@@ -87,6 +103,7 @@ export default function Users() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['unlinked-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['all-employees'] });
       toast.success('משתמש נוצר בהצלחה');
       closeModal();
     },
@@ -130,6 +147,22 @@ export default function Users() {
     },
   });
 
+  const linkEmployeeMutation = useMutation({
+    mutationFn: ({ userId, employeeId }: { userId: string; employeeId: string | null }) =>
+      usersApi.linkEmployee(userId, employeeId),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['unlinked-employees'] });
+      queryClient.invalidateQueries({ queryKey: ['all-employees'] });
+      toast.success(vars.employeeId ? 'העובד שויך בהצלחה' : 'שיוך העובד הוסר');
+      setLinkModal(null);
+      setSelectedEmployeeId('');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'שגיאה בשיוך עובד');
+    },
+  });
+
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
@@ -157,6 +190,11 @@ export default function Users() {
     });
     setError('');
     setShowModal(true);
+  };
+
+  const openLinkModal = (user: User) => {
+    setLinkModal(user);
+    setSelectedEmployeeId(user.employee_id || '');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -194,6 +232,13 @@ export default function Users() {
     });
   };
 
+  // Available employees for linking (unlinked + current linked employee of this user)
+  const getAvailableEmployees = (forUserId: string) => {
+    return allEmployees.filter(
+      (emp) => !emp.user_id || emp.user_id === forUserId
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -208,7 +253,7 @@ export default function Users() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">ניהול משתמשים</h1>
-          <p className="text-gray-500 mt-1">ניהול חשבונות משתמשים והרשאות גישה למערכת</p>
+          <p className="text-gray-500 mt-1">ניהול חשבונות משתמשים, הרשאות גישה ושיוך לעובדים</p>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
           <Plus className="h-5 w-5" />
@@ -216,12 +261,12 @@ export default function Users() {
         </button>
       </div>
 
-      {/* Info banner about Google login */}
+      {/* Info banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
         <Shield className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
         <div className="text-sm text-blue-800">
-          <strong>אבטחת Google:</strong> התחברות עם Google זמינה רק למשתמשים שכתובת ה-Gmail שלהם רשומה במערכת.
-          כדי לאפשר למישהו להתחבר עם Google, הוסף אותו כמשתמש עם כתובת ה-Gmail שלו.
+          <strong>שיוך עובד:</strong> כל משתמש מסוג "עובד" חייב להיות משויך לרשומת עובד כדי שיוכל לבצע צ'ק-אין, לראות משמרות ולהירשם למשמרות פתוחות.
+          לחץ על כפתור השיוך (<Link2 className="w-3.5 h-3.5 inline" />) כדי לשייך או לנתק עובד.
         </div>
       </div>
 
@@ -233,8 +278,8 @@ export default function Users() {
               <tr>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">שם</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">אימייל</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">טלפון</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">תפקיד</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">עובד משויך</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">סטטוס</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">התחברות אחרונה</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">פעולות</th>
@@ -256,13 +301,23 @@ export default function Users() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 direction-ltr text-right">
                     {user.email}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {user.phone || '-'}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${roleBadgeColors[user.role] || 'bg-gray-100 text-gray-800'}`}>
                       {roleLabels[user.role] || user.role}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {user.employee_id ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
+                        <Link2 className="w-3.5 h-3.5" />
+                        {user.employee_first_name} {user.employee_last_name}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-sm">
+                        <Unlink className="w-3.5 h-3.5" />
+                        לא משויך
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {user.is_active ? (
@@ -276,6 +331,17 @@ export default function Users() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openLinkModal(user)}
+                        className={`p-1.5 rounded ${
+                          user.employee_id
+                            ? 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                            : 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
+                        }`}
+                        title={user.employee_id ? 'שנה שיוך עובד' : 'שייך עובד'}
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => openEdit(user)}
                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -437,7 +503,7 @@ export default function Users() {
                       setForm({ ...form, employee_id: empId });
                       // Auto-fill name and phone from selected employee
                       if (empId) {
-                        const emp = unlinkedEmployees.find((emp: UnlinkedEmployee) => emp.id === empId);
+                        const emp = unlinkedEmployees.find((emp) => emp.id === empId);
                         if (emp) {
                           setForm((prev) => ({
                             ...prev,
@@ -452,7 +518,7 @@ export default function Users() {
                     }}
                   >
                     <option value="">-- ללא שיוך --</option>
-                    {unlinkedEmployees.map((emp: UnlinkedEmployee) => (
+                    {unlinkedEmployees.map((emp) => (
                       <option key={emp.id} value={emp.id}>
                         {emp.first_name} {emp.last_name} {emp.phone ? `(${emp.phone})` : ''}
                       </option>
@@ -481,6 +547,91 @@ export default function Users() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Link Employee Modal */}
+      {linkModal && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Link2 className="w-5 h-5 text-primary-600" />
+                שיוך עובד למשתמש
+              </h2>
+              <button
+                onClick={() => { setLinkModal(null); setSelectedEmployeeId(''); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-sm text-gray-500">משתמש:</p>
+                <p className="font-semibold text-gray-900">{linkModal.first_name} {linkModal.last_name}</p>
+                <p className="text-sm text-gray-500 direction-ltr text-right">{linkModal.email}</p>
+              </div>
+
+              <div>
+                <label className="label">בחר עובד לשיוך</label>
+                <select
+                  className="input"
+                  value={selectedEmployeeId}
+                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                >
+                  <option value="">-- ללא שיוך (נתק) --</option>
+                  {getAvailableEmployees(linkModal.id).map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                      {emp.phone ? ` (${emp.phone})` : ''}
+                      {emp.user_id === linkModal.id ? ' ✓ משויך כרגע' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {linkModal.employee_id && !selectedEmployeeId && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-lg text-sm">
+                  שים לב: ניתוק העובד מהמשתמש ימנע ממנו גישה לפאנל שומר, צ'ק-אין ומשמרות פתוחות.
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4 border-t">
+                <button
+                  onClick={() => {
+                    linkEmployeeMutation.mutate({
+                      userId: linkModal.id,
+                      employeeId: selectedEmployeeId || null,
+                    });
+                  }}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  disabled={linkEmployeeMutation.isPending}
+                >
+                  {linkEmployeeMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : selectedEmployeeId ? (
+                    <>
+                      <Link2 className="w-4 h-4" />
+                      שייך עובד
+                    </>
+                  ) : (
+                    <>
+                      <Unlink className="w-4 h-4" />
+                      נתק שיוך
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => { setLinkModal(null); setSelectedEmployeeId(''); }}
+                  className="btn-secondary"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

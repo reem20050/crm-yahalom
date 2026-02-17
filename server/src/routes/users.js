@@ -9,12 +9,15 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 router.use(authenticateToken);
 router.use(requireAdmin);
 
-// GET /api/users - List all users
+// GET /api/users - List all users (with linked employee info)
 router.get('/', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, email, first_name, last_name, phone, role, is_active, last_login, created_at, updated_at
-       FROM users ORDER BY created_at DESC`
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role, u.is_active, u.last_login, u.created_at, u.updated_at,
+              e.id as employee_id, e.first_name as employee_first_name, e.last_name as employee_last_name
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       ORDER BY u.created_at DESC`
     );
     res.json(result.rows);
   } catch (error) {
@@ -36,6 +39,24 @@ router.get('/unlinked-employees', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching unlinked employees:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת עובדים' });
+  }
+});
+
+// GET /api/users/all-employees - All active employees (for linking dropdown)
+router.get('/all-employees', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT e.id, e.first_name, e.last_name, e.phone, e.email, e.user_id,
+              u.first_name as linked_user_first_name, u.last_name as linked_user_last_name
+       FROM employees e
+       LEFT JOIN users u ON e.user_id = u.id
+       WHERE e.status = 'active'
+       ORDER BY e.first_name, e.last_name`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching all employees:', error);
     res.status(500).json({ error: 'שגיאה בטעינת עובדים' });
   }
 });
@@ -184,6 +205,57 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'שגיאה במחיקת משתמש' });
+  }
+});
+
+// PUT /api/users/:id/link-employee - Link or unlink employee to user
+router.put('/:id/link-employee', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { employee_id } = req.body; // null or '' to unlink, employee ID to link
+
+    // Check user exists
+    const userResult = await query('SELECT id, first_name, last_name FROM users WHERE id = $1', [id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'משתמש לא נמצא' });
+    }
+
+    // Find current linked employee (if any)
+    const currentLink = await query('SELECT id FROM employees WHERE user_id = $1', [id]);
+
+    if (!employee_id) {
+      // UNLINK: remove user_id from currently linked employee
+      if (currentLink.rows.length > 0) {
+        await query('UPDATE employees SET user_id = NULL WHERE user_id = $1', [id]);
+      }
+      return res.json({ message: 'שיוך העובד הוסר בהצלחה', employee_id: null });
+    }
+
+    // LINK: verify new employee exists and isn't linked to someone else
+    const empResult = await query('SELECT id, user_id, first_name, last_name FROM employees WHERE id = $1', [employee_id]);
+    if (empResult.rows.length === 0) {
+      return res.status(400).json({ error: 'עובד לא נמצא' });
+    }
+    if (empResult.rows[0].user_id && empResult.rows[0].user_id !== id) {
+      return res.status(400).json({ error: 'העובד כבר משויך למשתמש אחר' });
+    }
+
+    // Remove old link if exists
+    if (currentLink.rows.length > 0 && currentLink.rows[0].id !== employee_id) {
+      await query('UPDATE employees SET user_id = NULL WHERE user_id = $1', [id]);
+    }
+
+    // Set new link
+    await query('UPDATE employees SET user_id = $1 WHERE id = $2', [id, employee_id]);
+
+    res.json({
+      message: 'העובד שויך בהצלחה',
+      employee_id: employee_id,
+      employee_name: `${empResult.rows[0].first_name} ${empResult.rows[0].last_name}`
+    });
+  } catch (error) {
+    console.error('Error linking employee:', error);
+    res.status(500).json({ error: 'שגיאה בשיוך עובד' });
   }
 });
 

@@ -226,6 +226,9 @@ export const usersApi = {
   resetPassword: (id: string, new_password: string) =>
     api.post(`/users/${id}/reset-password`, { new_password }),
   getUnlinkedEmployees: () => api.get('/users/unlinked-employees'),
+  getAllEmployees: () => api.get('/users/all-employees'),
+  linkEmployee: (userId: string, employee_id: string | null) =>
+    api.put(`/users/${userId}/link-employee`, { employee_id }),
 };
 
 // Incidents (security incidents)
