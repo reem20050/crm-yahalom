@@ -7,6 +7,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Search, Building2, MapPin, Plus, X, Trash2 } from 'lucide-react';
 import { customersApi } from '../services/api';
+import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 
 const customerSchema = z.object({
@@ -106,8 +107,9 @@ export default function Customers() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+        <div className="space-y-6">
+          <SkeletonPulse className="h-10 w-full rounded-xl" />
+          <SkeletonGrid count={6} />
         </div>
       ) : data?.customers?.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

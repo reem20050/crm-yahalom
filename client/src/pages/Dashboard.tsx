@@ -22,6 +22,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { dashboardApi, shiftsApi } from '../services/api';
+import { SkeletonPulse, SkeletonStatCard, SkeletonCard } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import {
   LineChart,
@@ -64,8 +65,17 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <SkeletonPulse className="h-8 w-48" />
+          <SkeletonPulse className="h-4 w-64" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       </div>
     );
   }
@@ -88,31 +98,37 @@ export default function Dashboard() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">דשבורד</h1>
-          <p className="text-sm text-gray-500 mt-0.5">ברוך הבא למערכת צוות יהלום</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-sm text-gray-500">ברוך הבא למערכת צוות יהלום</p>
+            <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              מתעדכן כל דקה
+            </span>
+          </div>
         </div>
         {/* View Toggle */}
-        <div className="flex bg-gray-100/80 rounded-xl p-1 gap-0.5">
+        <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5 shadow-inner">
           <button
             onClick={() => setViewMode('operations')}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
               viewMode === 'operations'
-                ? 'bg-white text-gray-900 shadow-sm'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/60'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             <Shield className="w-4 h-4" />
-            תפעולי
+            <span className="hidden sm:inline">תפעולי</span>
           </button>
           <button
             onClick={() => setViewMode('business')}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
               viewMode === 'business'
-                ? 'bg-white text-gray-900 shadow-sm'
+                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/60'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             <TrendingUp className="w-4 h-4" />
-            עסקי
+            <span className="hidden sm:inline">עסקי</span>
           </button>
         </div>
       </div>
@@ -447,6 +463,7 @@ function OperationsView({ data }: { data: any }) {
       icon: AlertTriangle,
       iconColor: data?.open_incidents?.critical > 0 ? 'text-red-600' : 'text-red-500',
       bgColor: data?.open_incidents?.critical > 0 ? 'bg-red-100' : 'bg-red-50',
+      urgent: (data?.open_incidents?.critical || 0) > 0,
       href: '/incidents',
     },
     {
@@ -469,7 +486,9 @@ function OperationsView({ data }: { data: any }) {
             <Wrapper
               key={stat.name}
               {...(wrapperProps as any)}
-              className="stat-card hover:shadow-elevated transition-all duration-200"
+              className={`stat-card hover:shadow-elevated transition-all duration-200 ${
+                stat.urgent ? 'ring-2 ring-red-200 bg-red-50/30' : ''
+              }`}
             >
               <div className="flex items-center justify-between">
                 <div>

@@ -33,27 +33,59 @@ import { dashboardApi } from '../services/api';
 import { clsx } from 'clsx';
 import SearchCommand from './SearchCommand';
 import NotificationCenter from './NotificationCenter';
+import PageTransition from './PageTransition';
+import BottomNav from './BottomNav';
 // LocationReporter disabled - GPS only on check-in/check-out
 // import LocationReporter from './LocationReporter';
 
-const navigation = [
-  { name: 'דשבורד', href: '/', icon: LayoutDashboard, permission: 'page:dashboard' },
-  { name: 'לידים', href: '/leads', icon: Users, permission: 'page:leads' },
-  { name: 'לקוחות', href: '/customers', icon: Building2, permission: 'page:customers' },
-  { name: 'עובדים', href: '/employees', icon: UserCircle, permission: 'page:employees' },
-  { name: 'משמרות', href: '/shifts', icon: Calendar, permission: 'page:shifts' },
-  { name: 'אירועים', href: '/events', icon: PartyPopper, permission: 'page:events' },
-  { name: 'לוח שנה', href: '/calendar', icon: CalendarDays, permission: 'page:calendar' },
-  { name: 'אירועי אבטחה', href: '/incidents', icon: AlertTriangle, permission: 'page:incidents' },
-  { name: 'מפת אתרים', href: '/sites-map', icon: MapIcon, permission: 'page:sites-map' },
-  { name: 'פאנל שומר', href: '/guard-panel', icon: Shield, permission: 'page:guard-panel' },
-  { name: 'משמרות פתוחות', href: '/open-shifts', icon: CalendarPlus, permission: 'page:open-shifts' },
-  { name: 'מעקב שומרים', href: '/guard-tracking', icon: Navigation, permission: 'page:guard-tracking' },
-  { name: 'נשק וציוד', href: '/weapons', icon: Crosshair, permission: 'page:weapons' },
-  { name: 'חשבוניות', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
-  { name: 'דוחות', href: '/reports', icon: BarChart3, permission: 'page:reports' },
-  { name: 'משתמשים', href: '/users', icon: ShieldCheck, permission: 'page:users' },
-  { name: 'הגדרות', href: '/settings', icon: Settings, permission: 'page:settings' },
+const navigationGroups = [
+  {
+    label: 'ראשי',
+    items: [
+      { name: 'דשבורד', href: '/', icon: LayoutDashboard, permission: 'page:dashboard' },
+    ],
+  },
+  {
+    label: 'מכירות',
+    items: [
+      { name: 'לידים', href: '/leads', icon: Users, permission: 'page:leads' },
+      { name: 'לקוחות', href: '/customers', icon: Building2, permission: 'page:customers' },
+    ],
+  },
+  {
+    label: 'תפעול',
+    items: [
+      { name: 'עובדים', href: '/employees', icon: UserCircle, permission: 'page:employees' },
+      { name: 'משמרות', href: '/shifts', icon: Calendar, permission: 'page:shifts' },
+      { name: 'אירועים', href: '/events', icon: PartyPopper, permission: 'page:events' },
+      { name: 'לוח שנה', href: '/calendar', icon: CalendarDays, permission: 'page:calendar' },
+      { name: 'פאנל שומר', href: '/guard-panel', icon: Shield, permission: 'page:guard-panel' },
+      { name: 'משמרות פתוחות', href: '/open-shifts', icon: CalendarPlus, permission: 'page:open-shifts' },
+    ],
+  },
+  {
+    label: 'אבטחה',
+    items: [
+      { name: 'אירועי אבטחה', href: '/incidents', icon: AlertTriangle, permission: 'page:incidents' },
+      { name: 'מפת אתרים', href: '/sites-map', icon: MapIcon, permission: 'page:sites-map' },
+      { name: 'מעקב שומרים', href: '/guard-tracking', icon: Navigation, permission: 'page:guard-tracking' },
+      { name: 'נשק וציוד', href: '/weapons', icon: Crosshair, permission: 'page:weapons' },
+    ],
+  },
+  {
+    label: 'כספים',
+    items: [
+      { name: 'חשבוניות', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
+      { name: 'דוחות', href: '/reports', icon: BarChart3, permission: 'page:reports' },
+    ],
+  },
+  {
+    label: 'ניהול',
+    items: [
+      { name: 'משתמשים', href: '/users', icon: ShieldCheck, permission: 'page:users' },
+      { name: 'הגדרות', href: '/settings', icon: Settings, permission: 'page:settings' },
+    ],
+  },
 ];
 
 export default function Layout() {
@@ -66,7 +98,12 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const filteredNavigation = navigation.filter((item) => can(item.permission));
+  const filteredGroups = navigationGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => can(item.permission)),
+    }))
+    .filter(group => group.items.length > 0);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -102,9 +139,9 @@ export default function Layout() {
   };
 
   // Get current page title
-  const currentPage = filteredNavigation.find(
-    (item) => item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href)
-  );
+  const currentPage = filteredGroups
+    .flatMap(g => g.items)
+    .find(item => item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href));
 
   return (
     <div className="min-h-screen bg-gray-50/80">
@@ -141,19 +178,28 @@ export default function Layout() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
-            {filteredNavigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={({ isActive }) =>
-                  clsx('sidebar-link', isActive && 'sidebar-link-active')
-                }
-                end={item.href === '/'}
-              >
-                <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
-                <span>{item.name}</span>
-              </NavLink>
+          <nav className="flex-1 px-3 py-2 overflow-y-auto">
+            {filteredGroups.map((group, groupIndex) => (
+              <div key={group.label} className={groupIndex > 0 ? 'mt-4' : ''}>
+                <p className="px-4 mb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <NavLink
+                      key={item.name}
+                      to={item.href}
+                      className={({ isActive }) =>
+                        clsx('sidebar-link', isActive && 'sidebar-link-active')
+                      }
+                      end={item.href === '/'}
+                    >
+                      <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                      <span>{item.name}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
 
@@ -269,10 +315,15 @@ export default function Layout() {
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-8 max-w-[1600px]">
-          <Outlet />
+        <main className="p-4 lg:p-8 pb-20 lg:pb-8 max-w-[1600px]">
+          <PageTransition key={location.pathname}>
+            <Outlet />
+          </PageTransition>
         </main>
       </div>
+
+      {/* Bottom Navigation - Mobile */}
+      <BottomNav onMenuClick={() => setSidebarOpen(true)} />
 
       {/* Search Command Palette */}
       <SearchCommand isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />

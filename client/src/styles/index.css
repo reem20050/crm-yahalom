@@ -65,7 +65,7 @@
 
   /* ── Cards ──────────────────────────────────────────────── */
   .card {
-    @apply bg-white rounded-2xl shadow-card p-6 animate-fade-in;
+    @apply bg-white rounded-2xl shadow-card p-6 animate-fade-in transition-shadow duration-200;
   }
 
   .stat-card {
@@ -133,7 +133,26 @@
   }
 
   .sidebar-link-active {
-    @apply bg-primary-50 text-primary-700 hover:bg-primary-50 font-semibold;
+    @apply bg-primary-50 text-primary-700 hover:bg-primary-50 font-semibold
+           border-r-[3px] border-r-primary-600;
+  }
+
+  /* ── Skeleton Loading ────────────────────────────────────── */
+  .skeleton {
+    @apply animate-pulse bg-gray-200/70 rounded-lg;
+  }
+
+  .skeleton-text {
+    @apply skeleton h-4 w-full;
+  }
+
+  .skeleton-circle {
+    @apply skeleton rounded-full;
+  }
+
+  /* Safe area for bottom navigation on notched phones */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 

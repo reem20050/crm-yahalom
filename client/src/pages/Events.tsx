@@ -7,6 +7,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Search, PartyPopper, Calendar, MapPin, Users, Plus, X, Shield, Car } from 'lucide-react';
 import { eventsApi, customersApi, leadsApi } from '../services/api';
+import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 
 const eventSchema = z.object({
@@ -136,9 +137,7 @@ export default function Events() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
-        </div>
+        <SkeletonGrid count={6} />
       ) : data?.events?.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {data.events.map((event: {

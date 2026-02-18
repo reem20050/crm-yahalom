@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { usersApi } from '../services/api';
 import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X, Link2, Unlink, Loader2 } from 'lucide-react';
+import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 
 interface User {
   id: string;
@@ -241,8 +242,15 @@ export default function Users() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <SkeletonPulse className="h-8 w-40" />
+            <SkeletonPulse className="h-4 w-64" />
+          </div>
+          <SkeletonPulse className="h-10 w-32 rounded-xl" />
+        </div>
+        <SkeletonTableRows columns={7} rows={4} />
       </div>
     );
   }

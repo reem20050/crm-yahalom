@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { incidentsApi, customersApi, sitesApi } from '../services/api';
+import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 
 const incidentTypes: Record<string, string> = {
@@ -218,8 +219,15 @@ export default function Incidents() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <SkeletonPulse className="h-8 w-40" />
+              <SkeletonPulse className="h-4 w-56" />
+            </div>
+            <SkeletonPulse className="h-10 w-36 rounded-xl" />
+          </div>
+          <SkeletonTableRows columns={5} rows={5} />
         </div>
       ) : incidents.length === 0 ? (
         <div className="text-center py-12 text-gray-500">

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail, ExternalLink, Download } from 'lucide-react';
 import { invoicesApi, customersApi, integrationsApi } from '../services/api';
+import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { exportInvoiceToPDF } from '../utils/pdfExport';
 
@@ -285,8 +286,15 @@ export default function Invoices() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <SkeletonPulse className="h-8 w-40" />
+              <SkeletonPulse className="h-4 w-56" />
+            </div>
+            <SkeletonPulse className="h-10 w-36 rounded-xl" />
+          </div>
+          <SkeletonTableRows columns={6} rows={5} />
         </div>
       ) : data?.invoices?.length > 0 ? (
         <div className="card p-0 overflow-hidden">

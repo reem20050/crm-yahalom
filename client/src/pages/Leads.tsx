@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { leadsApi } from '../services/api';
+import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 
 const leadSchema = z.object({
@@ -149,9 +150,7 @@ export default function Leads() {
       {/* Leads table */}
       <div className="card p-0 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
-          </div>
+          <SkeletonTableRows columns={6} rows={5} />
         ) : data?.leads?.length > 0 ? (
           <div className="table-container">
             <table className="table">

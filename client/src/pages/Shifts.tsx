@@ -8,6 +8,7 @@ import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText, LogIn, LogOut } from 'lucide-react';
 import { shiftsApi, customersApi, sitesApi, employeesApi, shiftTemplatesApi } from '../services/api';
+import { SkeletonPulse } from '../components/Skeleton';
 import ShiftTemplateModal, { GenerateFromTemplateModal } from '../components/ShiftTemplateModal';
 import PatrolLogView from '../components/PatrolLogView';
 import { usePermissions } from '../hooks/usePermissions';
@@ -759,8 +760,28 @@ export default function Shifts() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <SkeletonPulse className="h-8 w-32" />
+              <SkeletonPulse className="h-4 w-48" />
+            </div>
+            <div className="flex gap-2">
+              <SkeletonPulse className="h-10 w-10 rounded-xl" />
+              <SkeletonPulse className="h-10 w-32 rounded-xl" />
+              <SkeletonPulse className="h-10 w-10 rounded-xl" />
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-3">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl shadow-card p-3 min-h-[200px] space-y-2">
+                <SkeletonPulse className="h-5 w-16" />
+                <SkeletonPulse className="h-4 w-10" />
+                <SkeletonPulse className="h-16 w-full rounded-lg" />
+                <SkeletonPulse className="h-16 w-full rounded-lg" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-7 gap-3">
