@@ -162,11 +162,11 @@ app.get('/api/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', req.method, req.path, err.message, err.stack);
+  console.error('Error:', req.method, req.path, err.message);
   if (!res.headersSent) {
     res.status(500).json({
       error: 'שגיאה בשרת',
-      detail: err.message
+      message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 });
