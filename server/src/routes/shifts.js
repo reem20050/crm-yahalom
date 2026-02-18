@@ -276,6 +276,33 @@ router.get('/open', async (req, res) => {
   }
 });
 
+// Get guard assignment suggestions for a shift
+router.get('/suggestions/guards', requireManager, async (req, res) => {
+  try {
+    const { date, start_time, end_time, requires_weapon, site_id, template_id, limit } = req.query;
+
+    if (!date || !start_time || !end_time) {
+      return res.status(400).json({ error: 'נדרש תאריך, שעת התחלה ושעת סיום' });
+    }
+
+    const guardAssignment = require('../services/guardAssignment');
+    const suggestions = guardAssignment.getSuggestions({
+      date,
+      startTime: start_time,
+      endTime: end_time,
+      requiresWeapon: requires_weapon === 'true' || requires_weapon === '1',
+      siteId: site_id || null,
+      templateId: template_id || null,
+      limit: parseInt(limit) || 5
+    });
+
+    res.json({ suggestions });
+  } catch (error) {
+    console.error('Guard suggestions error:', error);
+    res.status(500).json({ error: 'שגיאה בחישוב המלצות שיבוץ' });
+  }
+});
+
 // Self-assign to a shift
 router.post('/:shiftId/self-assign', async (req, res) => {
   try {
@@ -345,6 +372,278 @@ router.post('/:shiftId/self-assign', async (req, res) => {
   }
 });
 
+// Bulk approve shifts - MUST be before /:id route
+router.post('/bulk-approve', requireManager, async (req, res) => {
+  try {
+    const { shift_ids } = req.body;
+    if (!shift_ids || !Array.isArray(shift_ids) || shift_ids.length === 0) {
+      return res.status(400).json({ error: 'נדרשים מזהי משמרות' });
+    }
+    const placeholders = shift_ids.map(() => '?').join(',');
+    db.query(`UPDATE shifts SET status = 'confirmed' WHERE id IN (${placeholders}) AND status = 'draft'`, shift_ids);
+    res.json({ message: `${shift_ids.length} משמרות אושרו`, count: shift_ids.length });
+  } catch (error) {
+    console.error('Bulk approve error:', error);
+    res.status(500).json({ error: 'שגיאה באישור משמרות' });
+  }
+});
+
+// Bulk delete shifts - MUST be before /:id route
+router.post('/bulk-delete', requireManager, async (req, res) => {
+  try {
+    const { shift_ids } = req.body;
+    if (!shift_ids || !Array.isArray(shift_ids) || shift_ids.length === 0) {
+      return res.status(400).json({ error: 'נדרשים מזהי משמרות' });
+    }
+    const placeholders = shift_ids.map(() => '?').join(',');
+    db.query(`DELETE FROM shift_assignments WHERE shift_id IN (${placeholders})`, shift_ids);
+    db.query(`DELETE FROM shifts WHERE id IN (${placeholders})`, shift_ids);
+    res.json({ message: `${shift_ids.length} משמרות נמחקו`, count: shift_ids.length });
+  } catch (error) {
+    console.error('Bulk delete error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת משמרות' });
+  }
+});
+
+// Copy shifts from one week to another
+router.post('/copy-week', requireManager, async (req, res) => {
+  try {
+    const { source_week_start, target_week_start } = req.body;
+    if (!source_week_start || !target_week_start) {
+      return res.status(400).json({ error: 'נדרשים תאריכי שבוע מקור ויעד' });
+    }
+
+    const crypto = require('crypto');
+
+    // Get all shifts from source week (7 days)
+    const sourceShifts = db.query(`
+      SELECT s.*,
+             GROUP_CONCAT(sa.employee_id) as assigned_employees
+      FROM shifts s
+      LEFT JOIN shift_assignments sa ON sa.shift_id = s.id
+      WHERE s.date >= ? AND s.date < date(?, '+7 days')
+      GROUP BY s.id
+      ORDER BY s.date, s.start_time
+    `, [source_week_start, source_week_start]);
+
+    if (sourceShifts.rows.length === 0) {
+      return res.status(400).json({ error: 'לא נמצאו משמרות בשבוע המקור' });
+    }
+
+    const sourceStart = new Date(source_week_start);
+    const targetStart = new Date(target_week_start);
+    const dayOffset = Math.round((targetStart - sourceStart) / (1000 * 60 * 60 * 24));
+
+    let created = 0;
+    for (const shift of sourceShifts.rows) {
+      // Calculate new date
+      const shiftDate = new Date(shift.date);
+      shiftDate.setDate(shiftDate.getDate() + dayOffset);
+      const newDate = shiftDate.toISOString().split('T')[0];
+
+      // Check if shift already exists at this slot
+      const existing = db.query(`
+        SELECT id FROM shifts WHERE date = ? AND start_time = ? AND site_id = ?
+      `, [newDate, shift.start_time, shift.site_id]);
+
+      if (existing.rows.length > 0) continue; // Skip duplicates
+
+      const newShiftId = crypto.randomUUID();
+      db.query(`
+        INSERT INTO shifts (id, customer_id, site_id, date, start_time, end_time,
+                           required_employees, requires_weapon, requires_vehicle, notes, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', datetime('now'), datetime('now'))
+      `, [newShiftId, shift.customer_id, shift.site_id, newDate, shift.start_time, shift.end_time,
+          shift.required_employees, shift.requires_weapon, shift.requires_vehicle, shift.notes]);
+
+      // Copy assignments if employees exist
+      if (shift.assigned_employees) {
+        const employees = shift.assigned_employees.split(',');
+        for (const empId of employees) {
+          const assignId = crypto.randomUUID();
+          db.query(`
+            INSERT INTO shift_assignments (id, shift_id, employee_id, role, status, created_at)
+            VALUES (?, ?, ?, 'guard', 'assigned', datetime('now'))
+          `, [assignId, newShiftId, empId.trim()]);
+        }
+      }
+      created++;
+    }
+
+    res.json({
+      message: `${created} משמרות הועתקו בהצלחה`,
+      created,
+      source_count: sourceShifts.rows.length
+    });
+  } catch (error) {
+    console.error('Copy week error:', error);
+    res.status(500).json({ error: 'שגיאה בהעתקת שבוע' });
+  }
+});
+
+// Generate shifts from a specific template for a specific week
+router.post('/generate-from-template/:templateId', requireManager, async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const { week_start } = req.body;
+    if (!week_start) return res.status(400).json({ error: 'נדרש תאריך התחלת שבוע' });
+
+    const crypto = require('crypto');
+
+    const template = db.query('SELECT * FROM shift_templates WHERE id = ?', [templateId]);
+    if (template.rows.length === 0) return res.status(404).json({ error: 'תבנית לא נמצאה' });
+
+    const tmpl = template.rows[0];
+    const daysOfWeek = JSON.parse(tmpl.days_of_week || '[]');
+    const preferredEmployees = JSON.parse(tmpl.preferred_employees || '[]');
+
+    // Map day names to offsets from week start (Sunday)
+    const dayMap = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+
+    let created = 0;
+    for (const day of daysOfWeek) {
+      const dayOffset = dayMap[day.toLowerCase()] ?? 0;
+      const shiftDate = new Date(week_start);
+      shiftDate.setDate(shiftDate.getDate() + dayOffset);
+      const dateStr = shiftDate.toISOString().split('T')[0];
+
+      // Skip if shift already exists
+      const existing = db.query(`
+        SELECT id FROM shifts WHERE date = ? AND start_time = ? AND site_id = ?
+      `, [dateStr, tmpl.start_time, tmpl.site_id]);
+      if (existing.rows.length > 0) continue;
+
+      const shiftId = crypto.randomUUID();
+      db.query(`
+        INSERT INTO shifts (id, customer_id, site_id, date, start_time, end_time,
+                           required_employees, requires_weapon, requires_vehicle, notes, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', datetime('now'), datetime('now'))
+      `, [shiftId, tmpl.customer_id, tmpl.site_id, dateStr, tmpl.start_time, tmpl.end_time,
+          tmpl.required_employees || 1, tmpl.requires_weapon || 0, tmpl.requires_vehicle || 0,
+          `נוצר מתבנית: ${tmpl.name}`]);
+
+      // Assign preferred employees
+      for (const empId of preferredEmployees) {
+        const assignId = crypto.randomUUID();
+        db.query(`
+          INSERT INTO shift_assignments (id, shift_id, employee_id, role, status, created_at)
+          VALUES (?, ?, ?, 'guard', 'assigned', datetime('now'))
+        `, [assignId, shiftId, empId]);
+      }
+
+      created++;
+    }
+
+    res.json({ message: `${created} משמרות נוצרו מתבנית`, created });
+  } catch (error) {
+    console.error('Generate from template error:', error);
+    res.status(500).json({ error: 'שגיאה ביצירה מתבנית' });
+  }
+});
+
+// ===== Shift Swap Requests =====
+
+// Request shift swap
+router.post('/swap-request', async (req, res) => {
+  try {
+    const { shift_id, target_employee_id, reason } = req.body;
+
+    // Find employee_id for the current user
+    const empResult = db.query(
+      'SELECT id FROM employees WHERE user_id = ?',
+      [req.user.id]
+    );
+    const requesterId = empResult.rows.length > 0 ? empResult.rows[0].id : null;
+    if (!requesterId) {
+      return res.status(400).json({ error: 'רק עובדים יכולים לבקש החלפה' });
+    }
+
+    if (!shift_id) {
+      return res.status(400).json({ error: 'נדרש מזהה משמרת' });
+    }
+
+    // Verify requester is assigned to this shift
+    const assignment = db.query(
+      'SELECT id FROM shift_assignments WHERE shift_id = ? AND employee_id = ?',
+      [shift_id, requesterId]
+    );
+    if (assignment.rows.length === 0) {
+      return res.status(400).json({ error: 'אינך משובץ למשמרת זו' });
+    }
+
+    const id = db.generateUUID();
+    db.query(`
+      INSERT INTO shift_swap_requests (id, shift_id, requester_id, target_employee_id, reason)
+      VALUES (?, ?, ?, ?, ?)
+    `, [id, shift_id, requesterId, target_employee_id || null, reason || '']);
+
+    res.json({ message: 'בקשת החלפה נשלחה', id });
+  } catch (error) {
+    console.error('Swap request error:', error);
+    res.status(500).json({ error: 'שגיאה בשליחת בקשת החלפה' });
+  }
+});
+
+// Get pending swap requests (managers)
+router.get('/swap-requests', requireManager, async (req, res) => {
+  try {
+    const result = db.query(`
+      SELECT sr.*,
+             e1.first_name || ' ' || e1.last_name as requester_name,
+             e2.first_name || ' ' || e2.last_name as target_name,
+             s.date, s.start_time, s.end_time,
+             si.name as site_name
+      FROM shift_swap_requests sr
+      JOIN employees e1 ON sr.requester_id = e1.id
+      LEFT JOIN employees e2 ON sr.target_employee_id = e2.id
+      JOIN shifts s ON sr.shift_id = s.id
+      LEFT JOIN sites si ON s.site_id = si.id
+      WHERE sr.status = 'pending'
+      ORDER BY sr.created_at DESC
+    `);
+    res.json({ swap_requests: result.rows });
+  } catch (error) {
+    console.error('Get swap requests error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת בקשות החלפה' });
+  }
+});
+
+// Approve/reject swap request
+router.post('/swap-requests/:requestId/resolve', requireManager, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { approve } = req.body;
+
+    const request = db.query('SELECT * FROM shift_swap_requests WHERE id = ?', [requestId]);
+    if (request.rows.length === 0) {
+      return res.status(404).json({ error: 'בקשה לא נמצאה' });
+    }
+
+    const swapReq = request.rows[0];
+    if (swapReq.status !== 'pending') {
+      return res.status(400).json({ error: 'הבקשה כבר טופלה' });
+    }
+
+    if (approve && swapReq.target_employee_id) {
+      // Swap the assignments
+      db.query(
+        'UPDATE shift_assignments SET employee_id = ? WHERE shift_id = ? AND employee_id = ?',
+        [swapReq.target_employee_id, swapReq.shift_id, swapReq.requester_id]
+      );
+    }
+
+    db.query(
+      `UPDATE shift_swap_requests SET status = ?, resolved_at = datetime('now'), resolved_by = ? WHERE id = ?`,
+      [approve ? 'approved' : 'rejected', req.user.id, requestId]
+    );
+
+    res.json({ message: approve ? 'בקשת החלפה אושרה' : 'בקשת החלפה נדחתה' });
+  } catch (error) {
+    console.error('Resolve swap error:', error);
+    res.status(500).json({ error: 'שגיאה בטיפול בבקשת החלפה' });
+  }
+});
+
 // Get single shift
 router.get('/:id', async (req, res) => {
   try {
@@ -379,6 +678,39 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     console.error('Get shift error:', error);
     res.status(500).json({ error: 'שגיאה בטעינת משמרת' });
+  }
+});
+
+// Get guard suggestions for an existing shift
+router.get('/:id/suggestions', requireManager, async (req, res) => {
+  try {
+    const shiftResult = await db.query(`
+      SELECT s.*, st.id as template_id
+      FROM shifts s
+      LEFT JOIN shift_templates st ON st.site_id = s.site_id AND st.is_active = 1
+      WHERE s.id = $1
+    `, [req.params.id]);
+
+    if (shiftResult.rows.length === 0) {
+      return res.status(404).json({ error: 'משמרת לא נמצאה' });
+    }
+
+    const shift = shiftResult.rows[0];
+    const guardAssignment = require('../services/guardAssignment');
+    const suggestions = guardAssignment.getSuggestions({
+      date: shift.date,
+      startTime: shift.start_time,
+      endTime: shift.end_time,
+      requiresWeapon: !!shift.requires_weapon,
+      siteId: shift.site_id,
+      templateId: shift.template_id || null,
+      limit: 5
+    });
+
+    res.json({ suggestions });
+  } catch (error) {
+    console.error('Shift suggestions error:', error);
+    res.status(500).json({ error: 'שגיאה בחישוב המלצות' });
   }
 });
 

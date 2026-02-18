@@ -76,16 +76,16 @@ router.post('/', requireAdmin, async (req, res) => {
 // Update template
 router.put('/:id', requireAdmin, async (req, res) => {
   try {
-    const { name, customer_id, site_id, start_time, end_time, required_employees, requires_weapon, requires_vehicle, days_of_week, shift_type, default_notes, preferred_employees, is_active } = req.body;
+    const { name, customer_id, site_id, start_time, end_time, required_employees, requires_weapon, requires_vehicle, days_of_week, shift_type, default_notes, preferred_employees, is_active, auto_generate } = req.body;
 
     db.query(`
       UPDATE shift_templates SET
         name = ?, customer_id = ?, site_id = ?, start_time = ?, end_time = ?,
         required_employees = ?, requires_weapon = ?, requires_vehicle = ?,
         days_of_week = ?, shift_type = ?, default_notes = ?,
-        preferred_employees = ?, is_active = ?, updated_at = datetime('now')
+        preferred_employees = ?, is_active = ?, auto_generate = ?, updated_at = datetime('now')
       WHERE id = ?
-    `, [name, customer_id, site_id, start_time, end_time, required_employees, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, JSON.stringify(days_of_week || []), shift_type, default_notes, JSON.stringify(preferred_employees || []), is_active !== undefined ? (is_active ? 1 : 0) : 1, req.params.id]);
+    `, [name, customer_id, site_id, start_time, end_time, required_employees, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, JSON.stringify(days_of_week || []), shift_type, default_notes, JSON.stringify(preferred_employees || []), is_active !== undefined ? (is_active ? 1 : 0) : 1, auto_generate ? 1 : 0, req.params.id]);
 
     const result = db.query(`
       SELECT st.*, c.company_name, s.name as site_name
@@ -150,6 +150,34 @@ router.post('/:id/generate', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Generate shifts error:', error);
     res.status(500).json({ error: 'שגיאה ביצירת משמרות מתבנית' });
+  }
+});
+
+// Toggle auto-generate for a template
+router.patch('/:id/auto-generate', requireAdmin, async (req, res) => {
+  try {
+    const { auto_generate } = req.body;
+    db.query(`
+      UPDATE shift_templates SET auto_generate = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `, [auto_generate ? 1 : 0, req.params.id]);
+
+    const result = db.query(`
+      SELECT st.*, c.company_name, s.name as site_name
+      FROM shift_templates st
+      LEFT JOIN customers c ON st.customer_id = c.id
+      LEFT JOIN sites s ON st.site_id = s.id
+      WHERE st.id = ?
+    `, [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'תבנית לא נמצאה' });
+    }
+
+    res.json({ template: result.rows[0] });
+  } catch (error) {
+    console.error('Toggle auto-generate error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון יצירה אוטומטית' });
   }
 });
 

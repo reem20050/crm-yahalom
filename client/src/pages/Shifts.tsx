@@ -6,13 +6,15 @@ import { z } from 'zod';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText, LogIn, LogOut } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Users, Plus, X, Clock, MapPin, Shield, Car, Trash2, UserPlus, AlertTriangle, MessageCircle, Send, Copy, FileText, LogIn, LogOut, Check } from 'lucide-react';
 import { shiftsApi, customersApi, sitesApi, employeesApi, shiftTemplatesApi } from '../services/api';
 import { SkeletonPulse } from '../components/Skeleton';
 import ShiftTemplateModal, { GenerateFromTemplateModal } from '../components/ShiftTemplateModal';
 import PatrolLogView from '../components/PatrolLogView';
 import { usePermissions } from '../hooks/usePermissions';
 import { openWhatsApp, formatPhoneForWhatsApp } from '../components/WhatsAppButton';
+import { useBulkSelection } from '../hooks/useBulkSelection';
+import BulkActionBar from '../components/BulkActionBar';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -560,6 +562,7 @@ export default function Shifts() {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const { selectedIds, selectedCount, isSelected, toggleSelect, toggleAll, clearSelection } = useBulkSelection();
 
   const { data, isLoading } = useQuery({
     queryKey: ['shifts', format(weekStart, 'yyyy-MM-dd')],
@@ -618,6 +621,26 @@ export default function Shifts() {
     },
   });
 
+  const bulkApproveMutation = useMutation({
+    mutationFn: (ids: string[]) => shiftsApi.bulkApprove(ids),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      clearSelection();
+      toast.success(res.data.message || 'משמרות אושרו בהצלחה');
+    },
+    onError: () => toast.error('שגיאה באישור משמרות'),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => shiftsApi.bulkDelete(ids),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      clearSelection();
+      toast.success(res.data.message || 'משמרות נמחקו');
+    },
+    onError: () => toast.error('שגיאה במחיקת משמרות'),
+  });
+
   const {
     register,
     handleSubmit,
@@ -648,6 +671,8 @@ export default function Shifts() {
     return data?.shifts?.filter((s: { date: string }) => s.date === dateStr) || [];
   };
 
+  const allShifts: ShiftSummary[] = data?.shifts || [];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -656,6 +681,17 @@ export default function Shifts() {
           <p className="text-sm text-gray-500 mt-0.5">לוח משמרות שבועי</p>
         </div>
         <div className="flex items-center gap-2">
+          {allShifts.length > 0 && can('shifts:delete') && (
+            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={selectedCount > 0 && selectedCount === allShifts.length}
+                onChange={() => toggleAll(allShifts.map((s: ShiftSummary) => s.id))}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              בחר הכל
+            </label>
+          )}
           {can('shifts:create') && (
             <button onClick={() => setShowTemplates(!showTemplates)} className="btn-secondary flex items-center gap-2">
               <FileText className="w-4 h-4" />
@@ -810,12 +846,23 @@ export default function Shifts() {
                         key={shift.id}
                         onClick={() => setSelectedShiftId(shift.id)}
                         className={`p-2 rounded-lg text-xs cursor-pointer hover:shadow-sm transition-all ${
+                          isSelected(shift.id) ? 'ring-2 ring-primary-500 ' : ''
+                        }${
                           shift.assigned_count >= shift.required_employees
                             ? 'bg-emerald-50/80 border border-emerald-100'
                             : 'bg-amber-50/80 border border-amber-100'
                         }`}
                       >
-                        <p className="font-medium truncate text-gray-900">{shift.company_name}</p>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected(shift.id)}
+                            onChange={() => toggleSelect(shift.id)}
+                            className="w-3.5 h-3.5 rounded border-gray-300 flex-shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <p className="font-medium truncate text-gray-900 flex-1">{shift.company_name}</p>
+                        </div>
                         <p className="text-gray-500 truncate">{shift.site_name}</p>
                         <p className="text-gray-400 mt-0.5 font-mono">
                           {shift.start_time} - {shift.end_time}
@@ -847,6 +894,32 @@ export default function Shifts() {
           onClose={() => setSelectedShiftId(null)}
         />
       )}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'אשר נבחרים',
+            onClick: () => bulkApproveMutation.mutate([...selectedIds]),
+            icon: <Check className="w-4 h-4" />,
+            variant: 'success',
+            loading: bulkApproveMutation.isPending,
+          },
+          {
+            label: 'מחק נבחרים',
+            onClick: () => {
+              if (confirm('האם למחוק את המשמרות הנבחרות?')) {
+                bulkDeleteMutation.mutate([...selectedIds]);
+              }
+            },
+            icon: <Trash2 className="w-4 h-4" />,
+            variant: 'danger',
+            loading: bulkDeleteMutation.isPending,
+          },
+        ]}
+      />
 
       {/* Create Shift Modal */}
       {isModalOpen && (

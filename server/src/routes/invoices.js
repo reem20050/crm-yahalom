@@ -148,6 +148,139 @@ router.get('/trash/list', requireManager, async (req, res) => {
   }
 });
 
+// Manually trigger monthly auto-invoicing - MUST be before /:id
+router.post('/auto-generate/monthly', requireManager, async (req, res) => {
+  try {
+    const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
+    const results = autoInvoiceGenerator.generateMonthlyInvoices(req.user.id);
+
+    res.json({
+      message: `נוצרו ${results.created} חשבוניות טיוטה`,
+      ...results
+    });
+  } catch (error) {
+    console.error('Manual invoice generation error:', error);
+    res.status(500).json({ error: 'שגיאה ביצירת חשבוניות אוטומטית' });
+  }
+});
+
+// Bulk approve draft invoices
+router.post('/bulk-approve', requireManager, async (req, res) => {
+  try {
+    const { invoice_ids } = req.body;
+    if (!invoice_ids || !Array.isArray(invoice_ids) || invoice_ids.length === 0) {
+      return res.status(400).json({ error: 'נדרשים מזהי חשבוניות' });
+    }
+    const placeholders = invoice_ids.map(() => '?').join(',');
+    db.query(`UPDATE invoices SET status = 'sent' WHERE id IN (${placeholders}) AND status = 'draft'`, invoice_ids);
+    res.json({ message: `${invoice_ids.length} חשבוניות אושרו`, count: invoice_ids.length });
+  } catch (error) {
+    console.error('Bulk approve invoices error:', error);
+    res.status(500).json({ error: 'שגיאה באישור חשבוניות' });
+  }
+});
+
+// Bulk delete invoices
+router.post('/bulk-delete', requireManager, async (req, res) => {
+  try {
+    const { invoice_ids } = req.body;
+    if (!invoice_ids || !Array.isArray(invoice_ids) || invoice_ids.length === 0) {
+      return res.status(400).json({ error: 'נדרשים מזהי חשבוניות' });
+    }
+    const placeholders = invoice_ids.map(() => '?').join(',');
+    db.query(`DELETE FROM invoices WHERE id IN (${placeholders})`, invoice_ids);
+    res.json({ message: `${invoice_ids.length} חשבוניות נמחקו`, count: invoice_ids.length });
+  } catch (error) {
+    console.error('Bulk delete invoices error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת חשבוניות' });
+  }
+});
+
+// Calculate invoice amount for a customer based on shifts/events in date range
+router.get('/calculate', requireManager, async (req, res) => {
+  try {
+    const { customer_id, start_date, end_date } = req.query;
+    if (!customer_id || !start_date || !end_date) {
+      return res.status(400).json({ error: 'נדרש לקוח, תאריך התחלה ותאריך סיום' });
+    }
+
+    // Get contract for hourly rate
+    const contract = db.query(`
+      SELECT monthly_value, service_type FROM contracts
+      WHERE customer_id = ? AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1
+    `, [customer_id]);
+
+    const hourlyRate = contract.rows.length > 0 ? (contract.rows[0].monthly_value / 160) : 50; // default 50/hr
+
+    // Get all completed shifts for this customer in date range
+    const shifts = db.query(`
+      SELECT s.date, s.start_time, s.end_time,
+             COUNT(sa.id) as guard_count,
+             ROUND((julianday(s.date || ' ' || s.end_time) - julianday(s.date || ' ' || s.start_time)) * 24, 1) as hours
+      FROM shifts s
+      LEFT JOIN shift_assignments sa ON sa.shift_id = s.id AND sa.status IN ('completed', 'checked_out', 'checked_in')
+      WHERE s.customer_id = ? AND s.date BETWEEN ? AND ?
+      GROUP BY s.id
+      ORDER BY s.date, s.start_time
+    `, [customer_id, start_date, end_date]);
+
+    let totalHours = 0;
+    let totalGuardHours = 0;
+    const shiftDetails = [];
+
+    for (const shift of shifts.rows) {
+      const hours = shift.hours || 0;
+      const guardHours = hours * (shift.guard_count || 1);
+      totalHours += hours;
+      totalGuardHours += guardHours;
+      shiftDetails.push({
+        date: shift.date,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        hours,
+        guards: shift.guard_count,
+        guard_hours: guardHours,
+        amount: Math.round(guardHours * hourlyRate),
+      });
+    }
+
+    // Get events
+    const events = db.query(`
+      SELECT event_name, event_date, start_time, end_time, actual_cost
+      FROM events
+      WHERE customer_id = ? AND event_date BETWEEN ? AND ? AND status = 'completed'
+      ORDER BY event_date
+    `, [customer_id, start_date, end_date]);
+
+    const eventTotal = events.rows.reduce((sum, e) => sum + (e.actual_cost || 0), 0);
+    const shiftTotal = Math.round(totalGuardHours * hourlyRate);
+
+    res.json({
+      customer_id,
+      start_date,
+      end_date,
+      hourly_rate: hourlyRate,
+      shifts: {
+        count: shifts.rows.length,
+        total_hours: totalHours,
+        total_guard_hours: totalGuardHours,
+        total_amount: shiftTotal,
+        details: shiftDetails,
+      },
+      events: {
+        count: events.rows.length,
+        total_amount: eventTotal,
+        details: events.rows,
+      },
+      grand_total: shiftTotal + eventTotal,
+    });
+  } catch (error) {
+    console.error('Invoice calculate error:', error);
+    res.status(500).json({ error: 'שגיאה בחישוב חשבונית' });
+  }
+});
+
 // Get single invoice
 router.get('/:id', async (req, res) => {
   try {

@@ -23,6 +23,13 @@ class Scheduler {
       await this.sendTodayShiftReminders();
     });
 
+    // Every day at 07:15 - Predictive alerts (certs, overwork, invoices, contracts, weapon licenses)
+    const predictiveAlerts = require('./predictiveAlerts');
+    this.addJob('15 7 * * *', 'predictive-alerts', () => {
+      console.log('[Scheduler] Running predictive alerts...');
+      predictiveAlerts.runAll();
+    });
+
     // Every day at 20:00 - Send tomorrow shift reminders
     this.addJob('0 20 * * *', 'tomorrow-shift-reminders', async () => {
       await this.sendTomorrowShiftReminders();
@@ -76,6 +83,16 @@ class Scheduler {
     // Every day at 03:00 - Cleanup old guard location data (30+ days)
     this.addJob('0 3 * * *', 'guard-location-cleanup', async () => {
       await this.cleanupGuardLocations();
+    });
+
+    // Every Sunday at 06:00 - Auto-generate shifts for next week
+    this.addJob('0 6 * * 0', 'auto-generate-shifts', async () => {
+      await this.autoGenerateShifts();
+    });
+
+    // 1st of every month at 08:00 - Auto-generate monthly contract invoices
+    this.addJob('0 8 1 * *', 'auto-generate-invoices', async () => {
+      await this.autoGenerateInvoices();
     });
 
     console.log(`${this.jobs.length} scheduled tasks registered`);
@@ -698,6 +715,67 @@ class Scheduler {
       console.log(`[CRON] Cleaned up old guard locations`);
     } catch (error) {
       console.error('[CRON] cleanupGuardLocations error:', error.message);
+    }
+  }
+
+  /**
+   * Auto-generate shifts from templates for next week
+   */
+  async autoGenerateShifts() {
+    try {
+      const autoShiftGenerator = require('./autoShiftGenerator');
+      const nextSunday = autoShiftGenerator.getNextSunday();
+
+      console.log(`[CRON] Auto-generating shifts for week starting ${nextSunday}`);
+      const results = autoShiftGenerator.generateWeekShifts(nextSunday, null);
+
+      console.log(`[CRON] Auto-shift results: created=${results.created}, skipped=${results.skipped}, errors=${results.errors.length}`);
+
+      // Notify admins if shifts were created
+      if (results.created > 0 && whatsappHelper.isConfigured()) {
+        const admins = query(`
+          SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
+        `);
+
+        const message = `יצירת משמרות אוטומטית 🤖\n\nנוצרו ${results.created} משמרות לשבוע ${nextSunday}\n${results.skipped > 0 ? `דולגו: ${results.skipped} (כבר קיימות)\n` : ''}${results.errors.length > 0 ? `שגיאות: ${results.errors.length}\n` : ''}\nצוות יהלום CRM`;
+
+        for (const admin of admins.rows) {
+          await whatsappHelper.safeSend(admin.phone, message);
+          await this.delay(500);
+        }
+      }
+    } catch (error) {
+      console.error('[CRON] autoGenerateShifts error:', error.message);
+    }
+  }
+
+  /**
+   * Auto-generate monthly invoices from contracts
+   */
+  async autoGenerateInvoices() {
+    try {
+      const autoInvoiceGenerator = require('./autoInvoiceGenerator');
+
+      console.log('[CRON] Auto-generating monthly invoices');
+      const results = autoInvoiceGenerator.generateMonthlyInvoices(null);
+
+      console.log(`[CRON] Auto-invoice results: created=${results.created}, skipped=${results.skipped}, errors=${results.errors.length}`);
+
+      // Notify admins
+      if (results.created > 0 && whatsappHelper.isConfigured()) {
+        const admins = query(`
+          SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
+        `);
+
+        const message = `חשבוניות אוטומטיות 🧾\n\nנוצרו ${results.created} חשבוניות טיוטה לחודש זה\n${results.skipped > 0 ? `דולגו: ${results.skipped} (כבר נוצרו)\n` : ''}${results.errors.length > 0 ? `שגיאות: ${results.errors.length}\n` : ''}\nכנס למערכת לאישור ושליחה.\nצוות יהלום CRM`;
+
+        for (const admin of admins.rows) {
+          await whatsappHelper.safeSend(admin.phone, message);
+          await this.delay(500);
+        }
+      }
+    } catch (error) {
+      console.error('[CRON] autoGenerateInvoices error:', error.message);
     }
   }
 

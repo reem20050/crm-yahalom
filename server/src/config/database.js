@@ -692,6 +692,23 @@ const initializeDatabase = () => {
     )
   `);
 
+  // Shift swap requests
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shift_swap_requests (
+      id TEXT PRIMARY KEY,
+      shift_id TEXT NOT NULL,
+      requester_id TEXT NOT NULL,
+      target_employee_id TEXT,
+      status TEXT DEFAULT 'pending',
+      reason TEXT,
+      created_at DATETIME DEFAULT (datetime('now')),
+      resolved_at DATETIME,
+      resolved_by TEXT,
+      FOREIGN KEY (shift_id) REFERENCES shifts(id),
+      FOREIGN KEY (requester_id) REFERENCES employees(id)
+    )
+  `);
+
   // Guard ratings / performance
   db.exec(`
     CREATE TABLE IF NOT EXISTS guard_ratings (
@@ -743,6 +760,9 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_phone ON whatsapp_messages(phone);
     CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_entity ON whatsapp_messages(entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_created ON whatsapp_messages(created_at);
+    CREATE INDEX IF NOT EXISTS idx_shift_swap_requests_status ON shift_swap_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_shift_swap_requests_shift ON shift_swap_requests(shift_id);
+    CREATE INDEX IF NOT EXISTS idx_shift_swap_requests_requester ON shift_swap_requests(requester_id);
 
     -- Performance indexes (Phase 1 security & stability)
     CREATE INDEX IF NOT EXISTS idx_shift_assignments_employee ON shift_assignments(employee_id);
@@ -765,6 +785,53 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_guard_locations_recorded ON guard_locations(recorded_at);
     CREATE INDEX IF NOT EXISTS idx_sites_lat_lng ON sites(latitude, longitude);
   `);
+
+  // Add auto_generate column to shift_templates
+  try {
+    db.exec(`ALTER TABLE shift_templates ADD COLUMN auto_generate INTEGER DEFAULT 0`);
+  } catch (e) { /* exists */ }
+
+  // Auto generation log table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auto_generation_log (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      source_id TEXT,
+      generated_count INTEGER DEFAULT 0,
+      details TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      created_by TEXT
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_auto_gen_log_type ON auto_generation_log(type);
+    CREATE INDEX IF NOT EXISTS idx_auto_gen_log_created ON auto_generation_log(created_at);
+  `);
+
+  // KPI targets table
+  db.exec(`CREATE TABLE IF NOT EXISTS kpi_targets (
+    id TEXT PRIMARY KEY,
+    metric TEXT NOT NULL,
+    target_value REAL NOT NULL,
+    period TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    created_by TEXT,
+    created_at DATETIME DEFAULT (datetime('now'))
+  )`);
+
+  // Auto-invoice columns on invoices table
+  const autoInvoiceCols = ['auto_generated INTEGER DEFAULT 0', 'source_type TEXT', 'source_id TEXT'];
+  for (const col of autoInvoiceCols) {
+    try { db.exec(`ALTER TABLE invoices ADD COLUMN ${col}`); } catch (e) { /* exists */ }
+  }
+
+  // Auto-invoice contract columns
+  const autoContractCols = ['auto_invoice INTEGER DEFAULT 0', 'billing_day INTEGER DEFAULT 1', 'last_invoiced_date TEXT'];
+  for (const col of autoContractCols) {
+    try { db.exec(`ALTER TABLE contracts ADD COLUMN ${col}`); } catch (e) { /* exists */ }
+  }
 
   // Create default admin user if not exists
   const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@tzevetyahalom.co.il');

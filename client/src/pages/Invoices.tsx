@@ -9,6 +9,8 @@ import { invoicesApi, customersApi, integrationsApi } from '../services/api';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { exportInvoiceToPDF } from '../utils/pdfExport';
+import { useBulkSelection } from '../hooks/useBulkSelection';
+import BulkActionBar from '../components/BulkActionBar';
 
 const statusLabels: Record<string, { label: string; class: string }> = {
   draft: { label: 'טיוטה', class: 'badge-gray' },
@@ -60,6 +62,7 @@ export default function Invoices() {
   const [manualEmail, setManualEmail] = useState('');
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const { selectedIds, selectedCount, isSelected, toggleSelect, toggleAll, clearSelection } = useBulkSelection();
 
   // Queries
   const { data, isLoading } = useQuery({
@@ -162,6 +165,28 @@ export default function Invoices() {
         toast.error(errMsg);
       }
     },
+  });
+
+  const bulkApproveMutation = useMutation({
+    mutationFn: (ids: string[]) => invoicesApi.bulkApprove(ids),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
+      clearSelection();
+      toast.success(res.data.message || 'חשבוניות אושרו');
+    },
+    onError: () => toast.error('שגיאה באישור חשבוניות'),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => invoicesApi.bulkDelete(ids),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
+      clearSelection();
+      toast.success(res.data.message || 'חשבוניות נמחקו');
+    },
+    onError: () => toast.error('שגיאה במחיקת חשבוניות'),
   });
 
   // Form
@@ -302,6 +327,14 @@ export default function Invoices() {
             <table className="table">
               <thead>
                 <tr>
+                  <th className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedCount > 0 && selectedCount === data.invoices.length}
+                      onChange={() => toggleAll(data.invoices.map((inv: Invoice) => inv.id))}
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                    />
+                  </th>
                   <th>מספר חשבונית</th>
                   <th>לקוח</th>
                   <th>מקור</th>
@@ -316,7 +349,15 @@ export default function Invoices() {
                 {data.invoices.map((invoice: Invoice) => {
                   const effectiveStatus = getEffectiveStatus(invoice);
                   return (
-                    <tr key={invoice.id}>
+                    <tr key={invoice.id} className={isSelected(invoice.id) ? 'bg-primary-50' : ''}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={isSelected(invoice.id)}
+                          onChange={() => toggleSelect(invoice.id)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="font-medium">#{invoice.invoice_number || invoice.id.slice(0, 8)}</td>
                       <td>
                         <span className="flex items-center gap-2">
@@ -808,6 +849,32 @@ export default function Invoices() {
           </div>
         </div>
       )}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'אשר טיוטות',
+            onClick: () => bulkApproveMutation.mutate([...selectedIds]),
+            icon: <Check className="w-4 h-4" />,
+            variant: 'success',
+            loading: bulkApproveMutation.isPending,
+          },
+          {
+            label: 'מחק נבחרים',
+            onClick: () => {
+              if (confirm('האם למחוק את החשבוניות הנבחרות?')) {
+                bulkDeleteMutation.mutate([...selectedIds]);
+              }
+            },
+            icon: <Trash2 className="w-4 h-4" />,
+            variant: 'danger',
+            loading: bulkDeleteMutation.isPending,
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -258,6 +258,19 @@ router.put('/:id', requireManager, async (req, res) => {
       googleHelper.updateCalendarEvent(updatedEvent.google_calendar_event_id, updatedEvent).catch(() => {});
     }
 
+    // Auto-generate invoice for completed event
+    if (status === 'completed') {
+      try {
+        const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
+        const invoice = autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
+        if (invoice) {
+          console.log(`Auto-generated invoice for event ${req.params.id}: ${invoice.id}`);
+        }
+      } catch (autoErr) {
+        console.warn('Auto-invoice generation failed:', autoErr.message);
+      }
+    }
+
     res.json({ event: updatedEvent });
   } catch (error) {
     console.error('Update event error:', error);
@@ -344,6 +357,17 @@ router.post('/:id/complete', requireManager, async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'אירוע לא נמצא' });
+    }
+
+    // Auto-generate invoice for completed event
+    try {
+      const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
+      const invoice = autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
+      if (invoice) {
+        console.log(`Auto-generated invoice for event ${req.params.id}: ${invoice.id}`);
+      }
+    } catch (autoErr) {
+      console.warn('Auto-invoice generation failed:', autoErr.message);
     }
 
     res.json({ event: result.rows[0], message: 'אירוע סומן כהושלם' });

@@ -26,6 +26,7 @@ import {
   MapIcon,
   Navigation,
   CalendarPlus,
+  Zap,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -83,6 +84,7 @@ const navigationGroups = [
     label: 'ניהול',
     items: [
       { name: 'משתמשים', href: '/users', icon: ShieldCheck, permission: 'page:users' },
+      { name: 'אוטומציה', href: '/automation', icon: Zap, permission: 'page:settings' },
       { name: 'הגדרות', href: '/settings', icon: Settings, permission: 'page:settings' },
     ],
   },

@@ -45,6 +45,11 @@ export const authApi = {
 export const dashboardApi = {
   get: () => api.get('/dashboard'),
   getOperations: () => api.get('/dashboard/operations'),
+  getKpis: () => api.get('/dashboard/kpis'),
+  setKpiTarget: (metric: string, target_value: number, period?: string) =>
+    api.post('/dashboard/kpi-targets', { metric, target_value, period }),
+  getRecentActivity: (limit?: number) =>
+    api.get('/dashboard/activity-recent', { params: { limit } }),
   getNotifications: (unreadOnly = false) =>
     api.get('/dashboard/notifications', { params: { unread_only: unreadOnly } }),
   markNotificationRead: (id: string) =>
@@ -60,8 +65,10 @@ export const leadsApi = {
   create: (data: Record<string, unknown>) => api.post('/leads', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/leads/${id}`, data),
   delete: (id: string) => api.delete(`/leads/${id}`),
-  convert: (id: string) => api.post(`/leads/${id}/convert`),
+  convert: (id: string, data?: Record<string, unknown>) => api.post(`/leads/${id}/convert`, data || {}),
   getStats: () => api.get('/leads/stats/summary'),
+  bulkUpdateStatus: (lead_ids: string[], status: string) => api.post('/leads/bulk-status', { lead_ids, status }),
+  bulkDelete: (lead_ids: string[]) => api.post('/leads/bulk-delete', { lead_ids }),
 };
 
 // Customers
@@ -149,6 +156,19 @@ export const shiftsApi = {
   getMyActiveAssignment: () => api.get('/shifts/my-active-assignment'),
   getOpen: () => api.get('/shifts/open'),
   selfAssign: (shiftId: string) => api.post(`/shifts/${shiftId}/self-assign`),
+  getGuardSuggestions: (params: { date: string; start_time: string; end_time: string; requires_weapon?: boolean; site_id?: string; template_id?: string }) =>
+    api.get('/shifts/suggestions/guards', { params }),
+  getShiftSuggestions: (shiftId: string) => api.get(`/shifts/${shiftId}/suggestions`),
+  bulkApprove: (ids: string[]) => api.post('/shifts/bulk-approve', { shift_ids: ids }),
+  bulkDelete: (ids: string[]) => api.post('/shifts/bulk-delete', { shift_ids: ids }),
+  copyWeek: (sourceWeekStart: string, targetWeekStart: string) =>
+    api.post('/shifts/copy-week', { source_week_start: sourceWeekStart, target_week_start: targetWeekStart }),
+  generateFromTemplate: (templateId: string, weekStart: string) =>
+    api.post(`/shifts/generate-from-template/${templateId}`, { week_start: weekStart }),
+  getSwapRequests: () => api.get('/shifts/swap-requests'),
+  createSwapRequest: (data: Record<string, unknown>) => api.post('/shifts/swap-request', data),
+  resolveSwapRequest: (requestId: string, approve: boolean) =>
+    api.post(`/shifts/swap-requests/${requestId}/resolve`, { approve }),
 };
 
 // Events
@@ -180,6 +200,10 @@ export const invoicesApi = {
     api.get('/invoices/summary/monthly', { params: { year, month } }),
   sendEmail: (id: string, email?: string) =>
     api.post(`/invoices/${id}/send-email`, { email }),
+  bulkApprove: (invoice_ids: string[]) => api.post('/invoices/bulk-approve', { invoice_ids }),
+  bulkDelete: (invoice_ids: string[]) => api.post('/invoices/bulk-delete', { invoice_ids }),
+  calculate: (customer_id: string, start_date: string, end_date: string) =>
+    api.get('/invoices/calculate', { params: { customer_id, start_date, end_date } }),
 };
 
 // Reports
@@ -274,6 +298,19 @@ export const shiftTemplatesApi = {
   delete: (id: string) => api.delete(`/shift-templates/${id}`),
   generate: (id: string, start_date: string, end_date: string) =>
     api.post(`/shift-templates/${id}/generate`, { start_date, end_date }),
+  toggleAutoGenerate: (id: string, auto_generate: boolean) =>
+    api.patch(`/shift-templates/${id}/auto-generate`, { auto_generate }),
+};
+
+// Automation
+export const automationApi = {
+  getStatus: () => api.get('/automation/status'),
+  generateShifts: (week_start?: string) =>
+    api.post('/automation/generate-shifts', { week_start }),
+  generateFromTemplate: (templateId: string, start_date: string) =>
+    api.post(`/automation/generate-from-template/${templateId}`, { start_date }),
+  getLogs: (params?: Record<string, unknown>) => api.get('/automation/logs', { params }),
+  generateMonthlyInvoices: () => api.post('/invoices/auto-generate/monthly'),
 };
 
 // Patrols

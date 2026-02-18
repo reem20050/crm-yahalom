@@ -5,6 +5,7 @@ import {
   Users,
   Building2,
   Calendar,
+  CalendarPlus,
   PartyPopper,
   AlertCircle,
   TrendingUp,
@@ -20,8 +21,11 @@ import {
   LogIn,
   LogOut,
   Loader2,
+  UserPlus,
+  Receipt,
 } from 'lucide-react';
 import { dashboardApi, shiftsApi } from '../services/api';
+import { QuickLeadModal, QuickShiftModal, QuickInvoiceModal, QuickIncidentModal } from '../components/QuickActionModals';
 import { SkeletonPulse, SkeletonStatCard, SkeletonCard } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import {
@@ -38,6 +42,7 @@ type ViewMode = 'business' | 'operations';
 
 export default function Dashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>('operations');
+  const [quickModal, setQuickModal] = useState<string | null>(null);
   const { isEmployee } = usePermissions();
 
   // Employee dashboard - single query
@@ -133,11 +138,57 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <button onClick={() => setQuickModal('lead')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
+          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <UserPlus className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-semibold text-sm">ליד חדש</div>
+            <div className="text-xs text-gray-500">הוסף ליד מהיר</div>
+          </div>
+        </button>
+        <button onClick={() => setQuickModal('shift')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
+          <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <CalendarPlus className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-semibold text-sm">משמרת חדשה</div>
+            <div className="text-xs text-gray-500">צור משמרת מהירה</div>
+          </div>
+        </button>
+        <button onClick={() => setQuickModal('invoice')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
+          <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Receipt className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-semibold text-sm">חשבונית חדשה</div>
+            <div className="text-xs text-gray-500">הפק חשבונית מהירה</div>
+          </div>
+        </button>
+        <button onClick={() => setQuickModal('incident')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
+          <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-semibold text-sm">דוח אירוע</div>
+            <div className="text-xs text-gray-500">דווח אירוע חדש</div>
+          </div>
+        </button>
+      </div>
+
       {viewMode === 'operations' ? (
         <OperationsView data={opsData} />
       ) : (
         <BusinessView data={data} />
       )}
+
+      {/* Quick Action Modals */}
+      <QuickLeadModal isOpen={quickModal === 'lead'} onClose={() => setQuickModal(null)} />
+      <QuickShiftModal isOpen={quickModal === 'shift'} onClose={() => setQuickModal(null)} />
+      <QuickInvoiceModal isOpen={quickModal === 'invoice'} onClose={() => setQuickModal(null)} />
+      <QuickIncidentModal isOpen={quickModal === 'incident'} onClose={() => setQuickModal(null)} />
     </div>
   );
 }

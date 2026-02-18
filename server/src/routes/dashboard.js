@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireManager } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -386,6 +386,146 @@ router.get('/operations', async (req, res) => {
   } catch (error) {
     console.error('Get operations dashboard error:', error);
     res.status(500).json({ error: 'שגיאה בטעינת דשבורד תפעולי' });
+  }
+});
+
+// Get KPI metrics with targets and trends
+router.get('/kpis', requireManager, async (req, res) => {
+  try {
+    const safeQuery = async (sql, params) => {
+      try { return await db.query(sql, params); }
+      catch (e) { console.warn('KPI query failed:', e.message); return { rows: [] }; }
+    };
+
+    const [monthlyRevenue, prevMonthRevenue, activeCustomers, prevActiveCustomers,
+           monthIncidents, prevMonthIncidents, employeeUtilization] = await Promise.all([
+      // Current month revenue
+      safeQuery(`SELECT COALESCE(SUM(total_amount), 0) as total FROM invoices
+        WHERE status = 'paid' AND payment_date >= date('now', 'localtime', 'start of month')`),
+      // Previous month revenue
+      safeQuery(`SELECT COALESCE(SUM(total_amount), 0) as total FROM invoices
+        WHERE status = 'paid' AND payment_date >= date('now', 'localtime', 'start of month', '-1 month')
+        AND payment_date < date('now', 'localtime', 'start of month')`),
+      // Active customers
+      safeQuery(`SELECT COUNT(*) as count FROM customers WHERE status = 'active'`),
+      // Customers last month
+      safeQuery(`SELECT COUNT(*) as count FROM customers WHERE status = 'active'
+        AND created_at < date('now', 'localtime', 'start of month')`),
+      // Incidents this month
+      safeQuery(`SELECT COUNT(*) as count FROM incidents
+        WHERE created_at >= date('now', 'localtime', 'start of month')`),
+      // Incidents last month
+      safeQuery(`SELECT COUNT(*) as count FROM incidents
+        WHERE created_at >= date('now', 'localtime', 'start of month', '-1 month')
+        AND created_at < date('now', 'localtime', 'start of month')`),
+      // Employee utilization (shifts assigned / total employees)
+      safeQuery(`SELECT
+        (SELECT COUNT(DISTINCT sa.employee_id) FROM shift_assignments sa
+         JOIN shifts s ON sa.shift_id = s.id
+         WHERE s.date BETWEEN date('now', 'localtime', '-7 days') AND date('now', 'localtime')) as active_employees,
+        (SELECT COUNT(*) FROM employees WHERE status = 'active') as total_employees
+      `)
+    ]);
+
+    const revenue = monthlyRevenue.rows[0]?.total || 0;
+    const prevRevenue = prevMonthRevenue.rows[0]?.total || 0;
+    const customers = activeCustomers.rows[0]?.count || 0;
+    const prevCustomers = prevActiveCustomers.rows[0]?.count || 0;
+    const incidents = monthIncidents.rows[0]?.count || 0;
+    const prevIncidents = prevMonthIncidents.rows[0]?.count || 0;
+    const util = employeeUtilization.rows[0] || {};
+    const utilRate = util.total_employees ? Math.round((util.active_employees / util.total_employees) * 100) : 0;
+
+    // Get KPI targets
+    let targets = {};
+    try {
+      const targetRows = db.query(`SELECT metric, target_value FROM kpi_targets
+        WHERE period = strftime('%Y-%m', 'now', 'localtime')
+        OR (start_date <= date('now', 'localtime') AND end_date >= date('now', 'localtime'))`);
+      for (const t of targetRows.rows) {
+        targets[t.metric] = t.target_value;
+      }
+    } catch (e) { /* kpi_targets table might not exist yet */ }
+
+    res.json({
+      kpis: [
+        {
+          key: 'monthly_revenue',
+          label: 'הכנסה חודשית',
+          value: revenue,
+          prevValue: prevRevenue,
+          target: targets['monthly_revenue'] || null,
+          format: 'currency',
+        },
+        {
+          key: 'active_customers',
+          label: 'לקוחות פעילים',
+          value: customers,
+          prevValue: prevCustomers,
+          target: targets['active_customers'] || null,
+          format: 'number',
+        },
+        {
+          key: 'security_incidents',
+          label: 'אירועי אבטחה',
+          value: incidents,
+          prevValue: prevIncidents,
+          target: targets['security_incidents'] || null,
+          format: 'number',
+          invertTrend: true, // lower is better
+        },
+        {
+          key: 'employee_utilization',
+          label: 'ניצולת עובדים',
+          value: utilRate,
+          prevValue: null,
+          target: targets['employee_utilization'] || 80,
+          format: 'percent',
+        },
+      ],
+    });
+  } catch (error) {
+    console.error('Get KPIs error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת KPIs' });
+  }
+});
+
+// Get recent activity feed
+router.get('/activity-recent', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 15;
+    const result = db.query(`
+      SELECT al.*, u.first_name || ' ' || u.last_name as user_name
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      ORDER BY al.created_at DESC
+      LIMIT ?
+    `, [limit]);
+    res.json({ activities: result.rows });
+  } catch (error) {
+    console.error('Get recent activity error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פעילות אחרונה' });
+  }
+});
+
+// Set KPI target
+router.post('/kpi-targets', requireManager, async (req, res) => {
+  try {
+    const crypto = require('crypto');
+    const { metric, target_value, period } = req.body;
+    const id = crypto.randomUUID();
+    const effectivePeriod = period || new Date().toISOString().slice(0, 7);
+
+    // Upsert: delete existing target for same metric+period, then insert
+    db.query('DELETE FROM kpi_targets WHERE metric = ? AND period = ?', [metric, effectivePeriod]);
+    db.query(`INSERT INTO kpi_targets (id, metric, target_value, period, start_date, end_date, created_by)
+      VALUES (?, ?, ?, ?, date('now', 'localtime', 'start of month'), date('now', 'localtime', 'start of month', '+1 month', '-1 day'), ?)`,
+      [id, metric, target_value, effectivePeriod, req.user.id]);
+
+    res.json({ message: 'יעד KPI נשמר', id });
+  } catch (error) {
+    console.error('Set KPI target error:', error);
+    res.status(500).json({ error: 'שגיאה בשמירת יעד' });
   }
 });
 

@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ArrowRight, Phone, Mail, Building2, MapPin, Edit, Save, X, Trash2, ArrowLeftRight, AlertTriangle, Send } from 'lucide-react';
+import { ArrowRight, Phone, Mail, Building2, MapPin, Edit, Save, X, Trash2, ArrowLeftRight, Send } from 'lucide-react';
 import { leadsApi } from '../services/api';
 import WhatsAppButton from '../components/WhatsAppButton';
 import ActivityLog from '../components/ActivityLog';
 import EmailComposeModal from '../components/EmailComposeModal';
+import LeadConversionWizard from '../components/LeadConversionWizard';
 
 const statusOptions = [
   { value: 'new', label: 'חדש' },
@@ -48,7 +49,7 @@ export default function LeadDetails() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [showConvertWizard, setShowConvertWizard] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({
     contact_name: '',
@@ -116,19 +117,6 @@ export default function LeadDetails() {
     },
     onError: () => {
       toast.error('שגיאה במחיקת הליד');
-    },
-  });
-
-  const convertMutation = useMutation({
-    mutationFn: () => leadsApi.convert(id!),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['lead', id] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success('הליד הומר ללקוח בהצלחה');
-      navigate(`/customers/${res.data.customer.id}`);
-    },
-    onError: () => {
-      toast.error('שגיאה בהמרת הליד');
     },
   });
 
@@ -237,10 +225,9 @@ export default function LeadDetails() {
                 <Edit className="w-5 h-5" />
                 עריכה
               </button>
-              {lead?.status !== 'lost' && lead?.status !== 'converted' && (
+              {lead?.status !== 'lost' && lead?.status !== 'won' && lead?.status !== 'converted' && (
                 <button
-                  onClick={() => setShowConvertConfirm(true)}
-                  disabled={convertMutation.isPending}
+                  onClick={() => setShowConvertWizard(true)}
                   className="btn-success flex items-center gap-2"
                 >
                   <ArrowLeftRight className="w-5 h-5" />
@@ -292,43 +279,24 @@ export default function LeadDetails() {
         </div>
       )}
 
-      {/* Convert to customer confirmation modal */}
-      {showConvertConfirm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-yellow-600" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">המרת ליד ללקוח</h3>
-            </div>
-            <p className="text-gray-600">
-              האם אתה בטוח שברצונך להמר ליד זה ללקוח?
-            </p>
-            <p className="text-sm text-gray-500">
-              פעולה זו תיצור לקוח חדש מפרטי הליד
-            </p>
-            <div className="flex items-center gap-3 justify-end">
-              <button
-                onClick={() => setShowConvertConfirm(false)}
-                className="btn-secondary"
-              >
-                ביטול
-              </button>
-              <button
-                onClick={() => {
-                  convertMutation.mutate();
-                  setShowConvertConfirm(false);
-                }}
-                disabled={convertMutation.isPending}
-                className="btn-success flex items-center gap-2"
-              >
-                <ArrowLeftRight className="w-4 h-4" />
-                {convertMutation.isPending ? 'ממיר...' : 'כן, המר'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Lead Conversion Wizard */}
+      {lead && (
+        <LeadConversionWizard
+          isOpen={showConvertWizard}
+          onClose={() => setShowConvertWizard(false)}
+          lead={{
+            id: lead.id,
+            company_name: lead.company_name,
+            contact_name: lead.contact_name,
+            phone: lead.phone,
+            email: lead.email,
+            service_type: lead.service_type,
+            description: lead.description,
+            location: lead.location,
+            expected_value: lead.expected_value,
+          }}
+          onSuccess={(customerId) => navigate(`/customers/${customerId}`)}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

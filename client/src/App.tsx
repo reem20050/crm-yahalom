@@ -30,6 +30,7 @@ const SitesMap = lazy(() => import('./pages/SitesMap'));
 const GuardTracking = lazy(() => import('./pages/GuardTracking'));
 const GuardPanel = lazy(() => import('./pages/GuardPanel'));
 const OpenShifts = lazy(() => import('./pages/OpenShifts'));
+const AutomationSettings = lazy(() => import('./pages/AutomationSettings'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -105,6 +106,7 @@ function App() {
             <Route path="reports" element={<RoleRoute permission="page:reports"><Reports /></RoleRoute>} />
             <Route path="users" element={<RoleRoute permission="page:users"><Users /></RoleRoute>} />
             <Route path="settings" element={<RoleRoute permission="page:settings"><Settings /></RoleRoute>} />
+            <Route path="automation" element={<RoleRoute permission="page:settings"><AutomationSettings /></RoleRoute>} />
             <Route path="sites-map" element={<RoleRoute permission="page:sites-map"><SitesMap /></RoleRoute>} />
             <Route path="guard-tracking" element={<RoleRoute permission="page:guard-tracking"><GuardTracking /></RoleRoute>} />
             <Route path="guard-panel" element={<GuardPanel />} />

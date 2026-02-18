@@ -18,6 +18,8 @@ import {
 import { leadsApi } from '../services/api';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
+import { useBulkSelection } from '../hooks/useBulkSelection';
+import BulkActionBar from '../components/BulkActionBar';
 
 const leadSchema = z.object({
   company_name: z.string().optional(),
@@ -54,7 +56,10 @@ export default function Leads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [bulkStatusModal, setBulkStatusModal] = useState(false);
+  const [bulkNewStatus, setBulkNewStatus] = useState('contacted');
   const queryClient = useQueryClient();
+  const { selectedIds, selectedCount, isSelected, toggleSelect, toggleAll, clearSelection } = useBulkSelection();
 
   const { data, isLoading } = useQuery({
     queryKey: ['leads', { search: searchTerm, status: statusFilter }],
@@ -86,6 +91,27 @@ export default function Leads() {
     onError: () => {
       toast.error('שגיאה במחיקה');
     },
+  });
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: string }) => leadsApi.bulkUpdateStatus(ids, status),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      clearSelection();
+      setBulkStatusModal(false);
+      toast.success(res.data.message || 'לידים עודכנו');
+    },
+    onError: () => toast.error('שגיאה בעדכון לידים'),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => leadsApi.bulkDelete(ids),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      clearSelection();
+      toast.success(res.data.message || 'לידים נמחקו');
+    },
+    onError: () => toast.error('שגיאה במחיקת לידים'),
   });
 
   const {
@@ -150,12 +176,20 @@ export default function Leads() {
       {/* Leads table */}
       <div className="card p-0 overflow-hidden">
         {isLoading ? (
-          <SkeletonTableRows columns={6} rows={5} />
+          <SkeletonTableRows columns={7} rows={5} />
         ) : data?.leads?.length > 0 ? (
           <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
+                  <th className="w-10">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                      checked={selectedCount > 0 && selectedCount === data.leads.length}
+                      onChange={() => toggleAll(data.leads.map((l: { id: string }) => l.id))}
+                    />
+                  </th>
                   <th>איש קשר</th>
                   <th>חברה</th>
                   <th>מקור</th>
@@ -175,7 +209,15 @@ export default function Leads() {
                   status: string;
                   created_at: string;
                 }) => (
-                  <tr key={lead.id}>
+                  <tr key={lead.id} className={isSelected(lead.id) ? 'bg-primary-50' : ''}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                        checked={isSelected(lead.id)}
+                        onChange={() => toggleSelect(lead.id)}
+                      />
+                    </td>
                     <td>
                       <div>
                         <p className="font-medium">{lead.contact_name}</p>
@@ -342,6 +384,63 @@ export default function Leads() {
           </div>
         </div>
       )}
+
+      {/* Bulk Status Update Modal */}
+      {bulkStatusModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold mb-4">עדכון סטטוס ({selectedCount} לידים)</h3>
+            <select
+              value={bulkNewStatus}
+              onChange={(e) => setBulkNewStatus(e.target.value)}
+              className="input w-full mb-4"
+            >
+              <option value="new">חדש</option>
+              <option value="contacted">נוצר קשר</option>
+              <option value="meeting_scheduled">פגישה נקבעה</option>
+              <option value="proposal_sent">הצעה נשלחה</option>
+              <option value="negotiation">משא ומתן</option>
+              <option value="won">נסגר</option>
+              <option value="lost">אבד</option>
+            </select>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setBulkStatusModal(false)} className="btn-secondary">ביטול</button>
+              <button
+                onClick={() => bulkStatusMutation.mutate({ ids: [...selectedIds], status: bulkNewStatus })}
+                className="btn-primary"
+                disabled={bulkStatusMutation.isPending}
+              >
+                {bulkStatusMutation.isPending ? 'מעדכן...' : 'עדכן'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedCount}
+        onClear={clearSelection}
+        actions={[
+          {
+            label: 'עדכן סטטוס',
+            onClick: () => setBulkStatusModal(true),
+            icon: <Filter className="w-4 h-4" />,
+            variant: 'primary',
+          },
+          {
+            label: 'מחק נבחרים',
+            onClick: () => {
+              if (confirm('האם למחוק את הלידים הנבחרים?')) {
+                bulkDeleteMutation.mutate([...selectedIds]);
+              }
+            },
+            icon: <Trash2 className="w-4 h-4" />,
+            variant: 'danger',
+            loading: bulkDeleteMutation.isPending,
+          },
+        ]}
+      />
     </div>
   );
 }
