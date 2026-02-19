@@ -35,7 +35,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
   return (
-    <div className="animate-fade-in p-4 lg:p-8 max-w-[1600px] space-y-6">
+    <div className="animate-fade-in p-4 lg:p-8 space-y-6">
       <div className="space-y-2">
         <div className="skeleton h-8 w-48" />
         <div className="skeleton h-4 w-32" />

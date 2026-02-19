@@ -786,6 +786,65 @@ const initializeDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_sites_lat_lng ON sites(latitude, longitude);
   `);
 
+  // Calendar exceptions table (holidays, blackouts, special dates)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS calendar_exceptions (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      exception_type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      affects TEXT DEFAULT 'all',
+      action TEXT DEFAULT 'skip',
+      modifier REAL DEFAULT 0,
+      notes TEXT,
+      recurring INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_calendar_exceptions_date ON calendar_exceptions(date);
+    CREATE INDEX IF NOT EXISTS idx_calendar_exceptions_type ON calendar_exceptions(exception_type);
+  `);
+
+  // Seed Israeli holidays for 2025-2026 if table is empty
+  const calExCount = db.prepare('SELECT COUNT(*) as c FROM calendar_exceptions').get();
+  if (calExCount.c === 0) {
+    const holidays = [
+      // 2025 Israeli Holidays
+      ['2025-03-14', 'holiday', 'פורים', 'shifts', 'reduce', 0],
+      ['2025-04-13', 'holiday', 'ערב פסח', 'all', 'skip', 0],
+      ['2025-04-14', 'holiday', 'פסח - יום ראשון', 'all', 'skip', 0],
+      ['2025-04-20', 'holiday', 'שביעי של פסח', 'all', 'skip', 0],
+      ['2025-05-02', 'holiday', 'יום הזיכרון', 'all', 'reduce', 0],
+      ['2025-05-03', 'holiday', 'יום העצמאות', 'all', 'skip', 0],
+      ['2025-06-02', 'holiday', 'שבועות', 'all', 'skip', 0],
+      ['2025-09-23', 'holiday', 'ראש השנה - יום א', 'all', 'skip', 0],
+      ['2025-09-24', 'holiday', 'ראש השנה - יום ב', 'all', 'skip', 0],
+      ['2025-10-02', 'holiday', 'יום כיפור', 'all', 'skip', 0],
+      ['2025-10-07', 'holiday', 'סוכות', 'all', 'skip', 0],
+      ['2025-10-14', 'holiday', 'שמיני עצרת', 'all', 'skip', 0],
+      // 2026 Israeli Holidays
+      ['2026-03-04', 'holiday', 'פורים', 'shifts', 'reduce', 0],
+      ['2026-04-02', 'holiday', 'ערב פסח', 'all', 'skip', 0],
+      ['2026-04-03', 'holiday', 'פסח - יום ראשון', 'all', 'skip', 0],
+      ['2026-04-09', 'holiday', 'שביעי של פסח', 'all', 'skip', 0],
+      ['2026-05-22', 'holiday', 'שבועות', 'all', 'skip', 0],
+      ['2026-09-12', 'holiday', 'ראש השנה - יום א', 'all', 'skip', 0],
+      ['2026-09-13', 'holiday', 'ראש השנה - יום ב', 'all', 'skip', 0],
+      ['2026-09-21', 'holiday', 'יום כיפור', 'all', 'skip', 0],
+      ['2026-09-26', 'holiday', 'סוכות', 'all', 'skip', 0],
+      ['2026-10-03', 'holiday', 'שמיני עצרת', 'all', 'skip', 0],
+    ];
+    const insertHoliday = db.prepare(
+      'INSERT INTO calendar_exceptions (id, date, exception_type, name, affects, action, recurring) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    for (const h of holidays) {
+      insertHoliday.run(crypto.randomUUID(), h[0], h[1], h[2], h[3], h[4], h[5]);
+    }
+    console.log('✅ Israeli holidays 2025-2026 seeded');
+  }
+
   // Add auto_generate column to shift_templates
   try {
     db.exec(`ALTER TABLE shift_templates ADD COLUMN auto_generate INTEGER DEFAULT 0`);
@@ -832,6 +891,247 @@ const initializeDatabase = () => {
   for (const col of autoContractCols) {
     try { db.exec(`ALTER TABLE contracts ADD COLUMN ${col}`); } catch (e) { /* exists */ }
   }
+
+  // ===== Invoice Automation v2 columns =====
+
+  // Customer invoice settings
+  const customerInvoiceCols = [
+    'default_vat_rate REAL DEFAULT 17.0',
+    'default_payment_days INTEGER DEFAULT 30',
+    'auto_send_invoice INTEGER DEFAULT 0',
+    'invoice_email TEXT'
+  ];
+  for (const col of customerInvoiceCols) {
+    try { db.exec(`ALTER TABLE customers ADD COLUMN ${col}`); } catch (e) { /* exists */ }
+  }
+
+  // Contract invoice settings
+  const contractInvoiceCols = [
+    'vat_rate REAL DEFAULT NULL',
+    'payment_days INTEGER DEFAULT NULL',
+    'prorate_partial_months INTEGER DEFAULT 1',
+    'billing_description_template TEXT'
+  ];
+  for (const col of contractInvoiceCols) {
+    try { db.exec(`ALTER TABLE contracts ADD COLUMN ${col}`); } catch (e) { /* exists */ }
+  }
+
+  // System config table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS system_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      description TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default system config
+  db.exec(`INSERT OR IGNORE INTO system_config (key, value, description) VALUES ('default_vat_rate', '17.0', 'שיעור מע"מ ברירת מחדל')`);
+  db.exec(`INSERT OR IGNORE INTO system_config (key, value, description) VALUES ('default_payment_days', '30', 'ימי תשלום ברירת מחדל')`);
+
+  // Smart Guard Assignment v2: employee home coordinates + site required certifications
+  const employeeHomeCols = ['home_latitude REAL DEFAULT NULL', 'home_longitude REAL DEFAULT NULL'];
+  for (const col of employeeHomeCols) {
+    try { db.exec(`ALTER TABLE employees ADD COLUMN ${col}`); } catch (e) { /* exists */ }
+  }
+  try { db.exec(`ALTER TABLE sites ADD COLUMN required_certifications TEXT DEFAULT '[]'`); } catch (e) { /* exists */ }
+
+  // ===== Automation Dashboard Tables =====
+
+  // Automation config - per-job configuration and status
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS automation_config (
+      id TEXT PRIMARY KEY,
+      job_name TEXT UNIQUE NOT NULL,
+      display_name TEXT NOT NULL,
+      description TEXT,
+      cron_schedule TEXT NOT NULL,
+      is_enabled INTEGER DEFAULT 1,
+      last_run_at TEXT,
+      last_run_status TEXT,
+      last_run_details TEXT,
+      next_run_at TEXT,
+      retry_count INTEGER DEFAULT 0,
+      max_retries INTEGER DEFAULT 3,
+      category TEXT DEFAULT 'general',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Automation run log - detailed execution history
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS automation_run_log (
+      id TEXT PRIMARY KEY,
+      job_name TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      status TEXT DEFAULT 'running',
+      items_processed INTEGER DEFAULT 0,
+      items_created INTEGER DEFAULT 0,
+      items_skipped INTEGER DEFAULT 0,
+      error_message TEXT,
+      details TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_automation_config_job ON automation_config(job_name);
+    CREATE INDEX IF NOT EXISTS idx_automation_run_log_job ON automation_run_log(job_name);
+    CREATE INDEX IF NOT EXISTS idx_automation_run_log_status ON automation_run_log(status);
+    CREATE INDEX IF NOT EXISTS idx_automation_run_log_started ON automation_run_log(started_at);
+  `);
+
+  // Seed automation_config with all 14 scheduler jobs
+  const automationConfigCount = db.prepare('SELECT COUNT(*) as c FROM automation_config').get();
+  if (automationConfigCount.c === 0) {
+    const seedJobs = [
+      { job_name: 'daily-shift-reminders', display_name: 'תזכורות משמרות יומיות', description: 'שליחת תזכורות WhatsApp לשומרים עם פרטי המשמרת להיום', cron_schedule: '0 7 * * *', category: 'reminders' },
+      { job_name: 'predictive-alerts', display_name: 'התראות חיזוי', description: 'בדיקת הסמכות, עומס יתר, חשבוניות, חוזים ורישיונות נשק', cron_schedule: '15 7 * * *', category: 'predictive' },
+      { job_name: 'tomorrow-shift-reminders', display_name: 'תזכורות משמרות מחר', description: 'שליחת תזכורות WhatsApp לשומרים על משמרות מחר', cron_schedule: '0 20 * * *', category: 'reminders' },
+      { job_name: 'overdue-invoice-check', display_name: 'בדיקת חשבוניות באיחור', description: 'התראה למנהלים על חשבוניות שעברו מועד תשלום', cron_schedule: '0 9 * * *', category: 'reminders' },
+      { job_name: 'customer-invoice-reminders', display_name: 'תזכורות תשלום ללקוחות', description: 'שליחת תזכורות תשלום ללקוחות ב-3, 7, 14, 30 ימי איחור', cron_schedule: '0 10 * * *', category: 'reminders' },
+      { job_name: 'weekly-summary', display_name: 'סיכום שבועי', description: 'שליחת סיכום שבועי למנהלים עם נתוני משמרות, לידים והכנסות', cron_schedule: '0 8 * * 1', category: 'reminders' },
+      { job_name: 'document-expiry-check', display_name: 'בדיקת תפוגת מסמכים', description: 'התראה על מסמכי עובדים שפגי תוקף בתוך 14 יום', cron_schedule: '0 8 * * *', category: 'predictive' },
+      { job_name: 'contract-expiry-check', display_name: 'בדיקת תפוגת חוזים', description: 'התראה על חוזי לקוחות שמסתיימים בתוך 30 יום', cron_schedule: '30 8 * * *', category: 'predictive' },
+      { job_name: 'unassigned-events-check', display_name: 'אירועים ללא כיסוי', description: 'בדיקת אירועים קרובים שלא מאוישים במלואם', cron_schedule: '0 10 * * *', category: 'monitoring' },
+      { job_name: 'certification-expiry-check', display_name: 'בדיקת תפוגת הסמכות', description: 'התראה על הסמכות שומרים שפגות תוקף בתוך 14 יום', cron_schedule: '30 7 * * *', category: 'predictive' },
+      { job_name: 'unresolved-incidents-check', display_name: 'אירועים לא פתורים', description: 'התראה על אירועי אבטחה פתוחים מעל 48 שעות', cron_schedule: '0 11 * * *', category: 'monitoring' },
+      { job_name: 'guard-no-show-check', display_name: 'זיהוי אי-הגעה', description: 'בדיקת שומרים שלא ביצעו צ\'ק-אין 15 דקות אחרי תחילת משמרת', cron_schedule: '*/15 * * * *', category: 'monitoring' },
+      { job_name: 'guard-location-cleanup', display_name: 'ניקוי נתוני מיקום', description: 'מחיקת נתוני מיקום שומרים ישנים (מעל 30 יום)', cron_schedule: '0 3 * * *', category: 'monitoring' },
+      { job_name: 'auto-generate-shifts', display_name: 'יצירת משמרות אוטומטית', description: 'יצירת משמרות לשבוע הבא מתבניות פעילות', cron_schedule: '0 6 * * 0', category: 'generation' },
+      { job_name: 'auto-generate-invoices', display_name: 'יצירת חשבוניות אוטומטית', description: 'הפקת חשבוניות חודשיות אוטומטית מחוזים פעילים', cron_schedule: '0 8 1 * *', category: 'generation' },
+      { job_name: 'shift-intelligence-weekly', display_name: 'אינטליגנציית משמרות', description: 'ניתוח שבועי של דפוסי מחסור, עייפות ואופטימיזציה', cron_schedule: '0 6 * * 3', category: 'intelligence' },
+    ];
+
+    const insertStmt = db.prepare(`
+      INSERT OR IGNORE INTO automation_config (id, job_name, display_name, description, cron_schedule, category)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const job of seedJobs) {
+      insertStmt.run(
+        crypto.randomUUID(),
+        job.job_name,
+        job.display_name,
+        job.description,
+        job.cron_schedule,
+        job.category
+      );
+    }
+    console.log('Automation config seeded with', seedJobs.length, 'jobs');
+  }
+
+  // ===== Smart Alert Engine Tables =====
+
+  // Alert configuration table - configurable thresholds per alert type
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alert_config (
+      id TEXT PRIMARY KEY,
+      alert_type TEXT UNIQUE NOT NULL,
+      display_name TEXT NOT NULL,
+      description TEXT,
+      is_enabled INTEGER DEFAULT 1,
+      threshold_value REAL NOT NULL,
+      threshold_unit TEXT DEFAULT 'days',
+      warning_threshold REAL,
+      critical_threshold REAL,
+      dedup_hours INTEGER DEFAULT 168,
+      escalation_delay_hours INTEGER DEFAULT 24,
+      channels TEXT DEFAULT '["notification"]',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Alert mutes - per-user muting of specific alerts or entities
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alert_mutes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      alert_type TEXT,
+      related_entity_type TEXT,
+      related_entity_id TEXT,
+      muted_until TEXT,
+      reason TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Alert escalations - track escalated notifications
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alert_escalations (
+      id TEXT PRIMARY KEY,
+      notification_id TEXT,
+      alert_type TEXT NOT NULL,
+      escalation_level INTEGER DEFAULT 0,
+      escalated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      escalated_to TEXT
+    )
+  `);
+
+  // Indexes for alert tables
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_alert_config_type ON alert_config(alert_type);
+    CREATE INDEX IF NOT EXISTS idx_alert_mutes_user ON alert_mutes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_alert_mutes_type ON alert_mutes(alert_type);
+    CREATE INDEX IF NOT EXISTS idx_alert_escalations_type ON alert_escalations(alert_type);
+    CREATE INDEX IF NOT EXISTS idx_alert_escalations_notification ON alert_escalations(notification_id);
+  `);
+
+  // Seed default alert configurations
+  const alertConfigCount = db.prepare('SELECT COUNT(*) as c FROM alert_config').get();
+  if (alertConfigCount.c === 0) {
+    const alertSeeds = [
+      [crypto.randomUUID(), 'cert_expiry', 'תפוגת תעודות', 'התראה על תעודות שפגות תוקפן בקרוב', 30, 'days', 30, 7, 168, 48],
+      [crypto.randomUUID(), 'overwork', 'עומס יתר', 'התראה על עובדים עם יותר מדי משמרות', 6, 'count', 5, 7, 168, 24],
+      [crypto.randomUUID(), 'unpaid_invoices', 'חשבוניות שלא שולמו', 'התראה על חשבוניות שעברו את תאריך הפירעון', 60, 'days', 30, 90, 168, 48],
+      [crypto.randomUUID(), 'contract_expiry', 'תפוגת חוזים', 'התראה על חוזים שמסתיימים בקרוב', 30, 'days', 30, 7, 168, 48],
+      [crypto.randomUUID(), 'weapon_license', 'רישיון נשק', 'התראה על רישיונות נשק שפגות תוקפם', 30, 'days', 30, 7, 168, 24],
+    ];
+    const alertStmt = db.prepare(`
+      INSERT OR IGNORE INTO alert_config (id, alert_type, display_name, description, threshold_value, threshold_unit, warning_threshold, critical_threshold, dedup_hours, escalation_delay_hours)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const seed of alertSeeds) {
+      alertStmt.run(...seed);
+    }
+    console.log('✅ Alert configurations seeded');
+  }
+
+  // Seed shift-intelligence-weekly job if missing from automation_config
+  try {
+    const hasIntelJob = db.prepare("SELECT COUNT(*) as c FROM automation_config WHERE job_name = 'shift-intelligence-weekly'").get();
+    if (hasIntelJob.c === 0) {
+      db.prepare(`
+        INSERT OR IGNORE INTO automation_config (id, job_name, display_name, description, cron_schedule, category)
+        VALUES (?, 'shift-intelligence-weekly', 'אינטליגנציית משמרות', 'ניתוח שבועי של דפוסי מחסור, עייפות ואופטימיזציה', '0 6 * * 3', 'intelligence')
+      `).run(crypto.randomUUID());
+    }
+  } catch (e) { /* table may not exist yet */ }
+
+  // ===== Shift Intelligence Analytics Table =====
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shift_analytics (
+      id TEXT PRIMARY KEY,
+      analysis_date TEXT NOT NULL,
+      analysis_type TEXT NOT NULL,
+      site_id TEXT,
+      employee_id TEXT,
+      details TEXT NOT NULL,
+      severity TEXT DEFAULT 'info',
+      acknowledged INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_shift_analytics_type ON shift_analytics(analysis_type);
+    CREATE INDEX IF NOT EXISTS idx_shift_analytics_date ON shift_analytics(analysis_date);
+    CREATE INDEX IF NOT EXISTS idx_shift_analytics_severity ON shift_analytics(severity);
+  `);
 
   // Create default admin user if not exists
   const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@tzevetyahalom.co.il');

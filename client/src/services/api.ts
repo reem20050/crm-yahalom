@@ -311,6 +311,52 @@ export const automationApi = {
     api.post(`/automation/generate-from-template/${templateId}`, { start_date }),
   getLogs: (params?: Record<string, unknown>) => api.get('/automation/logs', { params }),
   generateMonthlyInvoices: () => api.post('/invoices/auto-generate/monthly'),
+  // Automation Dashboard v2
+  getJobs: () => api.get('/automation/jobs'),
+  toggleJob: (name: string, enabled: boolean) =>
+    api.patch(`/automation/jobs/${name}`, { is_enabled: enabled }),
+  updateJobSchedule: (name: string, cron_schedule: string) =>
+    api.patch(`/automation/jobs/${name}`, { cron_schedule }),
+  triggerJob: (name: string) => api.post(`/automation/jobs/${name}/run`),
+  getJobLogs: (name: string, limit?: number) =>
+    api.get(`/automation/jobs/${name}/logs`, { params: { limit } }),
+  getRuns: (params?: Record<string, unknown>) => api.get('/automation/runs', { params }),
+  getStats: () => api.get('/automation/stats'),
+};
+
+// Invoice Automation v2
+export const invoiceAutomationApi = {
+  preview: () => api.post('/automation/invoices/preview'),
+  generateSelected: (contract_ids: string[]) =>
+    api.post('/automation/invoices/generate-selected', { contract_ids }),
+  getConfig: () => api.get('/automation/invoice-config'),
+  updateConfig: (data: Record<string, string | number>) =>
+    api.patch('/automation/invoice-config', data),
+};
+
+// Shift Intelligence
+export const intelligenceApi = {
+  getShortages: () => api.get('/automation/intelligence/shortages'),
+  getFatigue: () => api.get('/automation/intelligence/fatigue'),
+  getStaffing: (siteId?: string) =>
+    api.get('/automation/intelligence/staffing', { params: siteId ? { site_id: siteId } : {} }),
+  getInsights: () => api.get('/automation/intelligence/insights'),
+  generateInsights: () => api.post('/automation/intelligence/generate'),
+  getHeatmap: () => api.get('/automation/intelligence/heatmap'),
+};
+
+// Calendar Exceptions (Holidays / Blackouts)
+export const calendarExceptionsApi = {
+  getAll: (year?: number) =>
+    api.get('/automation/calendar-exceptions', { params: year ? { year } : {} }),
+  getUpcoming: (days?: number) =>
+    api.get('/automation/calendar-exceptions/upcoming', { params: days ? { days } : {} }),
+  create: (data: Record<string, unknown>) =>
+    api.post('/automation/calendar-exceptions', data),
+  update: (id: string, data: Record<string, unknown>) =>
+    api.put(`/automation/calendar-exceptions/${id}`, data),
+  delete: (id: string) =>
+    api.delete(`/automation/calendar-exceptions/${id}`),
 };
 
 // Patrols
@@ -361,6 +407,19 @@ export const documentsApi = {
   upload: (formData: FormData) =>
     api.post('/documents/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   delete: (id: string) => api.delete(`/documents/${id}`),
+};
+
+// Alerts (Smart Alert Engine)
+export const alertsApi = {
+  getConfig: () => api.get('/automation/alerts/config'),
+  updateConfig: (type: string, data: Record<string, unknown>) =>
+    api.patch(`/automation/alerts/config/${type}`, data),
+  muteAlert: (data: Record<string, unknown>) =>
+    api.post('/automation/alerts/mute', data),
+  unmuteAlert: (id: string) => api.delete(`/automation/alerts/mute/${id}`),
+  getMutes: () => api.get('/automation/alerts/mutes'),
+  getEscalations: (limit?: number) =>
+    api.get('/automation/alerts/escalations', { params: { limit } }),
 };
 
 export default api;

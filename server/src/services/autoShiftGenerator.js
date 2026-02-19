@@ -3,6 +3,7 @@
  * Automatically creates shifts from templates that have auto_generate enabled
  */
 const { query, generateUUID } = require('../config/database');
+const holidayService = require('./holidayService');
 
 class AutoShiftGenerator {
   /**
@@ -70,6 +71,16 @@ class AutoShiftGenerator {
 
       const dateStr = currentDate.toISOString().split('T')[0];
 
+      // Holiday/exception check: skip this date entirely if a skip-exception exists
+      if (holidayService.shouldSkipShift(dateStr)) {
+        skipped++;
+        continue;
+      }
+
+      // Get staffing modifier for reduce/increase exceptions
+      const modifier = holidayService.getStaffingModifier(dateStr);
+      const adjustedRequired = Math.ceil((template.required_employees || 1) * modifier);
+
       // Check if shift already exists for same site/date/time
       const existing = query(`
         SELECT id FROM shifts
@@ -81,7 +92,7 @@ class AutoShiftGenerator {
         continue;
       }
 
-      // Create the shift
+      // Create the shift (with adjusted required_employees based on holiday modifier)
       const shiftId = generateUUID();
       query(`
         INSERT INTO shifts (id, site_id, customer_id, date, start_time, end_time,
@@ -89,7 +100,7 @@ class AutoShiftGenerator {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled')
       `, [shiftId, template.site_id, template.customer_id, dateStr,
           template.start_time, template.end_time,
-          template.required_employees || 1,
+          adjustedRequired,
           template.requires_weapon || 0,
           template.requires_vehicle || 0,
           template.default_notes || null]);
