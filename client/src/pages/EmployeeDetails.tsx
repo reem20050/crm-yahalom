@@ -494,7 +494,7 @@ export default function EmployeeDetails() {
               }}
               className="card space-y-3"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="label">סוג הסמכה *</label>
                   <select value={certForm.cert_type} onChange={(e) => setCertForm({ ...certForm, cert_type: e.target.value })} className="input">
@@ -707,7 +707,7 @@ export default function EmployeeDetails() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="card">
                   <h3 className="font-medium mb-2 font-heading">סטטיסטיקות</h3>
                   <dl className="space-y-2 text-sm">
@@ -770,7 +770,7 @@ export default function EmployeeDetails() {
           <div className="card">
             <h2 className="text-lg font-semibold mb-4 font-heading">פרטי קשר</h2>
             {isEditing ? (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="label">טלפון</label>
                   <input
@@ -812,7 +812,7 @@ export default function EmployeeDetails() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 text-gray-400" />
                   <div>
@@ -855,7 +855,7 @@ export default function EmployeeDetails() {
           {isEditing && (
             <div className="card">
               <h2 className="text-lg font-semibold mb-4 font-heading">פרטי העסקה - עריכה</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="label">סוג העסקה</label>
                   <select
@@ -923,7 +923,7 @@ export default function EmployeeDetails() {
           {isEditing && (
             <div className="card">
               <h2 className="text-lg font-semibold mb-4 font-heading">איש קשר לחירום - עריכה</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="label">שם איש קשר</label>
                   <input

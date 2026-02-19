@@ -335,7 +335,7 @@ export default function CustomerDetails() {
             </div>
             {showContactForm && (
               <form onSubmit={(e) => { e.preventDefault(); addContactMutation.mutate(contactForm); }} className="mb-4 p-4 bg-blue-50 rounded-lg space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="label">שם *</label>
                     <input value={contactForm.name} onChange={(e) => setContactForm({...contactForm, name: e.target.value})} className="input" required />
@@ -418,7 +418,7 @@ export default function CustomerDetails() {
             </div>
             {showSiteForm && (
               <form onSubmit={(e) => { e.preventDefault(); addSiteMutation.mutate(siteForm); }} className="mb-4 p-4 bg-green-50 rounded-lg space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="label">שם אתר *</label>
                     <input value={siteForm.name} onChange={(e) => setSiteForm({...siteForm, name: e.target.value})} className="input" required />
@@ -488,7 +488,7 @@ export default function CustomerDetails() {
             </div>
             {showContractForm && (
               <form onSubmit={(e) => { e.preventDefault(); addContractMutation.mutate({...contractForm, monthly_value: Number(contractForm.monthly_value)}); }} className="mb-4 p-4 bg-yellow-50 rounded-lg space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="label">תאריך התחלה *</label>
                     <input type="date" value={contractForm.start_date} onChange={(e) => setContractForm({...contractForm, start_date: e.target.value})} className="input" required />

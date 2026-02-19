@@ -43,7 +43,7 @@ export function QuickLeadModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">ליד חדש</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
@@ -131,7 +131,7 @@ export function QuickShiftModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">משמרת חדשה</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
@@ -156,7 +156,7 @@ export function QuickShiftModal({ isOpen, onClose }: { isOpen: boolean; onClose:
             <input {...register('date')} type="date" className="input" dir="ltr" />
             {errors.date && <p className="text-red-500 text-xs mt-1">{errors.date.message}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">שעת התחלה *</label>
               <input {...register('start_time')} type="time" className="input" dir="ltr" />
@@ -234,7 +234,7 @@ export function QuickInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">חשבונית חדשה</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
@@ -321,7 +321,7 @@ export function QuickIncidentModal({ isOpen, onClose }: { isOpen: boolean; onClo
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">דיווח אירוע</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">

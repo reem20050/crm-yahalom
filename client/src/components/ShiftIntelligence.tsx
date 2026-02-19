@@ -375,12 +375,12 @@ export default function ShiftIntelligence() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-right py-2 px-3 font-medium text-gray-500 min-w-[120px]">
+                    <th className="text-right py-2 px-3 font-medium text-gray-500 min-w-[120px] sticky right-0 bg-white z-10">
                       {'\u05D0\u05EA\u05E8'}
                       {/* אתר */}
                     </th>
                     {[0, 1, 2, 3, 4, 5, 6].map(day => (
-                      <th key={day} className="text-center py-2 px-2 font-medium text-gray-500 w-16">
+                      <th key={day} className="text-center py-2 px-1 sm:px-2 font-medium text-gray-500 w-10 sm:w-16">
                         {DAY_NAMES[day]}
                       </th>
                     ))}
@@ -389,22 +389,22 @@ export default function ShiftIntelligence() {
                 <tbody className="divide-y divide-gray-100">
                   {heatmapData.map((site: HeatmapSite) => (
                     <tr key={site.site_id} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-2 px-3 font-medium text-gray-900 text-sm">
+                      <td className="py-2 px-3 font-medium text-gray-900 text-sm sticky right-0 bg-white z-10">
                         {site.site_name}
                       </td>
                       {[0, 1, 2, 3, 4, 5, 6].map(day => {
                         const dayData = site.days[day];
                         if (!dayData) {
                           return (
-                            <td key={day} className="text-center py-2 px-2">
+                            <td key={day} className="text-center py-2 px-1 sm:px-2">
                               <span className="text-gray-300 text-xs">-</span>
                             </td>
                           );
                         }
                         return (
-                          <td key={day} className="text-center py-2 px-2">
+                          <td key={day} className="text-center py-2 px-1 sm:px-2">
                             <span
-                              className={`inline-flex items-center justify-center w-12 h-7 rounded text-xs font-medium ${getRateColor(dayData.rate)}`}
+                              className={`inline-flex items-center justify-center w-10 h-6 sm:w-12 sm:h-7 rounded text-xs font-medium ${getRateColor(dayData.rate)}`}
                               title={`${DAY_FULL_NAMES[day]}: ${dayData.understaffed}/${dayData.total} \u05DE\u05E9\u05DE\u05E8\u05D5\u05EA \u05D7\u05E1\u05E8\u05D5\u05EA`}
                             >
                               {dayData.rate}%
@@ -418,7 +418,7 @@ export default function ShiftIntelligence() {
               </table>
 
               {/* Legend */}
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+              <div className="flex items-center gap-2 sm:gap-4 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 flex-wrap">
                 <span className="font-medium">{'\u05DE\u05E7\u05E8\u05D0'} {/* מקרא */}:</span>
                 <span className="flex items-center gap-1">
                   <span className="w-4 h-4 rounded bg-green-100"></span> 0-10%
@@ -466,7 +466,9 @@ export default function ShiftIntelligence() {
               </p>
             </div>
           ) : (
-            <div className="table-container">
+            <>
+            {/* Desktop table */}
+            <div className="hidden md:block table-container">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 text-gray-500">
@@ -524,6 +526,52 @@ export default function ShiftIntelligence() {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3">
+              {fatigueData.map((emp: FatigueRisk) => (
+                <div
+                  key={emp.employee_id}
+                  className={`responsive-table-card rounded-xl border p-3 space-y-2 ${
+                    emp.risk_level === 'high' ? 'border-red-200 bg-red-50/30' : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-gray-400" />
+                      <span className="font-medium text-gray-900 text-sm">{emp.employee_name}</span>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${getRiskBadge(emp.risk_level)}`}>
+                      {emp.risk_level === 'high' && <AlertTriangle className="w-3 h-3" />}
+                      {getRiskLabel(emp.risk_level)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-gray-500 block">{'\u05DE\u05E9\u05DE\u05E8\u05D5\u05EA' /* משמרות */}</span>
+                      <span className="text-gray-700 font-medium">{emp.weekly_shifts.toLocaleString('he-IL')}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">{'\u05DE\u05E0\u05D5\u05D7\u05D4 \u05DE\u05D9\u05E0.' /* מנוחה מינ. */}</span>
+                      {emp.min_rest_gap_hours !== null ? (
+                        <span className={emp.min_rest_gap_hours < 8 ? 'text-red-600 font-medium' : 'text-gray-700'}>
+                          {emp.min_rest_gap_hours.toLocaleString('he-IL')} {'\u05E9\u05E2\u05D5\u05EA' /* שעות */}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">{'\u05E9\u05E2\u05D5\u05EA/\u05E9\u05D1\u05D5\u05E2' /* שעות/שבוע */}</span>
+                      <span className={emp.weekly_hours > 50 ? 'text-red-600 font-medium' : 'text-gray-700'}>
+                        {emp.weekly_hours.toLocaleString('he-IL')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </div>
       )}

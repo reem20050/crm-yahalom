@@ -309,8 +309,8 @@ export default function Leads() {
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="col-span-2 sm:col-span-2">
                   <label className="label">שם איש קשר *</label>
                   <input {...register('contact_name')} className="input" />
                   {errors.contact_name && (

@@ -136,89 +136,226 @@ function AlertConfigRow({
   };
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors">
-      {/* Name + Description */}
-      <td className="py-3 px-3">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-900">{config.display_name}</span>
-        </div>
-        <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
-      </td>
+    <>
+      {/* Desktop table row */}
+      <tr className="hover:bg-gray-50 transition-colors">
+        {/* Name + Description */}
+        <td className="py-3 px-3">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-900">{config.display_name}</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
+        </td>
 
-      {/* Enabled toggle */}
-      <td className="py-3 px-3">
+        {/* Enabled toggle */}
+        <td className="py-3 px-3">
+          <button
+            onClick={() => handleChange('is_enabled', !localConfig.is_enabled)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+              localConfig.is_enabled
+                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {localConfig.is_enabled ? (
+              <ToggleRight className="w-4 h-4" />
+            ) : (
+              <ToggleLeft className="w-4 h-4" />
+            )}
+            {localConfig.is_enabled ? 'פעיל' : 'כבוי'}
+          </button>
+        </td>
+
+        {/* Threshold */}
+        <td className="py-3 px-3">
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={localConfig.threshold_value}
+              onChange={(e) => handleChange('threshold_value', e.target.value)}
+              className="input w-16 text-center text-sm py-1 px-2"
+              min={0}
+            />
+            <span className="text-xs text-gray-500">{unitLabels[config.threshold_unit] || config.threshold_unit}</span>
+          </div>
+        </td>
+
+        {/* Warning */}
+        <td className="py-3 px-3">
+          <input
+            type="number"
+            value={localConfig.warning_threshold}
+            onChange={(e) => handleChange('warning_threshold', e.target.value)}
+            className="input w-16 text-center text-sm py-1 px-2"
+            placeholder="-"
+            min={0}
+          />
+        </td>
+
+        {/* Critical */}
+        <td className="py-3 px-3">
+          <input
+            type="number"
+            value={localConfig.critical_threshold}
+            onChange={(e) => handleChange('critical_threshold', e.target.value)}
+            className="input w-16 text-center text-sm py-1 px-2"
+            placeholder="-"
+            min={0}
+          />
+        </td>
+
+        {/* Dedup */}
+        <td className="py-3 px-3">
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={localConfig.dedup_hours}
+              onChange={(e) => handleChange('dedup_hours', e.target.value)}
+              className="input w-16 text-center text-sm py-1 px-2"
+              min={0}
+            />
+            <span className="text-xs text-gray-500">שעות</span>
+          </div>
+        </td>
+
+        {/* Escalation */}
+        <td className="py-3 px-3">
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={localConfig.escalation_delay_hours}
+              onChange={(e) => handleChange('escalation_delay_hours', e.target.value)}
+              className="input w-16 text-center text-sm py-1 px-2"
+              min={0}
+            />
+            <span className="text-xs text-gray-500">שעות</span>
+          </div>
+        </td>
+
+        {/* Save */}
+        <td className="py-3 px-3">
+          <button
+            onClick={handleSave}
+            disabled={!dirty || isSaving}
+            className={`btn-primary text-xs py-1.5 px-3 flex items-center gap-1 ${
+              !dirty ? 'opacity-40 cursor-not-allowed' : ''
+            }`}
+          >
+            {isSaving ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            שמור
+          </button>
+        </td>
+      </tr>
+    </>
+  );
+}
+
+// ── Mobile Card for Alert Config ────────────────────────────────────────────
+
+function AlertConfigMobileCard({
+  config,
+  onSave,
+  isSaving,
+}: {
+  config: AlertConfigItem;
+  onSave: (type: string, data: Record<string, unknown>) => void;
+  isSaving: boolean;
+}) {
+  const [localConfig, setLocalConfig] = useState({
+    is_enabled: !!config.is_enabled,
+    threshold_value: config.threshold_value,
+    warning_threshold: config.warning_threshold ?? '',
+    critical_threshold: config.critical_threshold ?? '',
+    dedup_hours: config.dedup_hours,
+    escalation_delay_hours: config.escalation_delay_hours,
+  });
+  const [dirty, setDirty] = useState(false);
+
+  const handleChange = (field: string, value: unknown) => {
+    setLocalConfig((prev) => ({ ...prev, [field]: value }));
+    setDirty(true);
+  };
+
+  const handleSave = () => {
+    onSave(config.alert_type, {
+      is_enabled: localConfig.is_enabled,
+      threshold_value: Number(localConfig.threshold_value),
+      warning_threshold: localConfig.warning_threshold !== '' ? Number(localConfig.warning_threshold) : null,
+      critical_threshold: localConfig.critical_threshold !== '' ? Number(localConfig.critical_threshold) : null,
+      dedup_hours: Number(localConfig.dedup_hours),
+      escalation_delay_hours: Number(localConfig.escalation_delay_hours),
+    });
+    setDirty(false);
+  };
+
+  return (
+    <div className="responsive-table-card rounded-xl border border-gray-200 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <span className="font-medium text-gray-900 text-sm">{config.display_name}</span>
+          <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
+        </div>
         <button
           onClick={() => handleChange('is_enabled', !localConfig.is_enabled)}
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
             localConfig.is_enabled
               ? 'bg-green-100 text-green-700 hover:bg-green-200'
               : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
           }`}
         >
-          {localConfig.is_enabled ? (
-            <ToggleRight className="w-4 h-4" />
-          ) : (
-            <ToggleLeft className="w-4 h-4" />
-          )}
+          {localConfig.is_enabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
           {localConfig.is_enabled ? 'פעיל' : 'כבוי'}
         </button>
-      </td>
+      </div>
 
-      {/* Threshold */}
-      <td className="py-3 px-3">
-        <div className="flex items-center gap-1">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">סף ({unitLabels[config.threshold_unit] || config.threshold_unit})</label>
           <input
             type="number"
             value={localConfig.threshold_value}
             onChange={(e) => handleChange('threshold_value', e.target.value)}
-            className="input w-16 text-center text-sm py-1 px-2"
+            className="input w-full text-center text-sm py-1 px-2"
             min={0}
           />
-          <span className="text-xs text-gray-500">{unitLabels[config.threshold_unit] || config.threshold_unit}</span>
         </div>
-      </td>
-
-      {/* Warning */}
-      <td className="py-3 px-3">
-        <input
-          type="number"
-          value={localConfig.warning_threshold}
-          onChange={(e) => handleChange('warning_threshold', e.target.value)}
-          className="input w-16 text-center text-sm py-1 px-2"
-          placeholder="-"
-          min={0}
-        />
-      </td>
-
-      {/* Critical */}
-      <td className="py-3 px-3">
-        <input
-          type="number"
-          value={localConfig.critical_threshold}
-          onChange={(e) => handleChange('critical_threshold', e.target.value)}
-          className="input w-16 text-center text-sm py-1 px-2"
-          placeholder="-"
-          min={0}
-        />
-      </td>
-
-      {/* Dedup */}
-      <td className="py-3 px-3">
-        <div className="flex items-center gap-1">
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">אזהרה</label>
+          <input
+            type="number"
+            value={localConfig.warning_threshold}
+            onChange={(e) => handleChange('warning_threshold', e.target.value)}
+            className="input w-full text-center text-sm py-1 px-2"
+            placeholder="-"
+            min={0}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">קריטי</label>
+          <input
+            type="number"
+            value={localConfig.critical_threshold}
+            onChange={(e) => handleChange('critical_threshold', e.target.value)}
+            className="input w-full text-center text-sm py-1 px-2"
+            placeholder="-"
+            min={0}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">כפילות (שעות)</label>
           <input
             type="number"
             value={localConfig.dedup_hours}
             onChange={(e) => handleChange('dedup_hours', e.target.value)}
-            className="input w-16 text-center text-sm py-1 px-2"
+            className="input w-full text-center text-sm py-1 px-2"
             min={0}
           />
-          <span className="text-xs text-gray-500">שעות</span>
         </div>
-      </td>
+      </div>
 
-      {/* Escalation */}
-      <td className="py-3 px-3">
+      <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-1">
+          <label className="text-xs text-gray-500">אסקלציה (שעות):</label>
           <input
             type="number"
             value={localConfig.escalation_delay_hours}
@@ -226,12 +363,7 @@ function AlertConfigRow({
             className="input w-16 text-center text-sm py-1 px-2"
             min={0}
           />
-          <span className="text-xs text-gray-500">שעות</span>
         </div>
-      </td>
-
-      {/* Save */}
-      <td className="py-3 px-3">
         <button
           onClick={handleSave}
           disabled={!dirty || isSaving}
@@ -242,8 +374,8 @@ function AlertConfigRow({
           {isSaving ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
           שמור
         </button>
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }
 
@@ -338,7 +470,9 @@ export default function AlertConfig() {
             <p className="text-sm">אין הגדרות התראות</p>
           </div>
         ) : (
-          <div className="table-container overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="hidden md:block table-container overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500">
@@ -372,6 +506,19 @@ export default function AlertConfig() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {configs.map((config) => (
+              <AlertConfigMobileCard
+                key={config.id}
+                config={config}
+                onSave={handleSaveConfig}
+                isSaving={updateConfigMutation.isPending}
+              />
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -399,7 +546,9 @@ export default function AlertConfig() {
             <p className="text-sm">אין השתקות פעילות</p>
           </div>
         ) : (
-          <div className="table-container overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="hidden md:block table-container overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500">
@@ -445,6 +594,41 @@ export default function AlertConfig() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {mutes.map((mute) => (
+              <div key={mute.id} className="responsive-table-card rounded-xl border border-gray-200 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="badge-warning text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    {mute.alert_display_name || mute.alert_type}
+                  </span>
+                  <button
+                    onClick={() => unmuteMutation.mutate(mute.id)}
+                    disabled={unmuteMutation.isPending}
+                    className="btn-ghost text-xs py-1 px-2 text-red-600 hover:bg-red-50 flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    בטל
+                  </button>
+                </div>
+                <div className="text-xs text-gray-600">
+                  <span className="text-gray-500">ישות: </span>
+                  {mute.related_entity_type
+                    ? `${mute.related_entity_type} / ${mute.related_entity_id?.slice(0, 8) || '-'}...`
+                    : 'כללי'}
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600 inline-flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    עד: {formatMutedUntil(mute.muted_until)}
+                  </span>
+                  <span className="text-gray-500">{mute.reason || '-'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -472,7 +656,9 @@ export default function AlertConfig() {
             <p className="text-sm">אין אסקלציות אחרונות</p>
           </div>
         ) : (
-          <div className="table-container overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="hidden md:block table-container overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500">
@@ -509,6 +695,31 @@ export default function AlertConfig() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3">
+            {escalations.map((esc) => (
+              <div key={esc.id} className="responsive-table-card rounded-xl border border-gray-200 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="badge-danger text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                    {esc.alert_display_name || esc.alert_type}
+                  </span>
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold">
+                    {esc.escalation_level}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-sm text-gray-700">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                  <span className="truncate">{esc.notification_title || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{formatDate(esc.escalated_at)}</span>
+                  <span>{esc.escalated_to || '-'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
     </div>

@@ -194,7 +194,7 @@ export default function Customers() {
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {/* Company Details */}
                 <div className="col-span-2">
                   <h3 className="font-medium mb-3 text-gray-700">פרטי החברה</h3>

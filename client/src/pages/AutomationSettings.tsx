@@ -637,7 +637,9 @@ function HistoryTab({
             <p className="text-sm">אין רשומות ריצה</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500 bg-gray-50/50">
@@ -707,6 +709,62 @@ function HistoryTab({
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden p-3 space-y-3">
+            {runs.map((run) => {
+              const statusInfo = getStatusBadge(run.status);
+              const RunStatusIcon = statusInfo.icon;
+              return (
+                <div
+                  key={run.id}
+                  className={`responsive-table-card rounded-xl border p-3 space-y-2 ${
+                    run.status === 'failed' ? 'border-red-200 bg-red-50/30' : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-900 text-sm truncate">
+                      {run.display_name || jobNameMap[run.job_name] || run.job_name}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${statusInfo.className}`}
+                    >
+                      <RunStatusIcon className={`w-3 h-3 ${run.status === 'running' ? 'animate-spin' : ''}`} />
+                      {statusInfo.text}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span>{formatDate(run.started_at)}</span>
+                    <span className="text-gray-300">|</span>
+                    <span>{formatDuration(run.started_at, run.completed_at)}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-gray-500 block">עיבוד</span>
+                      <span className="text-gray-700 font-medium tabular-nums">{run.items_processed}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">נוצרו</span>
+                      <span className="text-gray-700 font-medium tabular-nums">{run.items_created}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">דולגו</span>
+                      <span className="text-gray-700 font-medium tabular-nums">{run.items_skipped}</span>
+                    </div>
+                  </div>
+                  {run.error_message && (
+                    <p className="text-xs text-red-600 bg-red-50 rounded-lg p-2 line-clamp-2">
+                      {run.error_message}
+                    </p>
+                  )}
+                  {!run.error_message && run.details && (
+                    <p className="text-xs text-gray-500 line-clamp-2">{run.details}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
       </div>
     </div>
@@ -871,7 +929,7 @@ function StatsTab({
             <TrendingUp className="w-4 h-4 text-gray-500" />
             ריצות ב-14 ימים אחרונים
           </h4>
-          <div style={{ width: '100%', height: 280, direction: 'ltr' }}>
+          <div className="h-[200px] sm:h-[280px]" style={{ width: '100%', direction: 'ltr' }}>
             <ResponsiveContainer>
               <BarChart data={stats.runsOverTime}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />

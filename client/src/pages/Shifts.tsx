@@ -826,7 +826,7 @@ export default function Shifts() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-7 gap-3">
+        <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-2 md:grid md:grid-cols-7 md:overflow-visible md:snap-none md:pb-0">
           {days.map((day) => {
             const shifts = getShiftsForDay(day);
             const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
@@ -834,7 +834,7 @@ export default function Shifts() {
             return (
               <div
                 key={day.toISOString()}
-                className={`card !p-3 min-h-[200px] ${isToday ? 'ring-2 ring-primary-500/40 !shadow-sm' : ''}`}
+                className={`snap-start min-w-[260px] md:min-w-0 flex-shrink-0 md:flex-shrink card !p-3 min-h-[200px] ${isToday ? 'ring-2 ring-primary-500/40 !shadow-sm' : ''}`}
               >
                 <div className="text-center mb-3">
                   <p className="text-xs text-gray-400 font-medium">
@@ -1003,7 +1003,7 @@ export default function Shifts() {
               </div>
 
               {/* Date and Time */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="label">תאריך *</label>
                   <input {...register('date')} type="date" className="input" />

@@ -154,7 +154,7 @@ export default function Dashboard() {
             <UserPlus className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm text-white">ליד חדש</div>
+            <div className="font-semibold text-sm text-white truncate">ליד חדש</div>
             <div className="text-xs text-white/70">הוסף ליד מהיר</div>
           </div>
         </button>
@@ -163,7 +163,7 @@ export default function Dashboard() {
             <CalendarPlus className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm text-white">משמרת חדשה</div>
+            <div className="font-semibold text-sm text-white truncate">משמרת חדשה</div>
             <div className="text-xs text-white/70">צור משמרת מהירה</div>
           </div>
         </button>
@@ -172,7 +172,7 @@ export default function Dashboard() {
             <Receipt className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm text-white">חשבונית חדשה</div>
+            <div className="font-semibold text-sm text-white truncate">חשבונית חדשה</div>
             <div className="text-xs text-white/70">הפק חשבונית מהירה</div>
           </div>
         </button>
@@ -181,7 +181,7 @@ export default function Dashboard() {
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm text-white">דוח אירוע</div>
+            <div className="font-semibold text-sm text-white truncate">דוח אירוע</div>
             <div className="text-xs text-white/70">דווח אירוע חדש</div>
           </div>
         </button>
@@ -867,7 +867,7 @@ function BusinessView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">הכנסות - 6 חודשים אחרונים</h3>
           </div>
-          <div className="h-64">
+          <div className="h-48 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data?.monthlyRevenue || []}>
                 <defs>

@@ -305,7 +305,7 @@ export default function Reports() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
             <h3 className="text-lg font-semibold mb-4 font-heading">המרת לידים</h3>
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
               <div className="text-center">
                 <p className="text-3xl font-bold text-gray-900 font-heading">{salesData.conversionRate?.total_leads || 0}</p>
                 <p className="text-sm text-gray-500">לידים</p>
@@ -664,7 +664,7 @@ export default function Reports() {
           {incidentStats && (
             <div className="card lg:col-span-2">
               <h3 className="text-lg font-semibold mb-4 font-heading">סטטיסטיקות אירועי אבטחה</h3>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 <div className="text-center p-3 bg-red-50 rounded-lg">
                   <p className="text-2xl font-bold text-red-600 font-heading">{incidentStats.open || 0}</p>
                   <p className="text-sm text-gray-500">פתוחים</p>

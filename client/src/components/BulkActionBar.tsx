@@ -26,8 +26,8 @@ export default function BulkActionBar({ selectedCount, onClear, actions }: BulkA
   if (selectedCount === 0) return null;
 
   return (
-    <div className="fixed bottom-20 lg:bottom-6 left-4 right-4 lg:left-auto lg:right-8 z-30 animate-bounce-in">
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-2xl shadow-2xl px-5 py-3.5 flex items-center gap-4 max-w-2xl mx-auto lg:mx-0">
+    <div className="fixed bottom-[84px] lg:bottom-6 left-4 right-4 lg:left-auto lg:right-8 z-30 animate-bounce-in">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-2xl shadow-2xl px-3.5 py-3 sm:px-5 sm:py-3.5 flex items-center gap-3 sm:gap-4 max-w-2xl mx-auto lg:mx-0">
         {/* Count */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <span className="bg-gradient-to-r from-primary-500 to-primary-400 text-white text-sm font-bold w-7 h-7 rounded-lg flex items-center justify-center">

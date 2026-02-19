@@ -328,7 +328,8 @@ export default function InvoicePreview() {
         {/* Preview table */}
         {previewFetched && validItems.length > 0 && (
           <>
-            <div className="table-container">
+            {/* Desktop table */}
+            <div className="hidden md:block table-container">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 text-gray-500">
@@ -432,6 +433,101 @@ export default function InvoicePreview() {
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3">
+              {/* Select all */}
+              <div className="flex items-center gap-2 px-1">
+                <button
+                  onClick={toggleSelectAll}
+                  className="p-0.5 hover:text-primary-600 transition-colors"
+                >
+                  {selectedContracts.size === validItems.length && validItems.length > 0 ? (
+                    <CheckSquare className="w-4 h-4 text-primary-600" />
+                  ) : (
+                    <Square className="w-4 h-4" />
+                  )}
+                </button>
+                <span className="text-xs text-gray-500">
+                  {selectedContracts.size === validItems.length ? 'בטל הכל' : 'בחר הכל'}
+                </span>
+              </div>
+
+              {validItems.map((item) => (
+                <div
+                  key={item.contract_id}
+                  className={`responsive-table-card rounded-xl border p-3 space-y-2 ${
+                    selectedContracts.has(item.contract_id!)
+                      ? 'border-primary-300 bg-primary-50/50'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <button
+                        onClick={() => toggleSelect(item.contract_id!)}
+                        className="p-0.5 hover:text-primary-600 transition-colors flex-shrink-0"
+                      >
+                        {selectedContracts.has(item.contract_id!) ? (
+                          <CheckSquare className="w-4 h-4 text-primary-600" />
+                        ) : (
+                          <Square className="w-4 h-4 text-gray-400" />
+                        )}
+                      </button>
+                      <span className="font-medium text-gray-900 text-sm truncate">{item.customer_name}</span>
+                    </div>
+                    {item.is_prorated ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium flex-shrink-0">
+                        <Calculator className="w-3 h-3" />
+                        יחסי
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium flex-shrink-0">
+                        מלא
+                      </span>
+                    )}
+                  </div>
+                  {item.contract_name && (
+                    <p className="text-xs text-gray-500 truncate">{item.contract_name}</p>
+                  )}
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-gray-500 block">סכום</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(item.amount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">מע&quot;מ</span>
+                      <span className="text-gray-600">{formatCurrency(item.vat_amount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">סה&quot;כ</span>
+                      <span className="font-bold text-emerald-700">{formatCurrency(item.total)}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    תשלום עד: {formatDate(item.due_date)}
+                  </div>
+                </div>
+              ))}
+
+              {/* Summary card */}
+              <div className="rounded-xl border-2 border-gray-300 bg-gray-50 p-3">
+                <div className="grid grid-cols-3 gap-2 text-sm font-bold">
+                  <div>
+                    <span className="text-gray-500 text-xs block">סכום</span>
+                    <span className="text-gray-900">{formatCurrency(summaryAmount)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-xs block">מע&quot;מ</span>
+                    <span className="text-gray-700">{formatCurrency(summaryVat)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-xs block">סה&quot;כ</span>
+                    <span className="text-emerald-700">{formatCurrency(summaryTotal)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Action buttons */}
