@@ -163,13 +163,13 @@ export default function Incidents() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Shield className="w-7 h-7 text-red-500" />
+          <h1 className="page-title flex items-center gap-2">
+            <Shield className="w-7 h-7 text-danger-500" />
             אירועי אבטחה
           </h1>
-          <p className="text-gray-500">ניהול ותיעוד אירועי אבטחה</p>
+          <p className="page-subtitle">ניהול ותיעוד אירועי אבטחה</p>
         </div>
         {can('incidents:create') && (
           <button onClick={() => { resetForm(); setEditingId(null); setShowModal(true); }} className="btn-primary flex items-center gap-2">
@@ -182,19 +182,19 @@ export default function Incidents() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card !p-4 text-center">
-          <p className="text-2xl font-bold text-red-600">{statsData?.open_count || 0}</p>
+          <p className="text-2xl font-bold font-heading text-danger-600">{statsData?.open_count || 0}</p>
           <p className="text-sm text-gray-500">פתוחים</p>
         </div>
         <div className="card !p-4 text-center">
-          <p className="text-2xl font-bold text-yellow-600">{statsData?.investigating_count || 0}</p>
+          <p className="text-2xl font-bold font-heading text-warning-600">{statsData?.investigating_count || 0}</p>
           <p className="text-sm text-gray-500">בחקירה</p>
         </div>
         <div className="card !p-4 text-center">
-          <p className="text-2xl font-bold text-green-600">{statsData?.resolved_this_month || 0}</p>
+          <p className="text-2xl font-bold font-heading text-success-600">{statsData?.resolved_this_month || 0}</p>
           <p className="text-sm text-gray-500">טופלו החודש</p>
         </div>
         <div className="card !p-4 text-center">
-          <p className="text-2xl font-bold text-red-800">{statsData?.critical_open || 0}</p>
+          <p className="text-2xl font-bold font-heading text-danger-800">{statsData?.critical_open || 0}</p>
           <p className="text-sm text-gray-500">קריטיים</p>
         </div>
       </div>
@@ -203,8 +203,8 @@ export default function Incidents() {
       <div className="card !p-4">
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="חיפוש..." value={search} onChange={e => setSearch(e.target.value)} className="input pr-10 w-full" />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input type="text" placeholder="חיפוש אירועים..." value={search} onChange={e => setSearch(e.target.value)} className="input pr-11 w-full" />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="input">
             <option value="">כל הסטטוסים</option>
@@ -230,63 +230,73 @@ export default function Incidents() {
           <SkeletonTableRows columns={5} rows={5} />
         </div>
       ) : incidents.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p>לא נמצאו אירועי אבטחה</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <AlertTriangle className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="empty-state-title">לא נמצאו אירועי אבטחה</h3>
+          <p className="text-sm text-gray-500">אין אירועים התואמים לסינון הנוכחי</p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+        <div className="table-container">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">חומרה</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">כותרת</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">סוג</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">אתר / לקוח</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">תאריך</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">סטטוס</th>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">פעולות</th>
+                  <th>חומרה</th>
+                  <th>כותרת</th>
+                  <th>סוג</th>
+                  <th>אתר / לקוח</th>
+                  <th>תאריך</th>
+                  <th>סטטוס</th>
+                  <th>פעולות</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
-                {incidents.map((inc: any) => (
-                  <tr key={inc.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs font-bold border ${severityColors[inc.severity] || ''}`}>
+              <tbody>
+                {incidents.map((inc: any) => {
+                  const severityRowClass = inc.severity === 'critical'
+                    ? 'bg-danger-50 ring-1 ring-danger-200 border-r-4 border-r-danger-500'
+                    : inc.severity === 'high'
+                    ? 'bg-accent-50 border-r-4 border-r-accent-500'
+                    : inc.severity === 'medium'
+                    ? 'bg-warning-50 border-r-4 border-r-warning-500'
+                    : 'bg-success-50 border-r-4 border-r-success-500';
+                  return (
+                  <tr key={inc.id} className={`border-b border-gray-50 last:border-0 hover:shadow-sm transition-shadow ${severityRowClass}`}>
+                    <td>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${severityColors[inc.severity] || ''}`}>
                         {severityLabels[inc.severity] || inc.severity}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{inc.title}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{incidentTypes[inc.incident_type] || inc.incident_type}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{inc.site_name || inc.company_name || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{inc.incident_date} {inc.incident_time}</td>
-                    <td className="px-4 py-3">
+                    <td className="font-medium text-gray-900">{inc.title}</td>
+                    <td className="text-sm text-gray-600">{incidentTypes[inc.incident_type] || inc.incident_type}</td>
+                    <td className="text-sm text-gray-600">{inc.site_name || inc.company_name || '-'}</td>
+                    <td className="text-sm text-gray-600">{inc.incident_date} {inc.incident_time}</td>
+                    <td>
                       <span className={`badge ${statusColors[inc.status] || ''}`}>
                         {statusLabels[inc.status] || inc.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <div className="flex gap-1">
-                        <button onClick={() => setShowDetail(inc.id)} className="p-1.5 rounded hover:bg-gray-100" title="צפה">
+                        <button onClick={() => setShowDetail(inc.id)} className="p-1.5 rounded-lg hover:bg-white/60 transition-colors" title="צפה">
                           <Eye className="w-4 h-4 text-gray-500" />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
-          </div>
         </div>
       )}
 
       {/* Create/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up m-4">
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-2xl">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold">{editingId ? 'עריכת אירוע' : 'דיווח אירוע אבטחה'}</h2>
+              <h2 className="text-lg font-bold font-heading">{editingId ? 'עריכת אירוע' : 'דיווח אירוע אבטחה'}</h2>
               <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
@@ -381,14 +391,14 @@ export default function Incidents() {
 
       {/* Detail Modal */}
       {showDetail && detailData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto m-4">
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-3xl">
             <div className="flex items-center justify-between p-6 border-b">
               <div className="flex items-center gap-3">
-                <span className={`px-2 py-1 rounded text-xs font-bold border ${severityColors[detailData.incident?.severity] || ''}`}>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${severityColors[detailData.incident?.severity] || ''}`}>
                   {severityLabels[detailData.incident?.severity]}
                 </span>
-                <h2 className="text-lg font-bold">{detailData.incident?.title}</h2>
+                <h2 className="text-lg font-bold font-heading">{detailData.incident?.title}</h2>
               </div>
               <button onClick={() => setShowDetail(null)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
@@ -492,7 +502,7 @@ export default function Incidents() {
                   <button
                     onClick={() => { if (resolutionText.trim()) resolveMutation.mutate({ id: showDetail!, resolution: resolutionText }); }}
                     disabled={!resolutionText.trim() || resolveMutation.isPending}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    className="btn-success"
                   >
                     {resolveMutation.isPending ? 'סוגר...' : 'סגור אירוע'}
                   </button>

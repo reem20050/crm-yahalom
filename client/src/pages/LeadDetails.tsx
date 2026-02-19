@@ -187,7 +187,7 @@ export default function LeadDetails() {
             </div>
           ) : (
             <>
-              <h1 className="text-2xl font-bold text-gray-900">{lead?.contact_name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 font-heading">{lead?.contact_name}</h1>
               {lead?.company_name && (
                 <p className="text-gray-500 flex items-center gap-2">
                   <Building2 className="w-4 h-4" />
@@ -248,9 +248,9 @@ export default function LeadDetails() {
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
-            <h3 className="text-lg font-bold text-gray-900">מחיקת ליד</h3>
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-md w-full mx-4 space-y-4">
+            <h3 className="text-lg font-bold text-gray-900 font-heading">מחיקת ליד</h3>
             <p className="text-gray-600">
               האם אתה בטוח שברצונך למחוק את הליד של <strong>{lead?.contact_name}</strong>?
               <br />
@@ -303,7 +303,7 @@ export default function LeadDetails() {
         <div className="lg:col-span-2 space-y-6">
           {/* Contact info */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">פרטי קשר</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">פרטי קשר</h2>
             {isEditing ? (
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -389,7 +389,7 @@ export default function LeadDetails() {
           {/* Description */}
           {isEditing ? (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">תיאור</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">תיאור</h2>
               <textarea
                 value={editForm.description}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
@@ -401,7 +401,7 @@ export default function LeadDetails() {
           ) : (
             lead?.description && (
               <div className="card">
-                <h2 className="text-lg font-semibold mb-4">תיאור</h2>
+                <h2 className="text-lg font-semibold mb-4 font-heading">תיאור</h2>
                 <p className="text-gray-700 whitespace-pre-wrap">{lead.description}</p>
               </div>
             )
@@ -414,7 +414,7 @@ export default function LeadDetails() {
         {/* Sidebar */}
         <div className="space-y-6">
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">סטטוס</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">סטטוס</h2>
             <select
               value={lead?.status}
               onChange={(e) => statusMutation.mutate(e.target.value)}
@@ -429,7 +429,7 @@ export default function LeadDetails() {
           </div>
 
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">פרטים</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">פרטים</h2>
             {isEditing ? (
               <div className="space-y-3">
                 <div>

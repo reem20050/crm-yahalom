@@ -213,7 +213,7 @@ export default function CustomerDetails() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <div className="w-16 h-16 bg-primary-100 rounded-xl flex items-center justify-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-50 rounded-xl flex items-center justify-center">
             <Building2 className="w-8 h-8 text-primary-600" />
           </div>
           <div>
@@ -224,14 +224,14 @@ export default function CustomerDetails() {
                   <input
                     value={editForm.company_name}
                     onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
-                    className="input text-2xl font-bold"
+                    className="input text-2xl font-bold font-heading"
                     placeholder="שם חברה"
                   />
                 </div>
               </div>
             ) : (
               <>
-                <h1 className="text-2xl font-bold text-gray-900">{customer?.company_name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 font-heading">{customer?.company_name}</h1>
                 {customer?.city && (
                   <p className="text-gray-500 flex items-center gap-2">
                     <MapPin className="w-4 h-4" />
@@ -286,14 +286,14 @@ export default function CustomerDetails() {
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-md w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">מחיקת לקוח</h3>
+                <h3 className="text-lg font-bold text-gray-900 font-heading">מחיקת לקוח</h3>
                 <p className="text-sm text-gray-500">פעולה זו אינה ניתנת לביטול</p>
               </div>
             </div>
@@ -327,7 +327,7 @@ export default function CustomerDetails() {
           {/* Contacts */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">אנשי קשר</h2>
+              <h2 className="text-lg font-semibold font-heading">אנשי קשר</h2>
               <button onClick={() => setShowContactForm(!showContactForm)} className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5">
                 {showContactForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 {showContactForm ? 'ביטול' : 'הוסף'}
@@ -410,7 +410,7 @@ export default function CustomerDetails() {
           {/* Sites */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">אתרים</h2>
+              <h2 className="text-lg font-semibold font-heading">אתרים</h2>
               <button onClick={() => setShowSiteForm(!showSiteForm)} className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5">
                 {showSiteForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 {showSiteForm ? 'ביטול' : 'הוסף אתר'}
@@ -480,7 +480,7 @@ export default function CustomerDetails() {
           {/* Contracts */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">חוזים</h2>
+              <h2 className="text-lg font-semibold font-heading">חוזים</h2>
               <button onClick={() => setShowContractForm(!showContractForm)} className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5">
                 {showContractForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 {showContractForm ? 'ביטול' : 'הוסף חוזה'}
@@ -548,7 +548,7 @@ export default function CustomerDetails() {
           {/* Documents */}
           {id && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">מסמכים</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">מסמכים</h2>
               <DocumentManager entityType="customer" entityId={id} />
             </div>
           )}
@@ -560,7 +560,7 @@ export default function CustomerDetails() {
         {/* Sidebar */}
         <div className="space-y-6">
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">פרטים</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">פרטים</h2>
             {isEditing ? (
               <div className="space-y-3">
                 <div>
@@ -691,7 +691,7 @@ export default function CustomerDetails() {
           {/* Recent invoices */}
           {data?.invoices?.length > 0 && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">חשבוניות אחרונות</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">חשבוניות אחרונות</h2>
               <div className="space-y-2">
                 {data.invoices.slice(0, 5).map((invoice: {
                   id: string;

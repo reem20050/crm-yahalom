@@ -256,11 +256,11 @@ function ShiftDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+    <div className="modal-backdrop">
+      <div className="modal-content w-full max-w-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">פרטי משמרת</h2>
+          <h2 className="text-xl font-bold font-heading">פרטי משמרת</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg"
@@ -324,10 +324,12 @@ function ShiftDetailModal({
             {/* Assigned Employees */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  עובדים משובצים ({assignments.length}/{shift.required_employees})
-                </h3>
+                <div className="section-header">
+                  <div className="section-header-icon">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <h3 className="section-header-title">עובדים משובצים ({assignments.length}/{shift.required_employees})</h3>
+                </div>
                 {assignments.length > 0 && (
                   <button
                     onClick={sendReminderToAll}
@@ -447,10 +449,12 @@ function ShiftDetailModal({
             {/* Patrol Logs Section */}
             {shift.site_id && (
               <div className="border-t pt-4">
-                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                  <MapPin className="w-5 h-5" />
-                  סיורים ונקודות ביקורת
-                </h3>
+                <div className="section-header mb-3">
+                  <div className="section-header-icon">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <h3 className="section-header-title">סיורים ונקודות ביקורת</h3>
+                </div>
                 <PatrolLogView siteId={shift.site_id} />
               </div>
             )}
@@ -458,10 +462,12 @@ function ShiftDetailModal({
             {/* Assign Employee Section */}
             {can('shifts:assign') && (
               <div className="border-t pt-4">
-                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5" />
-                  שבץ עובד
-                </h3>
+                <div className="section-header mb-3">
+                  <div className="section-header-icon">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                  <h3 className="section-header-title">שבץ עובד</h3>
+                </div>
                 <div className="flex gap-3 items-end">
                   <div className="flex-1">
                     <label className="label">עובד</label>
@@ -675,10 +681,10 @@ export default function Shifts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="page-header flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">משמרות</h1>
-          <p className="text-sm text-gray-500 mt-0.5">לוח משמרות שבועי</p>
+          <h1 className="page-title">משמרות</h1>
+          <p className="page-subtitle">לוח משמרות שבועי</p>
         </div>
         <div className="flex items-center gap-2">
           {allShifts.length > 0 && can('shifts:delete') && (
@@ -723,7 +729,7 @@ export default function Shifts() {
                 const days = typeof tmpl.days_of_week === 'string' ? JSON.parse(tmpl.days_of_week) : tmpl.days_of_week;
                 const dayNames = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
                 return (
-                  <div key={tmpl.id} className={`flex items-center justify-between p-3 rounded-lg ${tmpl.is_active ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
+                  <div key={tmpl.id} className={`flex items-center justify-between p-3 rounded-lg ${tmpl.is_active ? 'bg-primary-50 border border-primary-200' : 'bg-gray-50'}`}>
                     <div>
                       <p className="font-medium">{tmpl.name}</p>
                       <p className="text-sm text-gray-500">
@@ -841,16 +847,22 @@ export default function Shifts() {
 
                 <div className="space-y-2">
                   {shifts.length > 0 ? (
-                    shifts.map((shift: ShiftSummary) => (
+                    shifts.map((shift: ShiftSummary) => {
+                      const isFull = shift.assigned_count >= shift.required_employees;
+                      const isPartial = shift.assigned_count > 0 && shift.assigned_count < shift.required_employees;
+                      const isUnassigned = shift.assigned_count === 0;
+                      return (
                       <div
                         key={shift.id}
                         onClick={() => setSelectedShiftId(shift.id)}
-                        className={`p-2 rounded-lg text-xs cursor-pointer hover:shadow-sm transition-all ${
+                        className={`p-2 rounded-lg text-xs cursor-pointer hover:shadow-card-hover transition-all ${
                           isSelected(shift.id) ? 'ring-2 ring-primary-500 ' : ''
                         }${
-                          shift.assigned_count >= shift.required_employees
-                            ? 'bg-emerald-50/80 border border-emerald-100'
-                            : 'bg-amber-50/80 border border-amber-100'
+                          isFull
+                            ? 'bg-success-50/80 border border-success-100 border-r-4 border-r-success-300'
+                            : isPartial
+                            ? 'bg-warning-50/80 border border-warning-100 border-r-4 border-r-warning-300'
+                            : 'bg-danger-50/80 border border-danger-100 border-r-4 border-r-danger-300'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
@@ -876,7 +888,8 @@ export default function Shifts() {
                           {shift.requires_vehicle && <Car className="w-3 h-3 text-sky-500" />}
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <p className="text-xs text-gray-300 text-center py-4">—</p>
                   )}
@@ -923,10 +936,10 @@ export default function Shifts() {
 
       {/* Create Shift Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-lg">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-bold">משמרת חדשה</h2>
+              <h2 className="text-xl font-bold font-heading">משמרת חדשה</h2>
               <button
                 onClick={() => {
                   setIsModalOpen(false);

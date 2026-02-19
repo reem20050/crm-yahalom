@@ -91,10 +91,10 @@ export default function DocumentManager({ entityType, entityId }: DocumentManage
     <div className="space-y-4">
       {/* Drop zone */}
       <div
-        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+        className={`border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 cursor-pointer ${
           isDragging
-            ? 'border-primary-500 bg-primary-50'
-            : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'
+            ? 'border-primary-500 bg-primary-50 shadow-inner'
+            : 'border-primary-200 hover:border-primary-400 hover:bg-primary-50/30'
         }`}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
@@ -104,12 +104,14 @@ export default function DocumentManager({ entityType, entityId }: DocumentManage
         {uploadMutation.isPending ? (
           <div className="flex items-center justify-center gap-2">
             <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
-            <span className="text-primary-600 font-medium">מעלה...</span>
+            <span className="text-primary-600 font-medium font-heading">מעלה...</span>
           </div>
         ) : (
           <>
-            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">גרור קובץ לכאן או לחץ לבחירה</p>
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-50 flex items-center justify-center mx-auto mb-3">
+              <Upload className="w-6 h-6 text-primary-500" />
+            </div>
+            <p className="text-sm text-gray-600 font-medium">גרור קובץ לכאן או לחץ לבחירה</p>
             <p className="text-xs text-gray-400 mt-1">מקסימום 10MB</p>
           </>
         )}
@@ -127,25 +129,30 @@ export default function DocumentManager({ entityType, entityId }: DocumentManage
           <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-600 border-t-transparent mx-auto"></div>
         </div>
       ) : documents.length > 0 ? (
-        <div className="divide-y divide-gray-100">
+        <div className="space-y-2">
           {documents.map((doc) => (
-            <div key={doc.id} className="flex items-center justify-between py-3">
+            <div
+              key={doc.id}
+              className="card flex items-center justify-between p-3 hover:shadow-card-hover transition-all duration-200"
+            >
               <div className="flex items-center gap-3 min-w-0">
-                {getFileIcon(doc.file_type)}
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center flex-shrink-0">
+                  {getFileIcon(doc.file_type)}
+                </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
+                  <p className="text-sm font-medium font-heading text-gray-900 truncate">{doc.file_name}</p>
                   <p className="text-xs text-gray-500">
                     {formatFileSize(doc.file_size)} • {doc.uploaded_by_name || 'מערכת'} • {new Date(doc.created_at).toLocaleDateString('he-IL')}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 {doc.google_drive_url && (
                   <a
                     href={doc.google_drive_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary-600 hover:text-primary-700 p-1"
+                    className="btn-icon text-primary-600 hover:text-primary-700"
                     title="פתח ב-Google Drive"
                   >
                     <ExternalLink className="w-4 h-4" />
@@ -157,7 +164,7 @@ export default function DocumentManager({ entityType, entityId }: DocumentManage
                       deleteMutation.mutate(doc.id);
                     }
                   }}
-                  className="text-red-400 hover:text-red-600 p-1"
+                  className="btn-icon text-red-400 hover:text-red-600"
                   title="מחק מסמך"
                 >
                   <Trash2 className="w-4 h-4" />

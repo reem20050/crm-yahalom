@@ -28,9 +28,11 @@ import { dashboardApi, shiftsApi } from '../services/api';
 import { QuickLeadModal, QuickShiftModal, QuickInvoiceModal, QuickIncidentModal } from '../components/QuickActionModals';
 import { SkeletonPulse, SkeletonStatCard, SkeletonCard } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuthStore } from '../stores/authStore';
 import {
   LineChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -87,38 +89,45 @@ export default function Dashboard() {
 
   // Employee view - no toggle needed
   if (isEmployee) {
+    const hour = new Date().getHours();
+    const user = useAuthStore.getState().user;
+    const greeting = hour < 12 ? '☀️ בוקר טוב' : hour < 17 ? '🌤️ צהריים טובים' : '🌙 ערב טוב';
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">דשבורד</h1>
-          <p className="text-sm text-gray-500 mt-0.5">ברוך הבא למערכת צוות יהלום</p>
+          <h1 className="page-title">{greeting}, {user?.firstName || ''}</h1>
+          <p className="page-subtitle">ברוך הבא למערכת צוות יהלום</p>
         </div>
         <EmployeeView data={empData} />
       </div>
     );
   }
 
+  const hour = new Date().getHours();
+  const user = useAuthStore.getState().user;
+  const greeting = hour < 12 ? '☀️ בוקר טוב' : hour < 17 ? '🌤️ צהריים טובים' : '🌙 ערב טוב';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">דשבורד</h1>
+          <h1 className="page-title">{greeting}, {user?.firstName || ''}</h1>
           <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-sm text-gray-500">ברוך הבא למערכת צוות יהלום</p>
+            <p className="page-subtitle">ברוך הבא למערכת צוות יהלום</p>
             <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="dot-live" />
               מתעדכן כל דקה
             </span>
           </div>
         </div>
         {/* View Toggle */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5 shadow-inner">
+        <div className="view-toggle">
           <button
             onClick={() => setViewMode('operations')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`view-toggle-btn ${
               viewMode === 'operations'
-                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/60'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'view-toggle-btn-active'
+                : 'view-toggle-btn-inactive'
             }`}
           >
             <Shield className="w-4 h-4" />
@@ -126,10 +135,10 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => setViewMode('business')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`view-toggle-btn ${
               viewMode === 'business'
-                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/60'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'view-toggle-btn-active'
+                : 'view-toggle-btn-inactive'
             }`}
           >
             <TrendingUp className="w-4 h-4" />
@@ -140,40 +149,40 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <button onClick={() => setQuickModal('lead')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
-          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <button onClick={() => setQuickModal('lead')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <UserPlus className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm">ליד חדש</div>
-            <div className="text-xs text-gray-500">הוסף ליד מהיר</div>
+            <div className="font-semibold text-sm text-white">ליד חדש</div>
+            <div className="text-xs text-white/70">הוסף ליד מהיר</div>
           </div>
         </button>
-        <button onClick={() => setQuickModal('shift')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
-          <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <button onClick={() => setQuickModal('shift')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-violet-500 to-violet-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <CalendarPlus className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm">משמרת חדשה</div>
-            <div className="text-xs text-gray-500">צור משמרת מהירה</div>
+            <div className="font-semibold text-sm text-white">משמרת חדשה</div>
+            <div className="text-xs text-white/70">צור משמרת מהירה</div>
           </div>
         </button>
-        <button onClick={() => setQuickModal('invoice')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
-          <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <button onClick={() => setQuickModal('invoice')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <Receipt className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm">חשבונית חדשה</div>
-            <div className="text-xs text-gray-500">הפק חשבונית מהירה</div>
+            <div className="font-semibold text-sm text-white">חשבונית חדשה</div>
+            <div className="text-xs text-white/70">הפק חשבונית מהירה</div>
           </div>
         </button>
-        <button onClick={() => setQuickModal('incident')} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow text-right">
-          <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center flex-shrink-0">
+        <button onClick={() => setQuickModal('incident')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-red-500 to-red-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm">דוח אירוע</div>
-            <div className="text-xs text-gray-500">דווח אירוע חדש</div>
+            <div className="font-semibold text-sm text-white">דוח אירוע</div>
+            <div className="text-xs text-white/70">דווח אירוע חדש</div>
           </div>
         </button>
       </div>
@@ -258,10 +267,10 @@ function EmployeeView({ data }: { data: any }) {
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="stat-card-value">{myShifts.length}</p>
+              <p className="stat-card-value font-heading">{myShifts.length}</p>
               <p className="stat-card-label">משמרות היום</p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-sky-50 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-100 to-sky-50 flex items-center justify-center">
               <Shield className="w-5 h-5 text-sky-600" />
             </div>
           </div>
@@ -269,10 +278,10 @@ function EmployeeView({ data }: { data: any }) {
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="stat-card-value">{myEvents.length}</p>
+              <p className="stat-card-value font-heading">{myEvents.length}</p>
               <p className="stat-card-label">אירועים ב-7 ימים</p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
               <PartyPopper className="w-5 h-5 text-amber-600" />
             </div>
           </div>
@@ -280,10 +289,10 @@ function EmployeeView({ data }: { data: any }) {
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="stat-card-value">{myEquipment.length}</p>
+              <p className="stat-card-value font-heading">{myEquipment.length}</p>
               <p className="stat-card-label">פריטי ציוד</p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-100 to-violet-50 flex items-center justify-center">
               <Package className="w-5 h-5 text-violet-600" />
             </div>
           </div>
@@ -291,10 +300,10 @@ function EmployeeView({ data }: { data: any }) {
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="stat-card-value">{myRecent.length}</p>
+              <p className="stat-card-value font-heading">{myRecent.length}</p>
               <p className="stat-card-label">משמרות אחרונות</p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center">
               <Clock className="w-5 h-5 text-emerald-600" />
             </div>
           </div>
@@ -304,12 +313,12 @@ function EmployeeView({ data }: { data: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* My Shifts Today */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-sky-100 to-sky-50">
               <Shield className="w-4 h-4 text-sky-600" />
             </div>
-            המשמרות שלי היום
-          </h3>
+            <h3 className="section-header-title">המשמרות שלי היום</h3>
+          </div>
           {myShifts.length > 0 ? (
             <div className="space-y-2.5">
               {myShifts.map((shift: any) => {
@@ -321,7 +330,7 @@ function EmployeeView({ data }: { data: any }) {
                 return (
                   <div
                     key={shift.assignment_id || shift.id}
-                    className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                    className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                   >
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
@@ -388,26 +397,28 @@ function EmployeeView({ data }: { data: any }) {
             </div>
           ) : (
             <div className="text-center py-10">
-              <Shield className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">אין משמרות היום</p>
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <Shield className="w-6 h-6 text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-400 font-medium">אין משמרות היום</p>
             </div>
           )}
         </div>
 
         {/* My Upcoming Events */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-amber-100 to-amber-50">
               <PartyPopper className="w-4 h-4 text-amber-600" />
             </div>
-            אירועים קרובים שלי
-          </h3>
+            <h3 className="section-header-title">אירועים קרובים שלי</h3>
+          </div>
           {myEvents.length > 0 ? (
             <div className="space-y-2.5">
               {myEvents.map((event: any) => (
                 <div
                   key={event.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   <p className="font-medium text-sm text-gray-900">{event.event_name}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
@@ -421,8 +432,10 @@ function EmployeeView({ data }: { data: any }) {
             </div>
           ) : (
             <div className="text-center py-10">
-              <PartyPopper className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">אין אירועים קרובים</p>
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <PartyPopper className="w-6 h-6 text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-400 font-medium">אין אירועים קרובים</p>
             </div>
           )}
         </div>
@@ -430,12 +443,12 @@ function EmployeeView({ data }: { data: any }) {
         {/* My Equipment */}
         {myEquipment.length > 0 && (
           <div className="card">
-            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+            <div className="section-header">
+              <div className="section-header-icon bg-gradient-to-br from-violet-100 to-violet-50">
                 <Package className="w-4 h-4 text-violet-600" />
               </div>
-              הציוד שלי
-            </h3>
+              <h3 className="section-header-title">הציוד שלי</h3>
+            </div>
             <div className="space-y-1.5">
               {myEquipment.map((item: any, index: number) => (
                 <div key={index} className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg">
@@ -455,12 +468,12 @@ function EmployeeView({ data }: { data: any }) {
 
         {/* Recent Shifts */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-emerald-100 to-emerald-50">
               <Clock className="w-4 h-4 text-emerald-600" />
             </div>
-            היסטוריית משמרות אחרונות
-          </h3>
+            <h3 className="section-header-title">היסטוריית משמרות אחרונות</h3>
+          </div>
           {myRecent.length > 0 ? (
             <div className="space-y-1.5">
               {myRecent.map((shift: any, index: number) => (
@@ -481,8 +494,10 @@ function EmployeeView({ data }: { data: any }) {
             </div>
           ) : (
             <div className="text-center py-10">
-              <Clock className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">אין היסטוריה</p>
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <Clock className="w-6 h-6 text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-400 font-medium">אין היסטוריה</p>
             </div>
           )}
         </div>
@@ -499,21 +514,21 @@ function OperationsView({ data }: { data: any }) {
       value: `${data?.guards_on_duty || 0}/${data?.guards_expected_today || 0}`,
       icon: Shield,
       iconColor: 'text-sky-600',
-      bgColor: 'bg-sky-50',
+      bgColor: 'bg-gradient-to-br from-sky-100 to-sky-50',
     },
     {
       name: 'אתרים מכוסים',
       value: data?.sites_with_coverage || 0,
       icon: MapPin,
       iconColor: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
+      bgColor: 'bg-gradient-to-br from-emerald-100 to-emerald-50',
     },
     {
       name: 'אירועי אבטחה פתוחים',
       value: data?.open_incidents?.count || 0,
       icon: AlertTriangle,
       iconColor: data?.open_incidents?.critical > 0 ? 'text-red-600' : 'text-red-500',
-      bgColor: data?.open_incidents?.critical > 0 ? 'bg-red-100' : 'bg-red-50',
+      bgColor: data?.open_incidents?.critical > 0 ? 'bg-gradient-to-br from-red-200 to-red-100' : 'bg-gradient-to-br from-red-100 to-red-50',
       urgent: (data?.open_incidents?.critical || 0) > 0,
       href: '/incidents',
     },
@@ -522,7 +537,7 @@ function OperationsView({ data }: { data: any }) {
       value: data?.expiring_licenses?.length || 0,
       icon: FileWarning,
       iconColor: 'text-amber-600',
-      bgColor: 'bg-amber-50',
+      bgColor: 'bg-gradient-to-br from-amber-100 to-amber-50',
     },
   ];
 
@@ -543,7 +558,7 @@ function OperationsView({ data }: { data: any }) {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="stat-card-value">{stat.value}</p>
+                  <p className="stat-card-value font-heading">{stat.value}</p>
                   <p className="stat-card-label">{stat.name}</p>
                 </div>
                 <div className={`w-11 h-11 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
@@ -557,7 +572,7 @@ function OperationsView({ data }: { data: any }) {
 
       {/* Critical alerts row */}
       {data?.open_incidents?.critical > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 animate-fade-in">
+        <div className="bg-gradient-to-r from-danger-50 to-danger-100/50 border border-danger-200 ring-1 ring-danger-200/50 rounded-xl p-4 flex items-center gap-3 animate-fade-in">
           <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
@@ -575,18 +590,18 @@ function OperationsView({ data }: { data: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Guards Not Checked In */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-red-100 to-red-50">
               <AlertCircle className="w-4 h-4 text-red-500" />
             </div>
-            מאבטחים שלא עשו צ'ק-אין
-          </h3>
+            <h3 className="section-header-title">מאבטחים שלא עשו צ'ק-אין</h3>
+          </div>
           {data?.guards_not_checked_in?.length > 0 ? (
             <div className="space-y-2.5">
               {data.guards_not_checked_in.map((guard: any) => (
                 <div
                   key={guard.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between"
+                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center justify-between"
                 >
                   <div>
                     <p className="font-medium text-sm text-gray-900">
@@ -620,18 +635,18 @@ function OperationsView({ data }: { data: any }) {
 
         {/* Sites Without Coverage */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-amber-100 to-amber-50">
               <MapPin className="w-4 h-4 text-amber-600" />
             </div>
-            אתרים ללא כיסוי
-          </h3>
+            <h3 className="section-header-title">אתרים ללא כיסוי</h3>
+          </div>
           {data?.sites_without_coverage?.length > 0 ? (
             <div className="space-y-2.5">
               {data.sites_without_coverage.map((site: any) => (
                 <div
                   key={site.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   <p className="font-medium text-sm text-gray-900">{site.name}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
@@ -655,18 +670,18 @@ function OperationsView({ data }: { data: any }) {
 
         {/* Upcoming Shift Changes */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-sky-100 to-sky-50">
               <ArrowLeftRight className="w-4 h-4 text-sky-600" />
             </div>
-            החלפות משמרות בשעתיים הקרובות
-          </h3>
+            <h3 className="section-header-title">החלפות משמרות בשעתיים הקרובות</h3>
+          </div>
           {data?.upcoming_shift_changes?.length > 0 ? (
             <div className="space-y-2.5">
               {data.upcoming_shift_changes.map((shift: any) => (
                 <div
                   key={shift.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100 flex items-center justify-between"
+                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center justify-between"
                 >
                   <div>
                     <p className="font-medium text-sm text-gray-900">
@@ -688,26 +703,28 @@ function OperationsView({ data }: { data: any }) {
             </div>
           ) : (
             <div className="text-center py-10">
-              <ArrowLeftRight className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">אין החלפות קרובות</p>
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <ArrowLeftRight className="w-6 h-6 text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-400 font-medium">אין החלפות קרובות</p>
             </div>
           )}
         </div>
 
         {/* Expiring Licenses */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-amber-100 to-amber-50">
               <FileWarning className="w-4 h-4 text-amber-600" />
             </div>
-            רישיונות והסמכות שפגים ב-7 ימים
-          </h3>
+            <h3 className="section-header-title">רישיונות והסמכות שפגים ב-7 ימים</h3>
+          </div>
           {data?.expiring_licenses?.length > 0 ? (
             <div className="space-y-2.5">
               {data.expiring_licenses.map((cert: any) => (
                 <div
                   key={cert.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -736,12 +753,12 @@ function OperationsView({ data }: { data: any }) {
         {/* Today's Incidents */}
         {data?.today_incidents?.length > 0 && (
           <div className="card lg:col-span-2">
-            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+            <div className="section-header">
+              <div className="section-header-icon bg-gradient-to-br from-red-100 to-red-50">
                 <AlertTriangle className="w-4 h-4 text-red-500" />
               </div>
-              אירועי אבטחה היום
-            </h3>
+              <h3 className="section-header-title">אירועי אבטחה היום</h3>
+            </div>
             <div className="space-y-2.5">
               {data.today_incidents.map((inc: any) => {
                 const severityColors: Record<string, string> = {
@@ -789,7 +806,7 @@ function BusinessView({ data }: { data: any }) {
       value: data?.leads?.new_leads || 0,
       icon: Users,
       iconColor: 'text-sky-600',
-      bgColor: 'bg-sky-50',
+      bgColor: 'bg-gradient-to-br from-sky-100 to-sky-50',
       href: '/leads?status=new',
     },
     {
@@ -797,7 +814,7 @@ function BusinessView({ data }: { data: any }) {
       value: data?.customers?.active_customers || 0,
       icon: Building2,
       iconColor: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
+      bgColor: 'bg-gradient-to-br from-emerald-100 to-emerald-50',
       href: '/customers',
     },
     {
@@ -805,7 +822,7 @@ function BusinessView({ data }: { data: any }) {
       value: data?.shiftsToday?.total || 0,
       icon: Calendar,
       iconColor: 'text-violet-600',
-      bgColor: 'bg-violet-50',
+      bgColor: 'bg-gradient-to-br from-violet-100 to-violet-50',
       href: '/shifts',
     },
     {
@@ -813,7 +830,7 @@ function BusinessView({ data }: { data: any }) {
       value: data?.upcomingEvents?.length || 0,
       icon: PartyPopper,
       iconColor: 'text-amber-600',
-      bgColor: 'bg-amber-50',
+      bgColor: 'bg-gradient-to-br from-amber-100 to-amber-50',
       href: '/events',
     },
   ];
@@ -830,7 +847,7 @@ function BusinessView({ data }: { data: any }) {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="stat-card-value">{stat.value}</p>
+                <p className="stat-card-value font-heading">{stat.value}</p>
                 <p className="stat-card-label">{stat.name}</p>
               </div>
               <div className={`w-11 h-11 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
@@ -844,15 +861,21 @@ function BusinessView({ data }: { data: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue chart */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-primary-100 to-primary-50">
               <TrendingUp className="w-4 h-4 text-primary-600" />
             </div>
-            הכנסות - 6 חודשים אחרונים
-          </h3>
+            <h3 className="section-header-title">הכנסות - 6 חודשים אחרונים</h3>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data?.monthlyRevenue || []}>
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
@@ -865,12 +888,18 @@ function BusinessView({ data }: { data: any }) {
                     fontSize: '13px',
                   }}
                 />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="none"
+                  fill="url(#revenueGradient)"
+                />
                 <Line
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#0070cc"
+                  stroke="#6366f1"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: '#0070cc', strokeWidth: 2, stroke: '#fff' }}
+                  dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>
@@ -880,12 +909,12 @@ function BusinessView({ data }: { data: any }) {
 
         {/* Upcoming events */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-amber-100 to-amber-50">
               <PartyPopper className="w-4 h-4 text-amber-600" />
             </div>
-            אירועים קרובים
-          </h3>
+            <h3 className="section-header-title">אירועים קרובים</h3>
+          </div>
           {data?.upcomingEvents?.length > 0 ? (
             <div className="space-y-2.5">
               {data.upcomingEvents.map((event: any) => (
@@ -916,26 +945,28 @@ function BusinessView({ data }: { data: any }) {
             </div>
           ) : (
             <div className="text-center py-10">
-              <PartyPopper className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">אין אירועים קרובים</p>
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <PartyPopper className="w-6 h-6 text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-400 font-medium">אין אירועים קרובים</p>
             </div>
           )}
         </div>
 
         {/* Unassigned shifts */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-red-100 to-red-50">
               <AlertCircle className="w-4 h-4 text-red-500" />
             </div>
-            משמרות לא מאוישות היום
-          </h3>
+            <h3 className="section-header-title">משמרות לא מאוישות היום</h3>
+          </div>
           {data?.unassignedShifts?.length > 0 ? (
             <div className="space-y-2.5">
               {data.unassignedShifts.map((shift: any) => (
                 <div
                   key={shift.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   <p className="font-medium text-sm text-gray-900">
                     {shift.company_name} - {shift.site_name}
@@ -958,18 +989,18 @@ function BusinessView({ data }: { data: any }) {
 
         {/* Overdue invoices */}
         <div className="card">
-          <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+          <div className="section-header">
+            <div className="section-header-icon bg-gradient-to-br from-amber-100 to-amber-50">
               <FileWarning className="w-4 h-4 text-amber-600" />
             </div>
-            חשבוניות באיחור
-          </h3>
+            <h3 className="section-header-title">חשבוניות באיחור</h3>
+          </div>
           {data?.overdueInvoices?.length > 0 ? (
             <div className="space-y-2.5">
               {data.overdueInvoices.map((invoice: any) => (
                 <div
                   key={invoice.id}
-                  className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-100"
+                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -1005,12 +1036,12 @@ function BusinessView({ data }: { data: any }) {
         {/* Contracts expiring */}
         {data?.contractsExpiring?.length > 0 && (
           <div className="card lg:col-span-2">
-            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+            <div className="section-header">
+              <div className="section-header-icon bg-gradient-to-br from-sky-100 to-sky-50">
                 <Clock className="w-4 h-4 text-sky-600" />
               </div>
-              חוזים לחידוש בקרוב
-            </h3>
+              <h3 className="section-header-title">חוזים לחידוש בקרוב</h3>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {data.contractsExpiring.map((contract: any) => (
                 <Link

@@ -137,11 +137,11 @@ export default function AutomationSettings() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+        <div className="w-10 h-10 bg-gradient-to-br from-primary-100 to-primary-50 rounded-xl flex items-center justify-center">
           <Settings className="w-5 h-5 text-primary-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 font-heading">
             הגדרות אוטומציה
           </h1>
           <p className="text-gray-500 text-sm">
@@ -153,13 +153,13 @@ export default function AutomationSettings() {
       {/* ── Auto-Shift Generation ──────────────────────────────────────── */}
       <div className="card">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
             <Calendar className="w-6 h-6 text-blue-600" />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
-                <h3 className="font-semibold text-gray-900 text-lg">
+                <h3 className="font-semibold text-gray-900 text-lg font-heading">
                   יצירת משמרות אוטומטית
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">
@@ -209,12 +209,12 @@ export default function AutomationSettings() {
       {/* ── Auto-Invoice Generation ────────────────────────────────────── */}
       <div className="card">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-50 rounded-xl flex items-center justify-center flex-shrink-0">
             <FileText className="w-6 h-6 text-green-600" />
           </div>
           <div className="flex-1">
             <div>
-              <h3 className="font-semibold text-gray-900 text-lg">
+              <h3 className="font-semibold text-gray-900 text-lg font-heading">
                 יצירת חשבוניות חודשיות
               </h3>
               <p className="text-sm text-gray-500 mt-1">
@@ -277,7 +277,7 @@ export default function AutomationSettings() {
             <p className="text-sm">אין רשומות יצירה אוטומטית עדיין</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="table-container">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500">

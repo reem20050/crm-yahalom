@@ -1,7 +1,7 @@
 export function SkeletonPulse({ className }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse bg-gray-200/70 rounded-lg ${className ?? ''}`}
+      className={`skeleton ${className ?? ''}`}
     />
   );
 }
@@ -37,8 +37,8 @@ export function SkeletonStatCard() {
   return (
     <div className="bg-white rounded-2xl shadow-card p-6 flex flex-col">
       <SkeletonPulse className="w-10 h-10 rounded-xl" />
-      <SkeletonPulse className="h-8 w-24 mt-3" />
-      <SkeletonPulse className="h-4 w-16 mt-1.5" />
+      <SkeletonPulse className="h-8 w-24 mt-3 rounded-xl" />
+      <SkeletonPulse className="h-4 w-16 mt-1.5 rounded-xl" />
     </div>
   );
 }

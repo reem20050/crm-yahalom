@@ -35,32 +35,37 @@ interface NotificationCenterProps {
 
 const typeConfig: Record<
   Notification['type'],
-  { icon: typeof Bell; color: string; bg: string }
+  { icon: typeof Bell; color: string; bg: string; borderAccent: string }
 > = {
   shift_reminder: {
     icon: Clock,
     color: 'text-purple-600',
     bg: 'bg-purple-50',
+    borderAccent: 'border-r-purple-400',
   },
   invoice_overdue: {
     icon: FileWarning,
     color: 'text-red-600',
     bg: 'bg-red-50',
+    borderAccent: 'border-r-red-400',
   },
   contract_expiry: {
     icon: FileText,
     color: 'text-orange-600',
     bg: 'bg-orange-50',
+    borderAccent: 'border-r-amber-400',
   },
   lead_new: {
     icon: Users,
     color: 'text-blue-600',
     bg: 'bg-blue-50',
+    borderAccent: 'border-r-primary-400',
   },
   general: {
     icon: Info,
     color: 'text-gray-600',
     bg: 'bg-gray-100',
+    borderAccent: 'border-r-primary-400',
   },
 };
 
@@ -227,14 +232,14 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden"
+      className="absolute top-full left-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-elevated border border-gray-100 z-50 overflow-hidden animate-scale-in"
       dir="rtl"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
         <div className="flex items-center gap-2">
           <Bell className="w-5 h-5 text-gray-600" />
-          <h3 className="font-semibold text-gray-900">התראות</h3>
+          <h3 className="font-heading font-semibold text-gray-900">התראות</h3>
           {unreadCount > 0 && (
             <span className="badge-danger text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
               {unreadCount}
@@ -273,8 +278,11 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
         {/* Empty state */}
         {!isLoading && notifications.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 px-4">
-            <BellOff className="w-10 h-10 text-gray-300 mb-3" />
-            <p className="text-sm text-gray-500">אין התראות חדשות</p>
+            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+              <BellOff className="w-7 h-7 text-gray-400" />
+            </div>
+            <p className="text-sm font-medium text-gray-500">אין התראות חדשות</p>
+            <p className="text-xs text-gray-400 mt-1">כשיהיו עדכונים, הם יופיעו כאן</p>
           </div>
         )}
 
@@ -288,7 +296,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
               <button
                 key={notification.id}
                 onClick={() => handleNotificationClick(notification)}
-                className={`w-full flex items-start gap-3 px-4 py-3 text-right transition-colors hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${
+                className={`w-full flex items-start gap-3 px-4 py-3 text-right transition-colors hover:bg-gray-50 border-b border-gray-100 last:border-b-0 border-r-2 ${config.borderAccent} ${
                   !notification.is_read ? 'bg-primary-50/30' : ''
                 }`}
               >

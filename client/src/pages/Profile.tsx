@@ -85,21 +85,21 @@ export default function Profile() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">הפרופיל שלי</h1>
-        <p className="text-gray-500">צפייה בפרטי המשתמש ושינוי סיסמה</p>
+      <div className="page-header">
+        <h1 className="page-title">הפרופיל שלי</h1>
+        <p className="page-subtitle">צפייה בפרטי המשתמש ושינוי סיסמה</p>
       </div>
 
       {/* User Info Card */}
       <div className="card">
         <div className="flex items-start gap-4">
-          <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-50 rounded-full flex items-center justify-center">
             <User className="w-8 h-8 text-primary-600" />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-xl font-semibold text-gray-900 font-heading">
                   {user.firstName} {user.lastName}
                 </h2>
                 <div className="flex items-center gap-2 mt-1 text-gray-500">
@@ -139,11 +139,11 @@ export default function Profile() {
       {/* Change Password Card */}
       <div className="card">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-amber-50 rounded-xl flex items-center justify-center">
             <KeyRound className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">שינוי סיסמה</h3>
+            <h3 className="font-semibold text-gray-900 font-heading">שינוי סיסמה</h3>
             <p className="text-sm text-gray-500">עדכן את הסיסמה שלך לחשבון</p>
           </div>
         </div>

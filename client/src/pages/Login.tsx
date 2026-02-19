@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Shield, Eye, EyeOff, CheckCircle2, Mail, Lock } from 'lucide-react';
 import { authApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -187,34 +187,38 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-white flex">
       {/* Left decorative panel - hidden on mobile */}
-      <div className="hidden lg:flex lg:w-[480px] xl:w-[560px] bg-primary-600 relative overflow-hidden flex-col items-center justify-center p-12">
-        {/* Subtle pattern overlay */}
+      <div className="hidden lg:flex lg:w-[480px] xl:w-[560px] bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-700 relative overflow-hidden flex-col items-center justify-center p-12">
+        {/* Modern gradient mesh overlay */}
         <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-          backgroundSize: '32px 32px',
+          backgroundImage: `radial-gradient(ellipse at 20% 50%, rgba(255,255,255,0.3) 0%, transparent 50%),
+                            radial-gradient(ellipse at 80% 20%, rgba(255,255,255,0.2) 0%, transparent 50%)`,
         }} />
+        {/* Floating decorative circles */}
+        <div className="absolute top-20 right-10 w-32 h-32 bg-white/5 rounded-full animate-float" />
+        <div className="absolute bottom-32 left-12 w-24 h-24 bg-white/5 rounded-full animate-float" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 right-1/3 w-16 h-16 bg-white/5 rounded-full animate-float" style={{ animationDelay: '2s' }} />
         <div className="relative z-10 text-center">
-          <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-8 backdrop-blur-sm">
-            <Shield className="w-10 h-10 text-white" />
+          <div className="w-24 h-24 bg-white/15 backdrop-blur-sm rounded-3xl flex items-center justify-center mx-auto mb-8">
+            <Shield className="w-12 h-12 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-3">צוות יהלום</h1>
+          <h1 className="text-4xl font-heading font-bold text-white mb-3">צוות יהלום</h1>
           <p className="text-primary-200 text-lg">מערכת ניהול אבטחה וCRM</p>
           <div className="mt-12 space-y-4 text-right max-w-xs mx-auto">
             <div className="flex items-center gap-3 text-primary-100">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
               <span className="text-sm">ניהול משמרות ושיבוצים</span>
             </div>
             <div className="flex items-center gap-3 text-primary-100">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
               <span className="text-sm">מעקב עובדים וציוד</span>
             </div>
             <div className="flex items-center gap-3 text-primary-100">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
               <span className="text-sm">דוחות וחשבוניות</span>
             </div>
@@ -224,18 +228,18 @@ export default function Login() {
 
       {/* Right login form */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm animate-slide-up">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-10">
-            <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Shield className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">צוות יהלום</h1>
+            <h1 className="text-2xl font-heading font-bold text-gray-900">צוות יהלום</h1>
             <p className="text-gray-400 text-sm mt-1">מערכת ניהול CRM</p>
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">התחברות למערכת</h2>
+            <h2 className="text-2xl font-heading font-bold text-gray-900">התחברות למערכת</h2>
             <p className="text-gray-500 text-sm mt-1">הזן את פרטי ההתחברות שלך</p>
           </div>
 
@@ -254,7 +258,7 @@ export default function Login() {
                 type="button"
                 onClick={handleCustomGoogleLogin}
                 disabled={isGoogleLoading}
-                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -290,14 +294,17 @@ export default function Login() {
               <label htmlFor="email" className="label">
                 אימייל
               </label>
-              <input
-                id="email"
-                type="email"
-                {...register('email')}
-                className={`input ${errors.email ? 'input-error' : ''}`}
-                placeholder="your@email.com"
-                dir="ltr"
-              />
+              <div className="relative">
+                <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  id="email"
+                  type="email"
+                  {...register('email')}
+                  className={`input pr-11 ${errors.email ? 'input-error' : ''}`}
+                  placeholder="your@email.com"
+                  dir="ltr"
+                />
+              </div>
               {errors.email && (
                 <p className="mt-1.5 text-sm text-red-600">{errors.email.message}</p>
               )}
@@ -308,11 +315,12 @@ export default function Login() {
                 סיסמה
               </label>
               <div className="relative">
+                <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   {...register('password')}
-                  className={`input pl-10 ${errors.password ? 'input-error' : ''}`}
+                  className={`input pr-11 pl-10 ${errors.password ? 'input-error' : ''}`}
                   placeholder="••••••••"
                 />
                 <button

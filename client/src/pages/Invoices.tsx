@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail, ExternalLink, Download } from 'lucide-react';
+import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail, ExternalLink, Download, Search } from 'lucide-react';
 import { invoicesApi, customersApi, integrationsApi } from '../services/api';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
@@ -12,12 +12,12 @@ import { exportInvoiceToPDF } from '../utils/pdfExport';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
 
-const statusLabels: Record<string, { label: string; class: string }> = {
-  draft: { label: 'טיוטה', class: 'badge-gray' },
-  sent: { label: 'נשלחה', class: 'badge-info' },
-  paid: { label: 'שולמה', class: 'badge-success' },
-  overdue: { label: 'באיחור', class: 'badge-danger' },
-  cancelled: { label: 'בוטלה', class: 'badge-gray' },
+const statusLabels: Record<string, { label: string; class: string; dot?: string }> = {
+  draft: { label: 'טיוטה', class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700', dot: 'bg-gray-400' },
+  sent: { label: 'נשלחה', class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary-700', dot: 'bg-primary-500' },
+  paid: { label: 'שולמה', class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700', dot: 'bg-success-500' },
+  overdue: { label: 'באיחור', class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-danger-50 text-danger-700', dot: 'bg-danger-500' },
+  cancelled: { label: 'בוטלה', class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500', dot: 'bg-gray-400' },
 };
 
 const invoiceSchema = z.object({
@@ -239,10 +239,10 @@ export default function Invoices() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">חשבוניות</h1>
-          <p className="text-gray-500">ניהול חשבוניות ותשלומים</p>
+          <h1 className="page-title">חשבוניות</h1>
+          <p className="page-subtitle">ניהול חשבוניות ותשלומים</p>
         </div>
         <div className="flex items-center gap-2">
           {can('invoices:create') && (
@@ -258,7 +258,7 @@ export default function Invoices() {
           {can('invoices:create') && (
             <button
               onClick={() => setIsGreenInvoiceModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
             >
               <FileCheck className="w-5 h-5" />
               חשבונית ירוקה
@@ -280,34 +280,45 @@ export default function Invoices() {
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="stat-card">
-          <p className="stat-card-value">₪{(summary?.total_amount || 0).toLocaleString()}</p>
+          <p className="stat-card-value font-heading">₪{(summary?.total_amount || 0).toLocaleString()}</p>
           <p className="stat-card-label">סה"כ החודש</p>
         </div>
         <div className="stat-card">
-          <p className="stat-card-value text-green-600">₪{(summary?.paid_amount || 0).toLocaleString()}</p>
+          <p className="stat-card-value font-heading text-success-600">₪{(summary?.paid_amount || 0).toLocaleString()}</p>
           <p className="stat-card-label">שולם</p>
         </div>
         <div className="stat-card">
-          <p className="stat-card-value text-yellow-600">₪{(summary?.pending_amount || 0).toLocaleString()}</p>
+          <p className="stat-card-value font-heading text-warning-600">₪{(summary?.pending_amount || 0).toLocaleString()}</p>
           <p className="stat-card-label">ממתין לתשלום</p>
         </div>
         <div className="stat-card">
-          <p className="stat-card-value">{summary?.total_invoices || 0}</p>
+          <p className="stat-card-value font-heading">{summary?.total_invoices || 0}</p>
           <p className="stat-card-label">חשבוניות</p>
         </div>
       </div>
 
-      <div className="card">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="input w-auto"
-        >
-          <option value="">כל הסטטוסים</option>
-          {Object.entries(statusLabels).map(([key, { label }]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
+      <div className="card !p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[200px] relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="חיפוש חשבונית..."
+              className="input pr-11 w-full"
+              readOnly={false}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="input w-auto"
+          >
+            <option value="">כל הסטטוסים</option>
+            {Object.entries(statusLabels).map(([key, { label }]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -322,8 +333,7 @@ export default function Invoices() {
           <SkeletonTableRows columns={6} rows={5} />
         </div>
       ) : data?.invoices?.length > 0 ? (
-        <div className="card p-0 overflow-hidden">
-          <div className="table-container">
+        <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
@@ -345,11 +355,12 @@ export default function Invoices() {
                   <th>פעולות</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody>
                 {data.invoices.map((invoice: Invoice) => {
                   const effectiveStatus = getEffectiveStatus(invoice);
+                  const isOverdue = effectiveStatus === 'overdue';
                   return (
-                    <tr key={invoice.id} className={isSelected(invoice.id) ? 'bg-primary-50' : ''}>
+                    <tr key={invoice.id} className={`border-b border-gray-50 last:border-0 ${isSelected(invoice.id) ? 'bg-primary-50' : ''} ${isOverdue ? 'ring-1 ring-danger-200/50 bg-danger-50/30' : ''}`}>
                       <td>
                         <input
                           type="checkbox"
@@ -358,7 +369,7 @@ export default function Invoices() {
                           className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                         />
                       </td>
-                      <td className="font-medium">#{invoice.invoice_number || invoice.id.slice(0, 8)}</td>
+                      <td className="font-medium font-heading">#{invoice.invoice_number || invoice.id.slice(0, 8)}</td>
                       <td>
                         <span className="flex items-center gap-2">
                           <Building2 className="w-4 h-4 text-gray-400" />
@@ -395,13 +406,14 @@ export default function Invoices() {
                         <span className="flex items-center gap-1">
                           {invoice.due_date}
                           {invoice.days_overdue > 0 && (
-                            <span className="text-red-600 text-xs">({invoice.days_overdue} ימים)</span>
+                            <span className="text-danger-600 text-xs font-medium">({invoice.days_overdue} ימים)</span>
                           )}
                         </span>
                       </td>
-                      <td className="font-medium">₪{invoice.total_amount?.toLocaleString()}</td>
+                      <td className="font-medium font-heading">₪{invoice.total_amount?.toLocaleString()}</td>
                       <td>
-                        <span className={statusLabels[effectiveStatus]?.class || 'badge-gray'}>
+                        <span className={statusLabels[effectiveStatus]?.class || 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700'}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusLabels[effectiveStatus]?.dot || 'bg-gray-400'}`}></span>
                           {statusLabels[effectiveStatus]?.label || invoice.status}
                         </span>
                       </td>
@@ -478,13 +490,16 @@ export default function Invoices() {
                 })}
               </tbody>
             </table>
-          </div>
         </div>
       ) : (
-        <div className="card text-center py-12">
-          <Receipt className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">לא נמצאו חשבוניות</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <Receipt className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="empty-state-title">לא נמצאו חשבוניות</h3>
+          <p className="text-sm text-gray-500 mb-4">צור חשבונית ראשונה כדי להתחיל לנהל תשלומים</p>
           <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+            <Plus className="w-4 h-4 ml-2" />
             צור חשבונית ראשונה
           </button>
         </div>
@@ -492,8 +507,8 @@ export default function Invoices() {
 
       {/* Create Invoice Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-2xl">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">חשבונית חדשה</h2>
               <button
@@ -599,8 +614,8 @@ export default function Invoices() {
 
       {/* Green Invoice Modal */}
       {isGreenInvoiceModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-3xl">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">הפקת חשבונית ירוקה</h2>
               <button
@@ -700,7 +715,7 @@ export default function Invoices() {
               </div>
 
               {/* Total */}
-              <div className="flex justify-between items-center py-3 border-t border-b font-bold text-lg">
+              <div className="flex justify-between items-center py-3 border-t border-b font-bold text-lg font-heading">
                 <span>סה"כ</span>
                 <span dir="ltr">₪{greenInvoiceItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0).toLocaleString()}</span>
               </div>
@@ -751,8 +766,8 @@ export default function Invoices() {
 
       {/* Email Input Modal */}
       {emailModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-lg font-bold">שליחת חשבונית במייל</h2>
               <button
@@ -807,8 +822,8 @@ export default function Invoices() {
 
       {/* Payment Date Modal */}
       {paymentDateModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-lg font-bold">תאריך תשלום</h2>
               <button

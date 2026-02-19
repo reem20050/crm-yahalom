@@ -110,10 +110,10 @@ export default function Events() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">אירועים</h1>
-          <p className="text-gray-500">ניהול אירועים חד-פעמיים</p>
+          <h1 className="page-title">אירועים</h1>
+          <p className="page-subtitle">ניהול אירועים חד-פעמיים</p>
         </div>
         {can('events:create') && (
           <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
@@ -156,16 +156,16 @@ export default function Events() {
             <Link
               key={event.id}
               to={`/events/${event.id}`}
-              className="card hover:shadow-md transition-shadow"
+              className="card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300"
             >
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-200 to-orange-100 rounded-xl flex items-center justify-center">
                   <PartyPopper className="w-6 h-6 text-orange-600" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-semibold text-gray-900">{event.event_name}</h3>
+                      <h3 className="font-heading font-semibold text-gray-900">{event.event_name}</h3>
                       <p className="text-sm text-gray-500">{event.company_name}</p>
                     </div>
                     <span className={statusLabels[event.status]?.class || 'badge-gray'}>
@@ -201,9 +201,12 @@ export default function Events() {
           ))}
         </div>
       ) : (
-        <div className="card text-center py-12">
-          <PartyPopper className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">לא נמצאו אירועים</p>
+        <div className="card text-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <PartyPopper className="w-7 h-7 text-gray-400" />
+          </div>
+          <p className="text-gray-500 font-medium mb-1">לא נמצאו אירועים</p>
+          <p className="text-sm text-gray-400 mb-6">הוסף אירוע חדש כדי להתחיל לנהל אירועים</p>
           <button onClick={() => setIsModalOpen(true)} className="btn-primary">
             הוסף אירוע ראשון
           </button>
@@ -212,8 +215,8 @@ export default function Events() {
 
       {/* Create Event Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">אירוע חדש</h2>
               <button

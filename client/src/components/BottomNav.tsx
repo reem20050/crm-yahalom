@@ -14,7 +14,7 @@ const navItems = [
 
 export default function BottomNav({ onMenuClick }: BottomNavProps) {
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-lg border-t border-gray-100 z-40 lg:hidden safe-area-pb">
+    <nav className="fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-xl border-t border-gray-200/60 z-40 lg:hidden safe-area-pb">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
         {navItems.map((item) => (
           <NavLink
@@ -22,21 +22,26 @@ export default function BottomNav({ onMenuClick }: BottomNavProps) {
             to={item.href}
             end={item.href === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-colors ${
+              `flex flex-col items-center gap-0.5 px-3 py-2 transition-all duration-150 active:scale-95 ${
                 isActive
-                  ? 'text-primary-600'
-                  : 'text-gray-400 active:text-gray-600'
+                  ? 'text-primary-600 bg-primary-50 rounded-2xl'
+                  : 'text-gray-400 active:text-gray-600 rounded-xl'
               }`
             }
           >
-            <item.icon className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{item.name}</span>
+            {({ isActive }) => (
+              <>
+                <item.icon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{item.name}</span>
+                {isActive && <span className="w-1 h-1 rounded-full bg-primary-500 mt-0.5" />}
+              </>
+            )}
           </NavLink>
         ))}
         {/* Menu button - opens sidebar */}
         <button
           onClick={onMenuClick}
-          className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-gray-400 active:text-gray-600 transition-colors"
+          className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-gray-400 active:text-gray-600 active:scale-95 transition-all duration-150"
         >
           <Menu className="w-5 h-5" />
           <span className="text-[10px] font-medium">עוד</span>

@@ -259,9 +259,9 @@ export default function Users() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">ניהול משתמשים</h1>
-          <p className="text-gray-500 mt-1">ניהול חשבונות משתמשים, הרשאות גישה ושיוך לעובדים</p>
+        <div className="page-header">
+          <h1 className="page-title">ניהול משתמשים</h1>
+          <p className="page-subtitle">ניהול חשבונות משתמשים, הרשאות גישה ושיוך לעובדים</p>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
           <Plus className="h-5 w-5" />
@@ -280,7 +280,7 @@ export default function Users() {
 
       {/* Users table */}
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-container">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -403,10 +403,10 @@ export default function Users() {
 
       {/* Create/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
+        <div className="modal-backdrop p-4">
+          <div className="modal-content max-w-lg w-full">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold">
+              <h2 className="text-lg font-bold font-heading">
                 {editingUser ? 'עריכת משתמש' : 'הוספת משתמש חדש'}
               </h2>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
@@ -561,10 +561,10 @@ export default function Users() {
 
       {/* Link Employee Modal */}
       {linkModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+        <div className="modal-backdrop p-4">
+          <div className="modal-content max-w-md w-full">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold flex items-center gap-2">
+              <h2 className="text-lg font-bold font-heading flex items-center gap-2">
                 <Link2 className="w-5 h-5 text-primary-600" />
                 שיוך עובד למשתמש
               </h2>
@@ -646,10 +646,10 @@ export default function Users() {
 
       {/* Reset Password Modal */}
       {resetPasswordModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+        <div className="modal-backdrop p-4">
+          <div className="modal-content max-w-md w-full">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold">איפוס סיסמה</h2>
+              <h2 className="text-lg font-bold font-heading">איפוס סיסמה</h2>
               <button
                 onClick={() => { setResetPasswordModal(null); setError(''); }}
                 className="text-gray-400 hover:text-gray-600"

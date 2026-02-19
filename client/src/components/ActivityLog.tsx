@@ -33,49 +33,49 @@ interface ActivityLogProps {
 
 const ACTIVITY_TYPES: Record<
   string,
-  { label: string; icon: typeof Phone; colorClass: string; bgClass: string }
+  { label: string; icon: typeof Phone; colorClass: string; gradientBg: string }
 > = {
   call: {
     label: 'שיחה',
     icon: Phone,
     colorClass: 'text-blue-600',
-    bgClass: 'bg-blue-100',
+    gradientBg: 'bg-gradient-to-br from-blue-100 to-blue-50',
   },
   meeting: {
     label: 'פגישה',
     icon: Users,
     colorClass: 'text-purple-600',
-    bgClass: 'bg-purple-100',
+    gradientBg: 'bg-gradient-to-br from-purple-100 to-purple-50',
   },
   proposal: {
     label: 'הצעת מחיר',
     icon: FileText,
     colorClass: 'text-orange-600',
-    bgClass: 'bg-orange-100',
+    gradientBg: 'bg-gradient-to-br from-orange-100 to-orange-50',
   },
   note: {
     label: 'הערה',
     icon: MessageCircle,
     colorClass: 'text-gray-600',
-    bgClass: 'bg-gray-100',
+    gradientBg: 'bg-gradient-to-br from-gray-100 to-gray-50',
   },
   whatsapp: {
     label: 'WhatsApp',
     icon: MessageCircle,
     colorClass: 'text-green-600',
-    bgClass: 'bg-green-100',
+    gradientBg: 'bg-gradient-to-br from-green-100 to-green-50',
   },
   status_change: {
     label: 'שינוי סטטוס',
     icon: RefreshCw,
     colorClass: 'text-yellow-600',
-    bgClass: 'bg-yellow-100',
+    gradientBg: 'bg-gradient-to-br from-yellow-100 to-yellow-50',
   },
   email: {
     label: 'אימייל',
     icon: Mail,
     colorClass: 'text-cyan-600',
-    bgClass: 'bg-cyan-100',
+    gradientBg: 'bg-gradient-to-br from-cyan-100 to-cyan-50',
   },
 };
 
@@ -188,8 +188,12 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
   return (
     <div className="card">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">יומן פעולות</h2>
+      <div className="section-header mb-4">
+        <div className="section-header-icon bg-gradient-to-br from-primary-100 to-primary-50">
+          <Clock className="w-4 h-4 text-primary-600" />
+        </div>
+        <h2 className="section-header-title">יומן פעולות</h2>
+        <div className="flex-1" />
         <button
           onClick={() => setShowForm(!showForm)}
           className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5"
@@ -209,7 +213,7 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="mb-6 p-4 bg-blue-50 rounded-lg space-y-3"
+          className="mb-6 p-4 bg-gradient-to-br from-primary-50 to-blue-50 rounded-xl border border-primary-100 space-y-3"
         >
           <div>
             <label className="label">סוג פעולה</label>
@@ -258,8 +262,10 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
       {/* Empty state */}
       {!isLoading && activities.length === 0 && (
         <div className="text-center py-12">
-          <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">אין פעולות עדיין</p>
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center mx-auto mb-3">
+            <Clock className="w-7 h-7 text-gray-300" />
+          </div>
+          <p className="text-gray-500 font-medium font-heading">אין פעולות עדיין</p>
           <p className="text-gray-400 text-sm mt-1">
             הוסף פעולה ראשונה כדי להתחיל לעקוב
           </p>
@@ -269,8 +275,8 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
       {/* Timeline */}
       {!isLoading && activities.length > 0 && (
         <div className="relative">
-          {/* Vertical line */}
-          <div className="absolute right-[19px] top-0 bottom-0 w-0.5 bg-gray-200" />
+          {/* Vertical connector line */}
+          <div className="absolute right-[19px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary-200 via-gray-200 to-transparent" />
 
           <div className="space-y-0">
             {activities.map((activity, index) => {
@@ -278,7 +284,7 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
                 label: activity.action,
                 icon: Clock,
                 colorClass: 'text-gray-600',
-                bgClass: 'bg-gray-100',
+                gradientBg: 'bg-gradient-to-br from-gray-100 to-gray-50',
               };
               const Icon = config.icon;
 
@@ -286,7 +292,7 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
                 <div key={activity.id} className="relative flex gap-4 pb-6">
                   {/* Icon circle */}
                   <div
-                    className={`relative z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${config.bgClass}`}
+                    className={`relative z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-sm border-2 border-white ${config.gradientBg}`}
                   >
                     <Icon className={`w-5 h-5 ${config.colorClass}`} />
                   </div>
@@ -294,10 +300,10 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
                   {/* Content */}
                   <div className="flex-1 pt-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className="text-sm font-semibold font-heading text-gray-900">
                         {config.label}
                       </span>
-                      <span className="text-xs text-gray-400">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
                         {formatRelativeTime(activity.created_at)}
                       </span>
                     </div>

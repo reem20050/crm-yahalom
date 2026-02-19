@@ -101,19 +101,19 @@ export default function EmailComposeModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center">
               <Mail className="w-5 h-5 text-blue-600" />
             </div>
-            <h2 className="text-xl font-bold">שליחת אימייל</h2>
+            <h2 className="text-xl font-bold font-heading">שליחת אימייל</h2>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="btn-icon"
           >
             <X className="w-5 h-5" />
           </button>
@@ -201,7 +201,7 @@ export default function EmailComposeModal({
             </button>
             <button
               onClick={handleClose}
-              className="btn-secondary"
+              className="btn-ghost"
             >
               ביטול
             </button>

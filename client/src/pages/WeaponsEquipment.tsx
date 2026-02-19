@@ -151,10 +151,10 @@ export default function WeaponsEquipment() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">נשק וציוד</h1>
-          <p className="text-gray-500">ניהול נשק, ציוד ומלאי</p>
+          <h1 className="page-title">נשק וציוד</h1>
+          <p className="page-subtitle">ניהול נשק, ציוד ומלאי</p>
         </div>
         {can('weapons:manage') && (
           <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
@@ -188,13 +188,13 @@ export default function WeaponsEquipment() {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
         <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="חיפוש..."
-          className="input pr-10"
+          placeholder="חיפוש נשק או ציוד..."
+          className="input pr-11"
         />
       </div>
 
@@ -311,9 +311,10 @@ export default function WeaponsEquipment() {
 
       {/* Transfer Modal */}
       {transferWeapon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold mb-4">העברת נשק: {transferWeapon.name}</h3>
+        <div className="modal-backdrop">
+          <div className="modal-content w-full max-w-md">
+            <div className="p-6">
+            <h3 className="text-lg font-bold font-heading mb-4">העברת נשק: {transferWeapon.name}</h3>
             <div className="space-y-4">
               <div>
                 <label className="label">העבר למאבטח</label>
@@ -335,6 +336,7 @@ export default function WeaponsEquipment() {
                 <button onClick={() => setTransferWeapon(null)} className="btn-secondary">ביטול</button>
               </div>
             </div>
+            </div>
           </div>
         </div>
       )}
@@ -351,24 +353,24 @@ export default function WeaponsEquipment() {
             serial_number: string; license_number?: string; license_expiry?: string;
             status: string; employee_name?: string; employee_id?: string; notes?: string;
           }) => (
-            <div key={w.id} className="card p-4">
+            <div key={w.id} className="card-interactive p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    w.status === 'assigned' ? 'bg-green-100' : w.status === 'maintenance' ? 'bg-yellow-100' : 'bg-gray-100'
+                    w.status === 'assigned' ? 'bg-success-50' : w.status === 'maintenance' ? 'bg-warning-50' : 'bg-gray-100'
                   }`}>
                     <Crosshair className={`w-6 h-6 ${
-                      w.status === 'assigned' ? 'text-green-600' : w.status === 'maintenance' ? 'text-yellow-600' : 'text-gray-600'
+                      w.status === 'assigned' ? 'text-success-600' : w.status === 'maintenance' ? 'text-warning-600' : 'text-gray-600'
                     }`} />
                   </div>
                   <div>
-                    <p className="font-semibold">{w.weapon_type} {w.manufacturer && `- ${w.manufacturer}`} {w.model || ''}</p>
+                    <p className="font-semibold font-heading">{w.weapon_type} {w.manufacturer && `- ${w.manufacturer}`} {w.model || ''}</p>
                     <p className="text-sm text-gray-500">
                       מס"ס: <span dir="ltr">{w.serial_number}</span>
                       {w.license_number && ` | רישיון: ${w.license_number}`}
                     </p>
                     {w.employee_name && (
-                      <p className="text-sm text-green-600">מוקצה ל: {w.employee_name}</p>
+                      <p className="text-sm text-success-600">מוקצה ל: {w.employee_name}</p>
                     )}
                     {w.license_expiry && (
                       <p className="text-xs text-gray-400">תפוגת רישיון: {w.license_expiry}</p>
@@ -376,9 +378,12 @@ export default function WeaponsEquipment() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`badge ${
-                    w.status === 'assigned' ? 'badge-success' : w.status === 'maintenance' ? 'badge-warning' : 'badge-gray'
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    w.status === 'assigned' ? 'bg-success-50 text-success-700' : w.status === 'maintenance' ? 'bg-warning-50 text-warning-700' : 'bg-gray-100 text-gray-600'
                   }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      w.status === 'assigned' ? 'bg-success-500' : w.status === 'maintenance' ? 'bg-warning-500' : 'bg-gray-400'
+                    }`}></span>
                     {w.status === 'assigned' ? 'מוקצה' : w.status === 'maintenance' ? 'בתחזוקה' : 'במחסן'}
                   </span>
                   {can('weapons:manage') && (
@@ -403,7 +408,13 @@ export default function WeaponsEquipment() {
               </div>
             </div>
           )) : (
-            <p className="text-gray-400 text-center py-8">אין נשק רשום</p>
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <Crosshair className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="empty-state-title">אין נשק רשום</h3>
+              <p className="text-sm text-gray-500">הוסף נשק חדש כדי להתחיל לנהל את המלאי</p>
+            </div>
           )}
         </div>
       ) : (
@@ -415,21 +426,23 @@ export default function WeaponsEquipment() {
           }) => {
             const isAssigned = !!e.employee_id && !e.return_date;
             const condLabel: Record<string, string> = { new: 'חדש', good: 'תקין', fair: 'סביר', needs_repair: 'דורש תיקון', damaged: 'פגום' };
+            const condDot: Record<string, string> = { new: 'bg-success-500', good: 'bg-success-500', fair: 'bg-warning-500', needs_repair: 'bg-danger-500', damaged: 'bg-danger-500' };
+            const condBg: Record<string, string> = { new: 'bg-success-50 text-success-700', good: 'bg-success-50 text-success-700', fair: 'bg-warning-50 text-warning-700', needs_repair: 'bg-danger-50 text-danger-700', damaged: 'bg-danger-50 text-danger-700' };
             return (
-              <div key={e.id} className="card p-4">
+              <div key={e.id} className="card-interactive p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isAssigned ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                      <Package className={`w-6 h-6 ${isAssigned ? 'text-blue-600' : 'text-gray-600'}`} />
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isAssigned ? 'bg-primary-50' : 'bg-gray-100'}`}>
+                      <Package className={`w-6 h-6 ${isAssigned ? 'text-primary-600' : 'text-gray-600'}`} />
                     </div>
                     <div>
-                      <p className="font-semibold">{e.item_name}</p>
+                      <p className="font-semibold font-heading">{e.item_name}</p>
                       <p className="text-sm text-gray-500">
                         {e.item_type}
                         {e.serial_number && ` | מס"ס: ${e.serial_number}`}
                       </p>
                       {isAssigned && e.employee_name && (
-                        <p className="text-sm text-blue-600">מוקצה ל: {e.employee_name}</p>
+                        <p className="text-sm text-primary-600">מוקצה ל: {e.employee_name}</p>
                       )}
                       {e.return_date && (
                         <p className="text-xs text-gray-400">הוחזר: {e.return_date}</p>
@@ -437,10 +450,8 @@ export default function WeaponsEquipment() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`badge ${
-                      e.condition === 'good' || e.condition === 'new' ? 'badge-success' :
-                      e.condition === 'fair' ? 'badge-warning' : 'badge-danger'
-                    }`}>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${condBg[e.condition] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${condDot[e.condition] || 'bg-gray-400'}`}></span>
                       {condLabel[e.condition] || e.condition}
                     </span>
                     {can('equipment:manage') && (
@@ -466,7 +477,13 @@ export default function WeaponsEquipment() {
               </div>
             );
           }) : (
-            <p className="text-gray-400 text-center py-8">אין ציוד רשום</p>
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <Package className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="empty-state-title">אין ציוד רשום</h3>
+              <p className="text-sm text-gray-500">הוסף ציוד חדש כדי להתחיל לנהל את המלאי</p>
+            </div>
           )}
         </div>
       )}

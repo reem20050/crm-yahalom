@@ -1,22 +1,22 @@
 import { Link } from 'react-router-dom';
-import { FileQuestion } from 'lucide-react';
+import { Home } from 'lucide-react';
 
 function NotFound() {
   return (
     <div
       dir="rtl"
-      className="min-h-[60vh] flex items-center justify-center p-4"
+      className="min-h-[60vh] flex items-center justify-center p-4 animate-page-enter"
     >
-      <div className="text-center">
-        <div className="flex justify-center mb-6">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
-            <FileQuestion className="w-10 h-10 text-gray-400" />
-          </div>
-        </div>
+      <div className="text-center relative">
+        {/* Abstract decorative shapes */}
+        <div className="absolute -top-16 -right-16 w-40 h-40 bg-primary-500/5 rounded-full blur-2xl" />
+        <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-secondary-500/5 rounded-full blur-2xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 bg-primary-500/3 rounded-full blur-3xl" />
 
-        <h1 className="text-8xl font-extrabold text-gray-200 mb-4">404</h1>
+        {/* Large decorative 404 */}
+        <h1 className="text-[120px] font-heading font-bold gradient-text leading-none mb-4">404</h1>
 
-        <h2 className="text-2xl font-bold text-gray-900 mb-3">
+        <h2 className="text-2xl font-heading font-bold text-gray-900 mb-3">
           הדף לא נמצא
         </h2>
 
@@ -26,8 +26,9 @@ function NotFound() {
 
         <Link
           to="/"
-          className="inline-flex items-center px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="btn-primary inline-flex items-center gap-2 px-6 py-2.5"
         >
+          <Home className="w-4 h-4" />
           חזרה לדשבורד
         </Link>
       </div>

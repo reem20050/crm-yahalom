@@ -119,10 +119,10 @@ export default function GuardPanel() {
     return (
       <div className="max-w-md mx-auto mt-12">
         <div className="card text-center py-16 px-8">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <Shield className="w-10 h-10 text-gray-400" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">אין משמרת פעילה</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2 font-heading">אין משמרת פעילה</h2>
           <p className="text-gray-500">אין לך משמרת מתוכננת להיום, או שהמשמרת טרם שובצה.</p>
         </div>
       </div>
@@ -137,11 +137,11 @@ export default function GuardPanel() {
       {/* Shift info card */}
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-to-br from-primary-100 to-primary-50 rounded-lg flex items-center justify-center">
             <Shield className="w-5 h-5 text-primary-600" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-gray-900">המשמרת שלי</h2>
+            <h2 className="text-lg font-bold text-gray-900 font-heading">המשמרת שלי</h2>
             <p className="text-sm text-gray-500">{formatHebrewDate(assignment.date)}</p>
           </div>
         </div>

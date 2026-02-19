@@ -33,6 +33,24 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             duration: 4000,
             style: {
               direction: 'rtl',
+              borderRadius: '16px',
+              padding: '14px 20px',
+              fontSize: '14px',
+              fontFamily: 'Assistant, sans-serif',
+              boxShadow: '0 10px 40px -10px rgba(0,0,0,0.15)',
+              border: '1px solid rgba(0,0,0,0.04)',
+            },
+            success: {
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#ecfdf5',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fef2f2',
+              },
             },
           }}
         />

@@ -310,7 +310,7 @@ export default function EmployeeDetails() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-50 rounded-full flex items-center justify-center">
             <UserCircle className="w-12 h-12 text-gray-400" />
           </div>
           <div>
@@ -330,7 +330,7 @@ export default function EmployeeDetails() {
                 />
               </div>
             ) : (
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 font-heading">
                 {employee?.first_name} {employee?.last_name}
               </h1>
             )}
@@ -414,14 +414,14 @@ export default function EmployeeDetails() {
 
       {/* Delete confirmation dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl">
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-md w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">מחיקת עובד</h3>
+                <h3 className="text-lg font-bold text-gray-900 font-heading">מחיקת עובד</h3>
                 <p className="text-sm text-gray-500">פעולה זו אינה ניתנת לביטול</p>
               </div>
             </div>
@@ -479,7 +479,7 @@ export default function EmployeeDetails() {
       {activeTab === 'certifications' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">הסמכות ורישיונות</h2>
+            <h2 className="text-lg font-semibold font-heading">הסמכות ורישיונות</h2>
             <button onClick={() => setShowCertForm(!showCertForm)} className="btn-primary text-sm flex items-center gap-1">
               {showCertForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
               {showCertForm ? 'ביטול' : 'הוסף הסמכה'}
@@ -583,7 +583,7 @@ export default function EmployeeDetails() {
       {/* Weapons Tab */}
       {activeTab === 'weapons' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">נשק מוקצה</h2>
+          <h2 className="text-lg font-semibold font-heading">נשק מוקצה</h2>
           {weaponsData?.weapons?.length > 0 ? (
             <div className="space-y-2">
               {weaponsData.weapons.map((w: {
@@ -623,7 +623,7 @@ export default function EmployeeDetails() {
       {/* Equipment Tab */}
       {activeTab === 'equipment' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">ציוד מוקצה</h2>
+          <h2 className="text-lg font-semibold font-heading">ציוד מוקצה</h2>
           {equipData?.equipment?.length > 0 ? (
             <div className="space-y-2">
               {equipData.equipment.map((e: {
@@ -670,7 +670,7 @@ export default function EmployeeDetails() {
       {activeTab === 'performance' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">ביצועים</h2>
+            <h2 className="text-lg font-semibold font-heading">ביצועים</h2>
             <button onClick={() => setShowRatingModal(true)} className="btn-primary text-sm flex items-center gap-1">
               <Star className="w-4 h-4" />
               דרג מאבטח
@@ -690,26 +690,26 @@ export default function EmployeeDetails() {
                       <Star key={s} className={`w-4 h-4 ${s <= Math.round(avgRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
                     ))}
                   </div>
-                  <p className="text-2xl font-bold">{Number(avgRating).toFixed(1)}</p>
+                  <p className="text-2xl font-bold font-heading">{Number(avgRating).toFixed(1)}</p>
                   <p className="text-xs text-gray-500">דירוג ממוצע ({totalRatings} דירוגים)</p>
                 </div>
                 <div className="card text-center">
-                  <p className="text-2xl font-bold text-green-600">{attendanceRate}%</p>
+                  <p className="text-2xl font-bold font-heading text-green-600">{attendanceRate}%</p>
                   <p className="text-xs text-gray-500">נוכחות</p>
                 </div>
                 <div className="card text-center">
-                  <p className="text-2xl font-bold text-blue-600">{perfData.total_hours || 0}</p>
+                  <p className="text-2xl font-bold font-heading text-blue-600">{perfData.total_hours || 0}</p>
                   <p className="text-xs text-gray-500">שעות (3 חודשים)</p>
                 </div>
                 <div className="card text-center">
-                  <p className="text-2xl font-bold text-purple-600">{perfData.shifts_this_month || 0}</p>
+                  <p className="text-2xl font-bold font-heading text-purple-600">{perfData.shifts_this_month || 0}</p>
                   <p className="text-xs text-gray-500">משמרות החודש</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="card">
-                  <h3 className="font-medium mb-2">סטטיסטיקות</h3>
+                  <h3 className="font-medium mb-2 font-heading">סטטיסטיקות</h3>
                   <dl className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <dt className="text-gray-500">אירועי אבטחה דווחו</dt>
@@ -728,7 +728,7 @@ export default function EmployeeDetails() {
 
                 {perfData.recent_ratings?.length > 0 && (
                   <div className="card">
-                    <h3 className="font-medium mb-2">דירוגים אחרונים</h3>
+                    <h3 className="font-medium mb-2 font-heading">דירוגים אחרונים</h3>
                     <div className="space-y-2">
                       {perfData.recent_ratings.slice(0, 5).map((r: { id: string; rating: number; rating_type: string; comments?: string; created_at: string }) => (
                         <div key={r.id} className="flex items-center justify-between text-sm">
@@ -768,7 +768,7 @@ export default function EmployeeDetails() {
         <div className="lg:col-span-2 space-y-6">
           {/* Contact info */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">פרטי קשר</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">פרטי קשר</h2>
             {isEditing ? (
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -854,7 +854,7 @@ export default function EmployeeDetails() {
           {/* Employment details (editable) */}
           {isEditing && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">פרטי העסקה - עריכה</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">פרטי העסקה - עריכה</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">סוג העסקה</label>
@@ -922,7 +922,7 @@ export default function EmployeeDetails() {
           {/* Emergency contact (editable) */}
           {isEditing && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">איש קשר לחירום - עריכה</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">איש קשר לחירום - עריכה</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">שם איש קשר</label>
@@ -949,7 +949,7 @@ export default function EmployeeDetails() {
 
           {/* Recent shifts */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">משמרות אחרונות</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">משמרות אחרונות</h2>
             {data?.recentShifts?.length > 0 ? (
               <div className="space-y-2">
                 {data.recentShifts.slice(0, 10).map((shift: {
@@ -980,7 +980,7 @@ export default function EmployeeDetails() {
           {/* Documents */}
           {id && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">מסמכים</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">מסמכים</h2>
               <DocumentManager entityType="employee" entityId={id} />
             </div>
           )}
@@ -990,7 +990,7 @@ export default function EmployeeDetails() {
         <div className="space-y-6">
           {/* Employment details (view mode) */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">פרטי העסקה</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">פרטי העסקה</h2>
             <dl className="space-y-3">
               <div>
                 <dt className="text-sm text-gray-500">ת.ז</dt>
@@ -1019,7 +1019,7 @@ export default function EmployeeDetails() {
           {/* Documents */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">מסמכים</h2>
+              <h2 className="text-lg font-semibold font-heading">מסמכים</h2>
               <button
                 onClick={() => setShowDocumentForm(!showDocumentForm)}
                 className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5"
@@ -1100,7 +1100,7 @@ export default function EmployeeDetails() {
           {/* Emergency contact (view mode) */}
           {!isEditing && employee?.emergency_contact_name && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">איש קשר לחירום</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">איש קשר לחירום</h2>
               <p className="font-medium">{employee.emergency_contact_name}</p>
               <a href={`tel:${employee.emergency_contact_phone}`} className="text-primary-600 text-sm">
                 {employee.emergency_contact_phone}

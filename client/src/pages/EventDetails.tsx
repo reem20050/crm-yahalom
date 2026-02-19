@@ -235,11 +235,11 @@ export default function EventDetails() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <div className="w-16 h-16 bg-orange-100 rounded-xl flex items-center justify-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-orange-50 rounded-xl flex items-center justify-center">
             <PartyPopper className="w-8 h-8 text-orange-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{event?.event_name}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 font-heading">{event?.event_name}</h1>
             <p className="text-gray-500">{event?.company_name}</p>
             {event?.status && (
               <span className={`badge mt-1 ${statusColors[event.status] || 'badge-gray'}`}>
@@ -302,9 +302,9 @@ export default function EventDetails() {
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 space-y-4">
-            <h3 className="text-lg font-bold text-gray-900">מחיקת אירוע</h3>
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-md w-full mx-4 space-y-4">
+            <h3 className="text-lg font-bold text-gray-900 font-heading">מחיקת אירוע</h3>
             <p className="text-gray-600">
               האם אתה בטוח שברצונך למחוק את האירוע "{event?.event_name}"? פעולה זו אינה ניתנת לביטול.
             </p>
@@ -331,7 +331,7 @@ export default function EventDetails() {
         <div className="lg:col-span-2 space-y-6">
           {/* Event info */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">פרטי האירוע</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">פרטי האירוע</h2>
 
             {isEditing ? (
               <div className="space-y-4">
@@ -532,7 +532,7 @@ export default function EventDetails() {
           {/* Assigned employees */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">צוות משובץ</h2>
+              <h2 className="text-lg font-semibold font-heading">צוות משובץ</h2>
               {event?.status !== 'completed' && event?.status !== 'cancelled' && (
                 <button
                   onClick={() => setShowAssignDropdown(!showAssignDropdown)}
@@ -622,7 +622,7 @@ export default function EventDetails() {
           {/* Notes (view mode only, edit mode has it inline above) */}
           {!isEditing && event?.notes && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">הערות</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">הערות</h2>
               <p className="text-gray-700 whitespace-pre-wrap">{event.notes}</p>
             </div>
           )}
@@ -632,7 +632,7 @@ export default function EventDetails() {
         <div className="space-y-6">
           {/* Status and payment */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">סטטוס ותשלום</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">סטטוס ותשלום</h2>
             <dl className="space-y-3">
               <div>
                 <dt className="text-sm text-gray-500 mb-1">סטטוס</dt>
@@ -664,7 +664,7 @@ export default function EventDetails() {
               {event?.price && (
                 <div>
                   <dt className="text-sm text-gray-500">מחיר</dt>
-                  <dd className="font-bold text-lg">₪{event.price.toLocaleString()}</dd>
+                  <dd className="font-bold text-lg font-heading">₪{event.price.toLocaleString()}</dd>
                 </div>
               )}
             </dl>
@@ -672,7 +672,7 @@ export default function EventDetails() {
 
           {/* Staffing summary */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">סיכום איוש</h2>
+            <h2 className="text-lg font-semibold mb-4 font-heading">סיכום איוש</h2>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-500">נדרשים</span>
               <span className="font-medium">{event?.required_guards || 0}</span>
@@ -703,7 +703,7 @@ export default function EventDetails() {
           {/* Special equipment (view mode) */}
           {!isEditing && event?.special_equipment && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">ציוד מיוחד</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">ציוד מיוחד</h2>
               <p className="text-gray-700">{event.special_equipment}</p>
             </div>
           )}

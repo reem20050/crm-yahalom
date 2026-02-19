@@ -339,9 +339,9 @@ export default function Calendar() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">לוח שנה</h1>
-          <p className="text-gray-500">{isEmployee ? 'המשמרות והאירועים שלי' : 'תצוגה חודשית של משמרות ואירועים'}</p>
+        <div className="page-header">
+          <h1 className="page-title">לוח שנה</h1>
+          <p className="page-subtitle">{isEmployee ? 'המשמרות והאירועים שלי' : 'תצוגה חודשית של משמרות ואירועים'}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -377,7 +377,7 @@ export default function Calendar() {
               <ChevronRight className="w-5 h-5" />
             </button>
 
-            <h2 className="text-lg font-semibold min-w-[160px] text-center">
+            <h2 className="text-lg font-semibold font-heading min-w-[160px] text-center">
               {HEBREW_MONTHS[currentMonth]} {currentYear}
             </h2>
 
@@ -551,7 +551,7 @@ export default function Calendar() {
               <Shield className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{totalShiftsThisMonth}</p>
+              <p className="text-2xl font-bold text-gray-900 font-heading">{totalShiftsThisMonth}</p>
               <p className="text-sm text-gray-500">משמרות החודש</p>
             </div>
           </div>
@@ -561,7 +561,7 @@ export default function Calendar() {
               <PartyPopper className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{totalEventsThisMonth}</p>
+              <p className="text-2xl font-bold text-gray-900 font-heading">{totalEventsThisMonth}</p>
               <p className="text-sm text-gray-500">אירועים החודש</p>
             </div>
           </div>
@@ -572,7 +572,7 @@ export default function Calendar() {
                 <CalendarIcon className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{totalGoogleEventsThisMonth}</p>
+                <p className="text-2xl font-bold text-gray-900 font-heading">{totalGoogleEventsThisMonth}</p>
                 <p className="text-sm text-gray-500">אירועי Google</p>
               </div>
             </div>
@@ -583,7 +583,7 @@ export default function Calendar() {
               <CalendarIcon className="w-6 h-6 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-2xl font-bold text-gray-900 font-heading">
                 {totalShiftsThisMonth + totalEventsThisMonth + (showGoogle ? totalGoogleEventsThisMonth : 0)}
               </p>
               <p className="text-sm text-gray-500">סה"כ פריטים</p>

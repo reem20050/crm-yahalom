@@ -16,6 +16,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  ChevronLeft,
   Settings,
   Search,
   User,
@@ -140,10 +141,14 @@ export default function Layout() {
     navigate('/login');
   };
 
-  // Get current page title
+  // Get current page title and group
   const currentPage = filteredGroups
     .flatMap(g => g.items)
     .find(item => item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href));
+
+  const currentGroup = filteredGroups.find(g =>
+    g.items.some(item => item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href))
+  );
 
   return (
     <div className="min-h-screen bg-gray-50/80">
@@ -158,7 +163,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside
         className={clsx(
-          'fixed inset-y-0 right-0 z-50 w-[272px] bg-white border-l border-gray-100 transform transition-transform duration-300 ease-out lg:translate-x-0',
+          'fixed inset-y-0 right-0 z-50 w-[272px] bg-gradient-to-b from-white via-white to-primary-50/30 border-l border-gray-100/50 transform transition-transform duration-300 ease-out lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
         )}
       >
@@ -166,10 +171,13 @@ export default function Layout() {
           {/* Logo */}
           <div className="flex items-center justify-between h-16 px-6">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
                 <ShieldCheck className="w-4.5 h-4.5 text-white" />
               </div>
-              <span className="text-lg font-bold text-gray-900">צוות יהלום</span>
+              <div>
+                <span className="text-lg font-bold text-gray-900 font-heading">צוות יהלום</span>
+                <p className="text-[10px] text-gray-400 font-heading">CRM & Security</p>
+              </div>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -182,8 +190,8 @@ export default function Layout() {
           {/* Navigation */}
           <nav className="flex-1 px-3 py-2 overflow-y-auto">
             {filteredGroups.map((group, groupIndex) => (
-              <div key={group.label} className={groupIndex > 0 ? 'mt-4' : ''}>
-                <p className="px-4 mb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+              <div key={group.label} className={groupIndex > 0 ? 'mt-2 pt-2 border-t border-gray-100/60' : ''}>
+                <p className="px-4 mb-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-widest font-heading">
                   {group.label}
                 </p>
                 <div className="space-y-0.5">
@@ -206,17 +214,18 @@ export default function Layout() {
           </nav>
 
           {/* User section */}
-          <div className="border-t border-gray-100 p-3">
+          <div className="border-t border-gray-100/60 p-3">
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
-                  <span className="text-primary-700 font-semibold text-sm">
+                <div className="relative w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-semibold text-sm">
                     {user?.firstName?.[0]}
                     {user?.lastName?.[0]}
                   </span>
+                  <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-success-400 rounded-full border-2 border-white" />
                 </div>
                 <div className="flex-1 text-right min-w-0">
                   <p className="font-medium text-gray-900 text-sm truncate">
@@ -273,10 +282,24 @@ export default function Layout() {
                 <Menu className="w-5 h-5" />
               </button>
               {currentPage && (
-                <h2 className="text-lg font-semibold text-gray-900 hidden sm:block">
-                  {currentPage.name}
-                </h2>
+                <div className="hidden sm:block">
+                  <h2 className="text-lg font-semibold text-gray-900 font-heading">{currentPage.name}</h2>
+                  {currentGroup && (
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[11px] text-gray-400">{currentGroup.label}</span>
+                      <ChevronLeft className="w-3 h-3 text-gray-300" />
+                      <span className="text-[11px] text-primary-600 font-medium">{currentPage.name}</span>
+                    </div>
+                  )}
+                </div>
               )}
+            </div>
+
+            {/* Greeting */}
+            <div className="hidden lg:flex items-center gap-2">
+              <span className="text-sm text-gray-500">
+                {new Date().getHours() < 12 ? 'בוקר טוב' : new Date().getHours() < 17 ? 'צהריים טובים' : 'ערב טוב'}, {user?.firstName} 👋
+              </span>
             </div>
 
             {/* Right: actions */}
@@ -284,7 +307,7 @@ export default function Layout() {
               {/* Search */}
               <button
                 onClick={() => setIsSearchOpen(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-100 text-gray-500 transition-colors"
+                className="flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-100/80 border border-gray-200/50 hover:bg-gray-100 hover:border-gray-300 text-gray-500 transition-colors"
                 title="חיפוש (Ctrl+K)"
               >
                 <Search className="w-[18px] h-[18px]" />
@@ -298,11 +321,11 @@ export default function Layout() {
               <div className="relative">
                 <button
                   onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                  className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                  className="relative p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   <Bell className="w-[18px] h-[18px] text-gray-500" />
                   {unreadCount > 0 && (
-                    <span className="absolute top-1 left-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                    <span className="absolute top-1 left-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-bold text-white bg-gradient-to-r from-danger-500 to-danger-400 rounded-full">
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   )}

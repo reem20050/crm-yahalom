@@ -39,17 +39,17 @@ const ENTITY_ICONS: Record<string, typeof Building2> = {
 };
 
 const ENTITY_COLORS: Record<string, { text: string; bg: string }> = {
-  customer: { text: 'text-blue-600', bg: 'bg-blue-50' },
-  lead: { text: 'text-purple-600', bg: 'bg-purple-50' },
-  shift: { text: 'text-green-600', bg: 'bg-green-50' },
-  invoice: { text: 'text-orange-600', bg: 'bg-orange-50' },
-  incident: { text: 'text-red-600', bg: 'bg-red-50' },
-  employee: { text: 'text-cyan-600', bg: 'bg-cyan-50' },
-  event: { text: 'text-indigo-600', bg: 'bg-indigo-50' },
-  contract: { text: 'text-teal-600', bg: 'bg-teal-50' },
-  weapon: { text: 'text-gray-600', bg: 'bg-gray-100' },
-  certification: { text: 'text-yellow-600', bg: 'bg-yellow-50' },
-  equipment: { text: 'text-slate-600', bg: 'bg-slate-50' },
+  customer: { text: 'text-blue-600', bg: 'bg-gradient-to-br from-blue-100 to-blue-50' },
+  lead: { text: 'text-purple-600', bg: 'bg-gradient-to-br from-purple-100 to-purple-50' },
+  shift: { text: 'text-green-600', bg: 'bg-gradient-to-br from-green-100 to-green-50' },
+  invoice: { text: 'text-orange-600', bg: 'bg-gradient-to-br from-orange-100 to-orange-50' },
+  incident: { text: 'text-red-600', bg: 'bg-gradient-to-br from-red-100 to-red-50' },
+  employee: { text: 'text-cyan-600', bg: 'bg-gradient-to-br from-cyan-100 to-cyan-50' },
+  event: { text: 'text-indigo-600', bg: 'bg-gradient-to-br from-indigo-100 to-indigo-50' },
+  contract: { text: 'text-teal-600', bg: 'bg-gradient-to-br from-teal-100 to-teal-50' },
+  weapon: { text: 'text-gray-600', bg: 'bg-gradient-to-br from-gray-200 to-gray-100' },
+  certification: { text: 'text-yellow-600', bg: 'bg-gradient-to-br from-yellow-100 to-yellow-50' },
+  equipment: { text: 'text-slate-600', bg: 'bg-gradient-to-br from-slate-100 to-slate-50' },
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -118,9 +118,11 @@ export default function ActivityFeed() {
   return (
     <div className="card">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <Activity className="w-5 h-5 text-primary-600" />
-        <h2 className="text-lg font-semibold">פעילות אחרונה</h2>
+      <div className="section-header">
+        <div className="section-header-icon bg-gradient-to-br from-primary-100 to-primary-50">
+          <Activity className="w-4 h-4 text-primary-600" />
+        </div>
+        <h3 className="section-header-title font-heading">פעילות אחרונה</h3>
       </div>
 
       {/* Loading state */}
@@ -133,8 +135,10 @@ export default function ActivityFeed() {
       {/* Empty state */}
       {!isLoading && activities.length === 0 && (
         <div className="text-center py-12">
-          <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">אין פעילות אחרונה</p>
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+            <Clock className="w-6 h-6 text-gray-400" />
+          </div>
+          <p className="text-sm text-gray-400 font-medium">אין פעילות אחרונה</p>
         </div>
       )}
 
@@ -165,7 +169,7 @@ export default function ActivityFeed() {
                     {activity.user_name && (
                       <span className="text-xs text-gray-300">|</span>
                     )}
-                    <span className="text-xs text-gray-400">
+                    <span className="text-[11px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
                       {getRelativeTime(activity.created_at)}
                     </span>
                   </div>

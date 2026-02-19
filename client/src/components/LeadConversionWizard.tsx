@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, ChevronLeft, ChevronRight, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ArrowLeftRight, Loader2, Check } from 'lucide-react';
 import { leadsApi } from '../services/api';
 
 interface LeadData {
@@ -159,21 +159,21 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-xl font-bold text-gray-900">המרת ליד ללקוח</h2>
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <h2 className="text-xl font-bold font-heading text-gray-900">המרת ליד ללקוח</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="btn-icon"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Step indicators */}
-        <div className="flex items-center justify-center gap-4 p-4 border-b bg-gray-50">
+        <div className="flex items-center justify-center gap-4 p-4 border-b border-gray-100 bg-gray-50/50">
           {[1, 2, 3].map((s) => (
             <div
               key={s}
@@ -185,21 +185,21 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
               }}
             >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold font-heading transition-all duration-200 ${
                   step === s
-                    ? 'bg-primary-600 text-white'
+                    ? 'bg-gradient-to-br from-primary-500 to-primary-700 text-white ring-4 ring-primary-100 shadow-md'
                     : step > s
-                    ? 'bg-green-500 text-white'
+                    ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-sm'
                     : 'bg-gray-200 text-gray-500'
                 }`}
               >
-                {step > s ? '\u2713' : s}
+                {step > s ? <Check className="w-4 h-4" /> : s}
               </div>
               <span className="text-sm font-medium hidden sm:block">
                 {stepLabels[s - 1]}
               </span>
               {s < 3 && (
-                <div className={`w-8 h-0.5 hidden sm:block ${step > s ? 'bg-green-500' : 'bg-gray-200'}`} />
+                <div className={`w-8 h-0.5 hidden sm:block transition-colors ${step > s ? 'bg-gradient-to-l from-green-500 to-emerald-400' : 'bg-gray-200'}`} />
               )}
             </div>
           ))}
@@ -210,7 +210,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
           {/* Step 1: Customer Details */}
           {step === 1 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">פרטי לקוח</h3>
+              <h3 className="text-lg font-semibold font-heading text-gray-800 mb-4">פרטי לקוח</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <label className="label">שם חברה</label>
@@ -325,7 +325,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
           {step === 2 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">פרטי חוזה</h3>
+                <h3 className="text-lg font-semibold font-heading text-gray-800">פרטי חוזה</h3>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -416,7 +416,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-400">
-                  <p className="text-lg">ניתן להוסיף חוזה מאוחר יותר</p>
+                  <p className="text-lg font-heading">ניתן להוסיף חוזה מאוחר יותר</p>
                   <p className="text-sm mt-1">סמן את התיבה למעלה כדי להוסיף פרטי חוזה</p>
                 </div>
               )}
@@ -427,7 +427,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
           {step === 3 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">פרטי אתר</h3>
+                <h3 className="text-lg font-semibold font-heading text-gray-800">פרטי אתר</h3>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -546,7 +546,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-400">
-                  <p className="text-lg">ניתן להוסיף אתר מאוחר יותר</p>
+                  <p className="text-lg font-heading">ניתן להוסיף אתר מאוחר יותר</p>
                   <p className="text-sm mt-1">סמן את התיבה למעלה כדי להוסיף פרטי אתר</p>
                 </div>
               )}
@@ -555,12 +555,12 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
         </div>
 
         {/* Footer with navigation */}
-        <div className="flex items-center justify-between p-5 border-t bg-gray-50">
+        <div className="flex items-center justify-between p-5 border-t border-gray-100 bg-gray-50/50">
           <div>
             {step > 1 && (
               <button
                 onClick={handlePrev}
-                className="btn-secondary flex items-center gap-2"
+                className="btn-ghost flex items-center gap-2"
               >
                 <ChevronRight className="w-4 h-4" />
                 הקודם
@@ -569,7 +569,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={onClose} className="btn-secondary">
+            <button onClick={onClose} className="btn-ghost">
               ביטול
             </button>
 

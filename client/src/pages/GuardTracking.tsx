@@ -67,7 +67,7 @@ function GuardTrackingContent() {
       {/* Sidebar */}
       <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0">
         <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900 font-heading flex items-center gap-2">
             <Navigation className="w-5 h-5 text-primary-600" />
             מעקב שומרים
           </h2>

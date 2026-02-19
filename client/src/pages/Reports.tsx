@@ -260,9 +260,9 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">דוחות</h1>
-          <p className="text-gray-500">ניתוח נתונים וביצועים</p>
+        <div className="page-header">
+          <h1 className="page-title">דוחות</h1>
+          <p className="page-subtitle">ניתוח נתונים וביצועים</p>
         </div>
         <div className="flex items-center gap-2 no-print">
           <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
@@ -304,25 +304,25 @@ export default function Reports() {
       {activeTab === 'sales' && salesData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">המרת לידים</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">המרת לידים</h3>
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="text-center">
-                <p className="text-3xl font-bold text-gray-900">{salesData.conversionRate?.total_leads || 0}</p>
+                <p className="text-3xl font-bold text-gray-900 font-heading">{salesData.conversionRate?.total_leads || 0}</p>
                 <p className="text-sm text-gray-500">לידים</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold text-green-600">{salesData.conversionRate?.won || 0}</p>
+                <p className="text-3xl font-bold text-green-600 font-heading">{salesData.conversionRate?.won || 0}</p>
                 <p className="text-sm text-gray-500">נסגרו</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold text-primary-600">{salesData.conversionRate?.conversion_rate || 0}%</p>
+                <p className="text-3xl font-bold text-primary-600 font-heading">{salesData.conversionRate?.conversion_rate || 0}%</p>
                 <p className="text-sm text-gray-500">אחוז המרה</p>
               </div>
             </div>
           </div>
 
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">לידים לפי מקור</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">לידים לפי מקור</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -346,7 +346,7 @@ export default function Reports() {
           </div>
 
           <div className="card lg:col-span-2">
-            <h3 className="text-lg font-semibold mb-4">לידים חודשיים</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">לידים חודשיים</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={salesData.monthlyLeads || []}>
@@ -367,7 +367,7 @@ export default function Reports() {
       {activeTab === 'customers' && customersData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">הכנסות לפי לקוח (Top 10)</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">הכנסות לפי לקוח (Top 10)</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={customersData.revenueByCustomer || []} layout="vertical">
@@ -382,7 +382,7 @@ export default function Reports() {
           </div>
 
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">לקוחות בסיכון (90 יום ללא פעילות)</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">לקוחות בסיכון (90 יום ללא פעילות)</h3>
             {customersData.churnRisk?.length > 0 ? (
               <div className="space-y-2">
                 {customersData.churnRisk.map((customer: { id: string; company_name: string }) => (
@@ -402,7 +402,7 @@ export default function Reports() {
       {activeTab === 'employees' && employeesData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card lg:col-span-2">
-            <h3 className="text-lg font-semibold mb-4">שעות עבודה חודשיות</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">שעות עבודה חודשיות</h3>
             <div className="table-container">
               <table className="table">
                 <thead>
@@ -439,7 +439,7 @@ export default function Reports() {
       {activeTab === 'financial' && financialData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card lg:col-span-2">
-            <h3 className="text-lg font-semibold mb-4">הכנסות חודשיות</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">הכנסות חודשיות</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={financialData.monthlyRevenue || []}>
@@ -455,7 +455,7 @@ export default function Reports() {
           </div>
 
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">תשלומים פתוחים</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">תשלומים פתוחים</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
                 <span>ממתין לתשלום</span>
@@ -473,7 +473,7 @@ export default function Reports() {
           </div>
 
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">הכנסות לפי לקוח</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">הכנסות לפי לקוח</h3>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {(financialData.revenueByCustomer || []).map((customer: {
                 company_name: string;
@@ -497,25 +497,25 @@ export default function Reports() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="card text-center">
               <p className="text-sm text-gray-500">הכנסות (שנתי)</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-2xl font-bold text-green-600 font-heading">
                 ₪{(profitLossData.totals?.revenue || 0).toLocaleString()}
               </p>
             </div>
             <div className="card text-center">
               <p className="text-sm text-gray-500">עלות עבודה</p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-2xl font-bold text-red-600 font-heading">
                 ₪{(profitLossData.totals?.labor_cost || 0).toLocaleString()}
               </p>
             </div>
             <div className="card text-center">
               <p className="text-sm text-gray-500">רווח נקי</p>
-              <p className={`text-2xl font-bold ${(profitLossData.totals?.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-2xl font-bold font-heading ${(profitLossData.totals?.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 ₪{(profitLossData.totals?.profit || 0).toLocaleString()}
               </p>
             </div>
             <div className="card text-center">
               <p className="text-sm text-gray-500">מרווח רווח</p>
-              <p className={`text-2xl font-bold ${(profitLossData.totals?.margin || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+              <p className={`text-2xl font-bold font-heading ${(profitLossData.totals?.margin || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                 {profitLossData.totals?.margin || 0}%
               </p>
             </div>
@@ -523,7 +523,7 @@ export default function Reports() {
 
           {/* Monthly P&L Chart */}
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">רווח והפסד חודשי</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">רווח והפסד חודשי</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={profitLossData.monthly || []}>
@@ -542,7 +542,7 @@ export default function Reports() {
 
           {/* Profit Margin Trend */}
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">מגמת מרווח רווח</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">מגמת מרווח רווח</h3>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={profitLossData.monthly || []}>
@@ -558,7 +558,7 @@ export default function Reports() {
 
           {/* Monthly Breakdown Table */}
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">פירוט חודשי</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">פירוט חודשי</h3>
             <div className="table-container">
               <table className="table">
                 <thead>
@@ -614,7 +614,7 @@ export default function Reports() {
 
           {/* Customer Profitability */}
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4">רווחיות לפי לקוח</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">רווחיות לפי לקוח</h3>
             <div className="table-container">
               <table className="table">
                 <thead>
@@ -663,22 +663,22 @@ export default function Reports() {
           {/* Incident Stats */}
           {incidentStats && (
             <div className="card lg:col-span-2">
-              <h3 className="text-lg font-semibold mb-4">סטטיסטיקות אירועי אבטחה</h3>
+              <h3 className="text-lg font-semibold mb-4 font-heading">סטטיסטיקות אירועי אבטחה</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div className="text-center p-3 bg-red-50 rounded-lg">
-                  <p className="text-2xl font-bold text-red-600">{incidentStats.open || 0}</p>
+                  <p className="text-2xl font-bold text-red-600 font-heading">{incidentStats.open || 0}</p>
                   <p className="text-sm text-gray-500">פתוחים</p>
                 </div>
                 <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                  <p className="text-2xl font-bold text-yellow-600">{incidentStats.investigating || 0}</p>
+                  <p className="text-2xl font-bold text-yellow-600 font-heading">{incidentStats.investigating || 0}</p>
                   <p className="text-sm text-gray-500">בחקירה</p>
                 </div>
                 <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <p className="text-2xl font-bold text-green-600">{incidentStats.resolved || 0}</p>
+                  <p className="text-2xl font-bold text-green-600 font-heading">{incidentStats.resolved || 0}</p>
                   <p className="text-sm text-gray-500">נפתרו</p>
                 </div>
                 <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <p className="text-2xl font-bold text-blue-600">{incidentStats.total || 0}</p>
+                  <p className="text-2xl font-bold text-blue-600 font-heading">{incidentStats.total || 0}</p>
                   <p className="text-sm text-gray-500">סה"כ</p>
                 </div>
               </div>
@@ -687,7 +687,7 @@ export default function Reports() {
 
           {/* Rankings Table */}
           <div className="card lg:col-span-2">
-            <h3 className="text-lg font-semibold mb-4">דירוג מאבטחים</h3>
+            <h3 className="text-lg font-semibold mb-4 font-heading">דירוג מאבטחים</h3>
             <div className="table-container">
               <table className="table">
                 <thead>

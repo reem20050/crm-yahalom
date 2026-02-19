@@ -32,18 +32,25 @@ const reasonLabels: Record<string, string> = {
   nearby: 'קרוב לאתר',
 };
 
-const reasonColors: Record<string, string> = {
-  available: 'bg-green-100 text-green-700',
-  certified: 'bg-blue-100 text-blue-700',
-  preferred: 'bg-purple-100 text-purple-700',
-  low_workload: 'bg-teal-100 text-teal-700',
-  nearby: 'bg-cyan-100 text-cyan-700',
+const reasonBadgeClasses: Record<string, string> = {
+  available: 'badge-success',
+  certified: 'badge-info',
+  preferred: 'badge-purple',
+  low_workload: 'badge-info',
+  nearby: 'badge-warning',
 };
 
-function getScoreColor(score: number): string {
-  if (score >= 80) return 'bg-green-500';
-  if (score >= 60) return 'bg-blue-500';
-  if (score >= 40) return 'bg-yellow-500';
+function getScoreGradient(score: number): string {
+  if (score >= 80) return 'bg-gradient-to-br from-green-500 to-emerald-600';
+  if (score >= 60) return 'bg-gradient-to-br from-blue-500 to-indigo-600';
+  if (score >= 40) return 'bg-gradient-to-br from-yellow-500 to-amber-600';
+  return 'bg-gradient-to-br from-gray-400 to-gray-500';
+}
+
+function getScoreBarColor(score: number): string {
+  if (score >= 80) return 'bg-gradient-to-l from-green-500 to-emerald-400';
+  if (score >= 60) return 'bg-gradient-to-l from-blue-500 to-indigo-400';
+  if (score >= 40) return 'bg-gradient-to-l from-yellow-500 to-amber-400';
   return 'bg-gray-400';
 }
 
@@ -105,8 +112,8 @@ export default function GuardSuggestions({
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+        <h4 className="text-sm font-semibold font-heading text-gray-700 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
           טוען הצעות שיבוץ...
         </h4>
         <div className="grid gap-2">
@@ -148,24 +155,28 @@ export default function GuardSuggestions({
 
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-        <Star className="w-4 h-4 text-blue-500" />
-        הצעות שיבוץ חכם
-        <span className="text-xs font-normal text-gray-400">
+      <div className="section-header">
+        <div className="section-header-icon bg-gradient-to-br from-primary-100 to-primary-50">
+          <Star className="w-4 h-4 text-primary-600" />
+        </div>
+        <h4 className="section-header-title text-sm">
+          הצעות שיבוץ חכם
+        </h4>
+        <span className="text-xs font-normal text-gray-400 mr-2">
           ({topSuggestions.length} הצעות)
         </span>
-      </h4>
+      </div>
 
       <div className="grid gap-2">
         {topSuggestions.map((suggestion) => (
           <div
             key={suggestion.employee_id}
-            className="flex items-center gap-3 p-3 rounded-xl border border-blue-100 bg-gradient-to-l from-blue-50/40 to-green-50/30 hover:shadow-sm transition-shadow"
+            className="card flex items-center gap-3 p-3 hover:shadow-card-hover transition-all duration-200"
           >
             {/* Avatar / score circle */}
             <div className="relative flex-shrink-0">
               <div
-                className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm ${getScoreColor(
+                className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold font-heading text-sm shadow-md ${getScoreGradient(
                   suggestion.score
                 )}`}
               >
@@ -175,22 +186,22 @@ export default function GuardSuggestions({
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 text-sm truncate">
+              <p className="font-medium font-heading text-gray-900 text-sm truncate">
                 {suggestion.employee_name}
               </p>
 
               {/* Score bar */}
               <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden max-w-[120px]">
+                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-[120px]">
                   <div
-                    className={`h-full rounded-full transition-all ${getScoreColor(
+                    className={`h-full rounded-full transition-all ${getScoreBarColor(
                       suggestion.score
                     )}`}
                     style={{ width: `${suggestion.score}%` }}
                   />
                 </div>
                 <span
-                  className={`text-xs font-medium ${getScoreTextColor(
+                  className={`text-xs font-semibold ${getScoreTextColor(
                     suggestion.score
                   )}`}
                 >
@@ -204,9 +215,9 @@ export default function GuardSuggestions({
                   {suggestion.reasons.map((reason) => (
                     <span
                       key={reason}
-                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        reasonColors[reason] || 'bg-gray-100 text-gray-600'
-                      }`}
+                      className={`${
+                        reasonBadgeClasses[reason] || 'badge-gray'
+                      } text-[10px]`}
                     >
                       {reasonLabels[reason] || reason}
                     </span>

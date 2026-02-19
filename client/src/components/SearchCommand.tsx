@@ -221,12 +221,12 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
     <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh]">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
+        className="fixed inset-0 bg-gray-900/40 backdrop-blur-md"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg mx-4 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+      <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-modal border border-gray-100 overflow-hidden animate-scale-in">
         {/* Search Input */}
         <div className="flex items-center gap-3 px-4 border-b">
           <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
@@ -250,7 +250,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
               }
             }}
             placeholder="חיפוש לידים, לקוחות, עובדים, אירועים..."
-            className="flex-1 py-4 text-base outline-none placeholder-gray-400 bg-transparent"
+            className="flex-1 py-4 text-base outline-none placeholder-gray-400 bg-transparent font-heading"
             dir="rtl"
           />
           {searchQuery && (
@@ -261,7 +261,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
               <X className="w-4 h-4 text-gray-400" />
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center px-2 py-1 text-xs text-gray-400 bg-gray-100 rounded border border-gray-200">
+          <kbd className="hidden sm:inline-flex items-center rounded-lg bg-gray-100 border border-gray-200 px-2 py-0.5 text-xs text-gray-400">
             ESC
           </kbd>
         </div>
@@ -340,7 +340,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
                             onClose();
                           }}
                           data-search-index={currentIndex}
-                          className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${currentIndex === activeIndex ? 'bg-primary-50 ring-1 ring-primary-200' : ''}`}
+                          className={`flex items-center gap-3 px-4 py-3 mx-2 rounded-xl hover:bg-gray-50 transition-all cursor-pointer ${currentIndex === activeIndex ? 'bg-primary-50 ring-1 ring-primary-200' : ''}`}
                         >
                           <div
                             className={`w-8 h-8 rounded-lg ${config.bg} flex items-center justify-center flex-shrink-0`}
@@ -376,9 +376,9 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
           <div className="px-4 py-2 border-t bg-gray-50 text-xs text-gray-400 flex items-center justify-between">
             <span>{results.length} תוצאות נמצאו</span>
             <span className="flex items-center gap-2">
-              <kbd className="px-1.5 py-0.5 bg-gray-100 rounded border border-gray-200 text-[10px]">↑↓</kbd>
+              <kbd className="rounded-lg bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px]">↑↓</kbd>
               <span>ניווט</span>
-              <kbd className="px-1.5 py-0.5 bg-gray-100 rounded border border-gray-200 text-[10px]">Enter</kbd>
+              <kbd className="rounded-lg bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px]">Enter</kbd>
               <span>בחירה</span>
             </span>
           </div>

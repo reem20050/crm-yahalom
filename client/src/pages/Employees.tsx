@@ -99,10 +99,10 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">עובדים</h1>
-          <p className="text-sm text-gray-500 mt-0.5">ניהול עובדים ומסמכים</p>
+          <h1 className="page-title">עובדים</h1>
+          <p className="page-subtitle">ניהול עובדים ומסמכים</p>
         </div>
         {can('employees:create') && (
           <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
@@ -141,17 +141,17 @@ export default function Employees() {
           }) => (
             <div
               key={employee.id}
-              className="card hover:shadow-elevated transition-all duration-200"
+              className="card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300"
             >
               <div className="flex items-start gap-3.5">
                 <Link to={`/employees/${employee.id}`} className="flex items-start gap-3.5 flex-1 min-w-0">
-                  <div className="w-11 h-11 bg-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <div className="w-11 h-11 bg-gradient-to-br from-primary-100 to-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
                     <span className="text-primary-700 font-semibold text-sm">
                       {employee.first_name?.[0]}{employee.last_name?.[0]}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 text-sm">
+                    <h3 className="font-heading font-semibold text-gray-900 text-sm">
                       {employee.first_name} {employee.last_name}
                     </h3>
                     <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1">
@@ -179,7 +179,7 @@ export default function Employees() {
                         deleteMutation.mutate(employee.id);
                       }
                     }}
-                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-danger-500 hover:bg-danger-50 transition-colors"
                     title="מחק"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -191,10 +191,11 @@ export default function Employees() {
         </div>
       ) : (
         <div className="card text-center py-16">
-          <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <UserCircle className="w-8 h-8 text-gray-300" />
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <UserCircle className="w-7 h-7 text-gray-400" />
           </div>
-          <p className="text-gray-500 text-sm mb-4">לא נמצאו עובדים</p>
+          <p className="text-gray-500 font-medium mb-1">לא נמצאו עובדים</p>
+          <p className="text-sm text-gray-400 mb-6">הוסף עובד חדש כדי להתחיל לנהל את הצוות</p>
           <button onClick={() => setIsModalOpen(true)} className="btn-primary">
             הוסף עובד ראשון
           </button>
@@ -203,8 +204,8 @@ export default function Employees() {
 
       {/* Create Employee Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-modal w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900">עובד חדש</h2>
               <button

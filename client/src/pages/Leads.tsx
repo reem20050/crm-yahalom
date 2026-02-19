@@ -131,10 +131,10 @@ export default function Leads() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">לידים</h1>
-          <p className="text-gray-500">ניהול לידים ומעקב מכירות</p>
+          <h1 className="page-title">לידים</h1>
+          <p className="page-subtitle">ניהול לידים ומעקב מכירות</p>
         </div>
         {can('leads:create') && (
           <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
@@ -148,13 +148,13 @@ export default function Leads() {
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="חיפוש לפי שם, טלפון או חברה..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pr-10"
+              className="input pr-11"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -264,7 +264,7 @@ export default function Leads() {
                                 deleteMutation.mutate(lead.id);
                               }
                             }}
-                            className="text-red-500 hover:text-red-700 p-1"
+                            className="p-1.5 rounded-lg text-gray-300 hover:text-danger-500 hover:bg-danger-50 transition-colors"
                             title="מחק"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -278,16 +278,23 @@ export default function Leads() {
             </table>
           </div>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-500">לא נמצאו לידים</p>
+          <div className="text-center py-16">
+            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <Search className="w-7 h-7 text-gray-400" />
+            </div>
+            <p className="text-gray-500 font-medium mb-1">לא נמצאו לידים</p>
+            <p className="text-sm text-gray-400 mb-6">התחל להוסיף לידים חדשים למעקב</p>
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+              הוסף ליד ראשון
+            </button>
           </div>
         )}
       </div>
 
       {/* Create Lead Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">ליד חדש</h2>
               <button
@@ -387,8 +394,8 @@ export default function Leads() {
 
       {/* Bulk Status Update Modal */}
       {bulkStatusModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+        <div className="modal-backdrop">
+          <div className="modal-content max-w-sm p-6">
             <h3 className="text-lg font-bold mb-4">עדכון סטטוס ({selectedCount} לידים)</h3>
             <select
               value={bulkNewStatus}

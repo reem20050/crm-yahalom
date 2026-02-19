@@ -74,7 +74,7 @@ function SitesMapContent() {
       {sidebarOpen && (
         <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0">
           <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">אתרים ({sites.length})</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3 font-heading">אתרים ({sites.length})</h2>
             <div className="relative">
               <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
               <input

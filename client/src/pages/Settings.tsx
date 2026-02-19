@@ -484,9 +484,9 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">הגדרות</h1>
-        <p className="text-gray-500">ניהול אינטגרציות וחיבורים חיצוניים</p>
+      <div className="page-header">
+        <h1 className="page-title">הגדרות</h1>
+        <p className="page-subtitle">ניהול אינטגרציות וחיבורים חיצוניים</p>
       </div>
 
       {/* Integrations Section */}
@@ -494,13 +494,13 @@ export default function Settings() {
         {/* Google Workspace */}
         <div className="card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-red-50 rounded-xl flex items-center justify-center">
               <Mail className="w-6 h-6 text-red-600" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">Google Workspace</h3>
+                  <h3 className="font-semibold text-gray-900 font-heading">Google Workspace</h3>
                   <p className="text-sm text-gray-500">Gmail, Calendar, Drive</p>
                 </div>
                 {settings?.google.connected ? (
@@ -620,13 +620,13 @@ export default function Settings() {
         {/* WhatsApp - WAHA */}
         <div className="card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-50 rounded-xl flex items-center justify-center">
               <MessageCircle className="w-6 h-6 text-green-600" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">WhatsApp</h3>
+                  <h3 className="font-semibold text-gray-900 font-heading">WhatsApp</h3>
                   <p className="text-sm text-gray-500">שליחת הודעות אוטומטיות</p>
                 </div>
                 {(wahaStep === 'connected' || settings?.whatsapp.connected) ? (
@@ -655,13 +655,13 @@ export default function Settings() {
         {/* Green Invoice */}
         <div className="card">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center">
               <FileText className="w-6 h-6 text-blue-600" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">חשבונית ירוקה</h3>
+                  <h3 className="font-semibold text-gray-900 font-heading">חשבונית ירוקה</h3>
                   <p className="text-sm text-gray-500">הפקת חשבוניות וקבלות</p>
                 </div>
                 {settings?.greenInvoice.connected ? (

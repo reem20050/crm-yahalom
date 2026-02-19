@@ -83,11 +83,11 @@ export default function ShiftTemplateModal({ template, onClose }: ShiftTemplateM
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">{isEditing ? 'עריכת תבנית' : 'תבנית משמרת חדשה'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <h2 className="text-xl font-bold font-heading">{isEditing ? 'עריכת תבנית' : 'תבנית משמרת חדשה'}</h2>
+          <button onClick={onClose} className="btn-icon">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -186,9 +186,9 @@ export default function ShiftTemplateModal({ template, onClose }: ShiftTemplateM
                   key={day.value}
                   type="button"
                   onClick={() => toggleDay(day.value)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     form.days_of_week.includes(day.value)
-                      ? 'bg-primary-500 text-white'
+                      ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -200,23 +200,23 @@ export default function ShiftTemplateModal({ template, onClose }: ShiftTemplateM
 
           {/* Requirements */}
           <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.requires_weapon}
                 onChange={(e) => setForm({ ...form, requires_weapon: e.target.checked })}
-                className="w-4 h-4 text-primary-600 rounded"
+                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
               />
-              <span>נדרש נשק</span>
+              <span className="text-sm">נדרש נשק</span>
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.requires_vehicle}
                 onChange={(e) => setForm({ ...form, requires_vehicle: e.target.checked })}
-                className="w-4 h-4 text-primary-600 rounded"
+                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
               />
-              <span>נדרש רכב</span>
+              <span className="text-sm">נדרש רכב</span>
             </label>
           </div>
 
@@ -234,7 +234,7 @@ export default function ShiftTemplateModal({ template, onClose }: ShiftTemplateM
             <button type="submit" disabled={saveMutation.isPending} className="btn-primary flex-1">
               {saveMutation.isPending ? 'שומר...' : isEditing ? 'עדכן תבנית' : 'צור תבנית'}
             </button>
-            <button type="button" onClick={onClose} className="btn-secondary">ביטול</button>
+            <button type="button" onClick={onClose} className="btn-ghost">ביטול</button>
           </div>
         </form>
       </div>
@@ -274,22 +274,24 @@ export function GenerateFromTemplateModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-md">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <h2 className="text-xl font-bold font-heading flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-100 to-primary-50 flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-primary-600" />
+            </div>
             יצירת משמרות מתבנית
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={onClose} className="btn-icon">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleGenerate} className="p-6 space-y-4">
-          <div className="bg-blue-50 rounded-lg p-3 mb-2">
-            <p className="text-sm text-blue-800">
-              <strong>תבנית:</strong> {templateName}
+          <div className="bg-gradient-to-br from-primary-50 to-blue-50 rounded-lg p-3 mb-2 border border-primary-100">
+            <p className="text-sm text-primary-800">
+              <strong className="font-heading">תבנית:</strong> {templateName}
             </p>
           </div>
 
@@ -323,7 +325,7 @@ export function GenerateFromTemplateModal({
                 </>
               )}
             </button>
-            <button type="button" onClick={onClose} className="btn-secondary">ביטול</button>
+            <button type="button" onClick={onClose} className="btn-ghost">ביטול</button>
           </div>
         </form>
       </div>

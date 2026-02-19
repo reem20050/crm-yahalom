@@ -44,7 +44,7 @@ function KpiCard({ kpi }: { kpi: KpiItem }) {
     : null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-card p-5 flex flex-col gap-3 hover:shadow-lg transition-shadow">
+    <div className="stat-card flex flex-col gap-3">
       {/* Label */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-500">{kpi.label}</span>
@@ -57,7 +57,7 @@ function KpiCard({ kpi }: { kpi: KpiItem }) {
 
       {/* Value + Trend */}
       <div className="flex items-end justify-between">
-        <span className="text-2xl font-bold text-gray-900">
+        <span className="text-2xl font-bold font-heading text-gray-900">
           {formatValue(kpi.value, kpi.format)}
         </span>
 
@@ -92,7 +92,7 @@ function KpiCard({ kpi }: { kpi: KpiItem }) {
                 progressPercent >= 100
                   ? 'bg-green-500'
                   : progressPercent >= 70
-                    ? 'bg-blue-500'
+                    ? 'bg-primary-500'
                     : progressPercent >= 40
                       ? 'bg-yellow-500'
                       : 'bg-red-400'

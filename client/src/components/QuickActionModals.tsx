@@ -42,11 +42,11 @@ export function QuickLeadModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">ליד חדש</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+          <h3 className="text-lg font-bold font-heading">ליד חדש</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -130,11 +130,11 @@ export function QuickShiftModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">משמרת חדשה</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+          <h3 className="text-lg font-bold font-heading">משמרת חדשה</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -233,11 +233,11 @@ export function QuickInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClos
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">חשבונית חדשה</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+          <h3 className="text-lg font-bold font-heading">חשבונית חדשה</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -320,11 +320,11 @@ export function QuickIncidentModal({ isOpen, onClose }: { isOpen: boolean; onClo
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">דיווח אירוע</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+          <h3 className="text-lg font-bold font-heading">דיווח אירוע</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>

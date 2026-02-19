@@ -16,6 +16,14 @@ const RATING_TYPES = [
   { value: 'incident_handling', label: 'טיפול באירוע' },
 ];
 
+const ratingLabels: Record<number, { text: string; color: string }> = {
+  1: { text: 'גרוע', color: 'text-red-500' },
+  2: { text: 'מתחת לממוצע', color: 'text-orange-500' },
+  3: { text: 'סביר', color: 'text-yellow-500' },
+  4: { text: 'טוב', color: 'text-blue-500' },
+  5: { text: 'מצוין', color: 'text-green-500' },
+};
+
 export default function GuardRatingModal({ employeeId, employeeName, onClose }: GuardRatingModalProps) {
   const queryClient = useQueryClient();
   const [rating, setRating] = useState(0);
@@ -50,19 +58,26 @@ export default function GuardRatingModal({ employeeId, employeeName, onClose }: 
     });
   };
 
+  const activeRating = hoverRating || rating;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">דירוג מאבטח</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-md">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-100 to-amber-50 flex items-center justify-center">
+              <Star className="w-5 h-5 text-yellow-600" />
+            </div>
+            <h2 className="text-xl font-bold font-heading">דירוג מאבטח</h2>
+          </div>
+          <button onClick={onClose} className="btn-icon">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="text-center mb-2">
-            <p className="text-lg font-medium text-gray-900">{employeeName}</p>
+            <p className="text-lg font-semibold font-heading text-gray-900">{employeeName}</p>
           </div>
 
           <div>
@@ -81,33 +96,34 @@ export default function GuardRatingModal({ employeeId, employeeName, onClose }: 
           {/* Star Rating */}
           <div>
             <label className="label">דירוג *</label>
-            <div className="flex items-center justify-center gap-2 py-3">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onMouseEnter={() => setHoverRating(star)}
-                  onMouseLeave={() => setHoverRating(0)}
-                  onClick={() => setRating(star)}
-                  className="transition-transform hover:scale-110"
-                >
-                  <Star
-                    className={`w-10 h-10 ${
-                      star <= (hoverRating || rating)
-                        ? 'text-yellow-400 fill-yellow-400'
-                        : 'text-gray-300'
-                    }`}
-                  />
-                </button>
-              ))}
+            <div className="flex items-center justify-center gap-3 py-4">
+              {[1, 2, 3, 4, 5].map((star) => {
+                const isActive = star <= activeRating;
+                return (
+                  <button
+                    key={star}
+                    type="button"
+                    onMouseEnter={() => setHoverRating(star)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    onClick={() => setRating(star)}
+                    className="transition-all duration-200 hover:scale-125 active:scale-95"
+                  >
+                    <Star
+                      className={`w-10 h-10 transition-colors duration-150 ${
+                        isActive
+                          ? 'text-yellow-400 fill-yellow-400 drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
+                          : 'text-gray-200 hover:text-gray-300'
+                      }`}
+                    />
+                  </button>
+                );
+              })}
             </div>
-            <p className="text-center text-sm text-gray-500">
-              {rating === 1 && 'גרוע'}
-              {rating === 2 && 'מתחת לממוצע'}
-              {rating === 3 && 'סביר'}
-              {rating === 4 && 'טוב'}
-              {rating === 5 && 'מצוין'}
-            </p>
+            {activeRating > 0 && (
+              <p className={`text-center text-sm font-semibold font-heading ${ratingLabels[activeRating]?.color || 'text-gray-500'}`}>
+                {ratingLabels[activeRating]?.text}
+              </p>
+            )}
           </div>
 
           <div>
@@ -128,7 +144,7 @@ export default function GuardRatingModal({ employeeId, employeeName, onClose }: 
             >
               {rateMutation.isPending ? 'שומר...' : 'שמור דירוג'}
             </button>
-            <button type="button" onClick={onClose} className="btn-secondary">
+            <button type="button" onClick={onClose} className="btn-ghost">
               ביטול
             </button>
           </div>

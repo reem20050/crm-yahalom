@@ -92,17 +92,17 @@ export default function OpenShifts() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">משמרות פתוחות</h1>
-        <p className="text-gray-500">משמרות שחסר בהן כוח אדם - הירשם כדי להשתבץ</p>
+      <div className="page-header">
+        <h1 className="page-title">משמרות פתוחות</h1>
+        <p className="page-subtitle">משמרות שחסר בהן כוח אדם - הירשם כדי להשתבץ</p>
       </div>
 
       {shifts.length === 0 ? (
         <div className="card text-center py-16 px-8">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <CalendarX className="w-10 h-10 text-gray-400" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">אין משמרות פתוחות</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2 font-heading">אין משמרות פתוחות</h2>
           <p className="text-gray-500">כרגע כל המשמרות מאוישות. בדוק שוב מאוחר יותר.</p>
         </div>
       ) : (
@@ -111,7 +111,7 @@ export default function OpenShifts() {
             <div key={date}>
               {/* Date header */}
               <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 font-heading">
                   {getDateLabel(date)}
                 </h3>
                 {(isToday(date) || isTomorrow(date)) && (

@@ -6,7 +6,7 @@ interface PageTransitionProps {
 
 export default function PageTransition({ children }: PageTransitionProps) {
   return (
-    <div className="animate-page-enter">
+    <div className="animate-page-enter will-change-transform">
       {children}
     </div>
   );
