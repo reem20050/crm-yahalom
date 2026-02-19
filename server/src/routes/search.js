@@ -65,12 +65,23 @@ router.get('/', async (req, res) => {
       LIMIT 20
     `, [searchTerm]);
 
+    // Search contractors
+    const contractorsResult = await db.query(`
+      SELECT id, company_name, contact_name, phone, status,
+             'contractor' as type
+      FROM contractors
+      WHERE company_name LIKE $1
+         OR contact_name LIKE $1
+      LIMIT 20
+    `, [searchTerm]);
+
     // Combine all results and limit to 20 total
     const allResults = [
       ...leadsResult.rows,
       ...customersResult.rows,
       ...employeesResult.rows,
       ...eventsResult.rows,
+      ...contractorsResult.rows,
     ].slice(0, 20);
 
     res.json({ results: allResults });

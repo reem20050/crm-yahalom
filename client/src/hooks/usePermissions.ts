@@ -40,6 +40,12 @@ const permissions: Record<string, UserRole[]> = {
   'employees:edit': ['admin', 'manager'],
   'employees:delete': ['admin'],
 
+  // Actions - Contractors
+  'page:contractors': ['admin', 'manager'],
+  'contractors:create': ['admin', 'manager'],
+  'contractors:edit': ['admin', 'manager'],
+  'contractors:delete': ['admin'],
+
   // Actions - Shifts
   'shifts:create': ['admin', 'manager'],
   'shifts:edit': ['admin', 'manager'],

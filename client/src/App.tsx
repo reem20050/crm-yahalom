@@ -31,6 +31,8 @@ const GuardTracking = lazy(() => import('./pages/GuardTracking'));
 const GuardPanel = lazy(() => import('./pages/GuardPanel'));
 const OpenShifts = lazy(() => import('./pages/OpenShifts'));
 const AutomationSettings = lazy(() => import('./pages/AutomationSettings'));
+const Contractors = lazy(() => import('./pages/Contractors'));
+const ContractorDetails = lazy(() => import('./pages/ContractorDetails'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -111,6 +113,8 @@ function App() {
             <Route path="guard-tracking" element={<RoleRoute permission="page:guard-tracking"><GuardTracking /></RoleRoute>} />
             <Route path="guard-panel" element={<GuardPanel />} />
             <Route path="open-shifts" element={<OpenShifts />} />
+            <Route path="contractors" element={<RoleRoute permission="page:contractors"><Contractors /></RoleRoute>} />
+            <Route path="contractors/:id" element={<RoleRoute permission="page:contractors"><ContractorDetails /></RoleRoute>} />
             <Route path="profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Route>

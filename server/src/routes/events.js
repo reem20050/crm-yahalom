@@ -134,19 +134,28 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'אירוע לא נמצא' });
     }
 
-    const assignmentsResult = await db.query(`
-      SELECT ea.*,
-             emp.first_name || ' ' || emp.last_name as employee_name,
-             emp.phone as employee_phone,
-             emp.has_weapon_license
-      FROM event_assignments ea
-      JOIN employees emp ON ea.employee_id = emp.id
-      WHERE ea.event_id = $1
-    `, [req.params.id]);
+    const [assignmentsResult, contractorAssignmentsResult] = await Promise.all([
+      db.query(`
+        SELECT ea.*,
+               emp.first_name || ' ' || emp.last_name as employee_name,
+               emp.phone as employee_phone,
+               emp.has_weapon_license
+        FROM event_assignments ea
+        JOIN employees emp ON ea.employee_id = emp.id
+        WHERE ea.event_id = $1
+      `, [req.params.id]),
+      db.query(`
+        SELECT eca.*, con.company_name, con.contact_name, con.phone as contractor_phone
+        FROM event_contractor_assignments eca
+        JOIN contractors con ON con.id = eca.contractor_id
+        WHERE eca.event_id = $1
+      `, [req.params.id])
+    ]);
 
     res.json({
       event: eventResult.rows[0],
-      assignments: assignmentsResult.rows
+      assignments: assignmentsResult.rows,
+      contractorAssignments: contractorAssignmentsResult.rows
     });
   } catch (error) {
     console.error('Get event error:', error);
@@ -426,6 +435,60 @@ router.delete('/:id/permanent', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Permanent delete event error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת אירוע לצמיתות' });
+  }
+});
+
+// Assign contractor to event
+router.post('/:id/contractors', requireManager, [
+  body('contractor_id').notEmpty().withMessage('נדרש קבלן')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { contractor_id, workers_count, hourly_rate, notes } = req.body;
+
+    const existingResult = await db.query(
+      'SELECT id FROM event_contractor_assignments WHERE event_id = $1 AND contractor_id = $2',
+      [req.params.id, contractor_id]
+    );
+
+    if (existingResult.rows.length > 0) {
+      return res.status(400).json({ error: 'הקבלן כבר משובץ לאירוע זה' });
+    }
+
+    const assignmentId = db.generateUUID();
+    const result = await db.query(`
+      INSERT INTO event_contractor_assignments (id, event_id, contractor_id, workers_count, hourly_rate, notes)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [assignmentId, req.params.id, contractor_id, workers_count, hourly_rate, notes]);
+
+    res.status(201).json({ assignment: result.rows[0] });
+  } catch (error) {
+    console.error('Assign contractor to event error:', error);
+    res.status(500).json({ error: 'שגיאה בשיבוץ קבלן לאירוע' });
+  }
+});
+
+// Remove contractor from event
+router.delete('/:id/contractors/:assignmentId', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      'DELETE FROM event_contractor_assignments WHERE id = $1 AND event_id = $2 RETURNING id',
+      [req.params.assignmentId, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'שיבוץ קבלן לא נמצא' });
+    }
+
+    res.json({ message: 'שיבוץ קבלן הוסר בהצלחה' });
+  } catch (error) {
+    console.error('Remove contractor from event error:', error);
+    res.status(500).json({ error: 'שגיאה בהסרת שיבוץ קבלן' });
   }
 });
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yahalom-crm-v2';
+const CACHE_NAME = 'yahalom-crm-v5';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',

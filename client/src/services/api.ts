@@ -409,6 +409,19 @@ export const documentsApi = {
   delete: (id: string) => api.delete(`/documents/${id}`),
 };
 
+// Contractors
+export const contractorsApi = {
+  getAll: (params?: Record<string, unknown>) => api.get('/contractors', { params }),
+  getOne: (id: string) => api.get(`/contractors/${id}`),
+  create: (data: Record<string, unknown>) => api.post('/contractors', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/contractors/${id}`, data),
+  delete: (id: string) => api.delete(`/contractors/${id}`),
+  addWorker: (id: string, data: Record<string, unknown>) => api.post(`/contractors/${id}/workers`, data),
+  updateWorker: (id: string, workerId: string, data: Record<string, unknown>) => api.put(`/contractors/${id}/workers/${workerId}`, data),
+  deleteWorker: (id: string, workerId: string) => api.delete(`/contractors/${id}/workers/${workerId}`),
+  getEvents: (id: string) => api.get(`/contractors/${id}/events`),
+};
+
 // Alerts (Smart Alert Engine)
 export const alertsApi = {
   getConfig: () => api.get('/automation/alerts/config'),

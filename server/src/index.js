@@ -38,6 +38,7 @@ const equipmentRoutes = require('./routes/equipment');
 const documentsRoutes = require('./routes/documents');
 const sitesRoutes = require('./routes/sites');
 const automationRoutes = require('./routes/automation');
+const contractorsRoutes = require('./routes/contractors');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
@@ -156,6 +157,7 @@ app.use('/api/performance', performanceRoutes);
 app.use('/api/equipment', equipmentRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/automation', automationRoutes);
+app.use('/api/contractors', contractorsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

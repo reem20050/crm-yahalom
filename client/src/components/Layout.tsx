@@ -28,6 +28,7 @@ import {
   Navigation,
   CalendarPlus,
   Zap,
+  Briefcase,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -63,6 +64,7 @@ const navigationGroups = [
       { name: 'לוח שנה', href: '/calendar', icon: CalendarDays, permission: 'page:calendar' },
       { name: 'פאנל שומר', href: '/guard-panel', icon: Shield, permission: 'page:guard-panel' },
       { name: 'משמרות פתוחות', href: '/open-shifts', icon: CalendarPlus, permission: 'page:open-shifts' },
+      { name: 'קבלנים', href: '/contractors', icon: Briefcase, permission: 'page:contractors' },
     ],
   },
   {
