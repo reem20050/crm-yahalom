@@ -344,6 +344,7 @@ function fixTimestampArithmetic(sql) {
   }
 
   // Pattern 2: (...) * 24 where inside parens has ::timestamp subtraction
+  // Also handles ROUND((...) * 24, N) pattern
   // Find balanced paren groups followed by * 24
   // We look for ) * 24 and work backwards to find the matching (
   const mulPattern = /\)\s*\*\s*24/g;
@@ -370,6 +371,35 @@ function fixTimestampArithmetic(sql) {
         end: fullEnd,
         replacement: `EXTRACT(EPOCH FROM (${innerExpr.trim()})) / 3600`
       });
+    } else {
+      // Check if the inner expression CONTAINS a subexpression with ::timestamp * 24
+      // This handles ROUND((ts1 - ts2) * 24, N) where we matched ROUND's parens
+      // Look inside for a (sub) * 24 pattern
+      const subMul = innerExpr.match(/^([\s\S]*)\)\s*\*\s*24\s*(,[\s\S]*)?$/);
+      if (subMul) {
+        // Find the inner balanced paren that contains the timestamp subtraction
+        const beforeClose = subMul[1];
+        const afterPart = subMul[2] || ''; // e.g. ", 1) as hours"
+        // Find matching opening paren in beforeClose
+        let subDepth = 1;
+        let subOpen = beforeClose.length - 1;
+        while (subOpen >= 0 && subDepth > 0) {
+          if (beforeClose[subOpen] === ')') subDepth++;
+          else if (beforeClose[subOpen] === '(') subDepth--;
+          subOpen--;
+        }
+        subOpen++; // points to the (
+        const subExpr = beforeClose.substring(subOpen + 1);
+        const prefix = beforeClose.substring(0, subOpen);
+        if ((subExpr.includes('::timestamp') || subExpr.includes('NOW()')) && subExpr.includes(' - ')) {
+          const fullEnd = mulMatch.index + mulMatch[0].length;
+          replacements.push({
+            start: openIdx,
+            end: fullEnd,
+            replacement: `(${prefix}EXTRACT(EPOCH FROM (${subExpr.trim()})) / 3600${afterPart})`
+          });
+        }
+      }
     }
   }
 
