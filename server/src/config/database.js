@@ -925,6 +925,283 @@ const initializeDatabase = async () => {
       )
     `);
 
+    // Security & Operations tables
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS incidents (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        type TEXT DEFAULT 'security',
+        severity TEXT DEFAULT 'medium',
+        status TEXT DEFAULT 'open',
+        site_id TEXT REFERENCES sites(id),
+        reported_by TEXT REFERENCES employees(id),
+        assigned_to TEXT,
+        location TEXT,
+        date TEXT,
+        time TEXT,
+        resolution TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS incident_updates (
+        id TEXT PRIMARY KEY,
+        incident_id TEXT REFERENCES incidents(id),
+        user_id TEXT REFERENCES users(id),
+        content TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS guard_certifications (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT REFERENCES employees(id),
+        type TEXT NOT NULL,
+        name TEXT,
+        issue_date TEXT,
+        expiry_date TEXT,
+        issuing_authority TEXT,
+        certificate_number TEXT,
+        status TEXT DEFAULT 'active',
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS guard_weapons (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT REFERENCES employees(id),
+        weapon_type TEXT,
+        manufacturer TEXT,
+        model TEXT,
+        serial_number TEXT,
+        license_number TEXT,
+        license_expiry TEXT,
+        status TEXT DEFAULT 'active',
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS guard_equipment (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT REFERENCES employees(id),
+        item_name TEXT NOT NULL,
+        serial_number TEXT,
+        condition TEXT DEFAULT 'good',
+        assigned_date TEXT,
+        return_date TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'assigned',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS site_checkpoints (
+        id TEXT PRIMARY KEY,
+        site_id TEXT REFERENCES sites(id),
+        name TEXT NOT NULL,
+        description TEXT,
+        latitude REAL,
+        longitude REAL,
+        qr_code TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS patrol_logs (
+        id TEXT PRIMARY KEY,
+        shift_id TEXT,
+        employee_id TEXT REFERENCES employees(id),
+        checkpoint_id TEXT REFERENCES site_checkpoints(id),
+        scanned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        latitude REAL,
+        longitude REAL,
+        notes TEXT,
+        photo_url TEXT
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS guard_ratings (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT REFERENCES employees(id),
+        rated_by TEXT REFERENCES users(id),
+        rating_type TEXT DEFAULT 'manager',
+        score INTEGER,
+        feedback TEXT,
+        period TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS guard_locations (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT REFERENCES employees(id),
+        latitude REAL,
+        longitude REAL,
+        accuracy REAL,
+        recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT,
+        entity_type TEXT,
+        entity_id TEXT,
+        file_url TEXT,
+        google_drive_id TEXT,
+        uploaded_by TEXT REFERENCES users(id),
+        size INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Automation tables
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS automation_config (
+        id TEXT PRIMARY KEY,
+        job_name TEXT UNIQUE NOT NULL,
+        display_name TEXT,
+        description TEXT,
+        cron_schedule TEXT,
+        category TEXT,
+        is_enabled INTEGER DEFAULT 1,
+        last_run TEXT,
+        next_run TEXT,
+        config_json TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS automation_run_log (
+        id TEXT PRIMARY KEY,
+        job_name TEXT,
+        status TEXT DEFAULT 'running',
+        started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT,
+        result_summary TEXT,
+        error_message TEXT,
+        items_processed INTEGER DEFAULT 0
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS auto_generation_log (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        entity_id TEXT,
+        details TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Messaging & Alerts
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS whatsapp_messages (
+        id TEXT PRIMARY KEY,
+        phone TEXT,
+        direction TEXT DEFAULT 'outgoing',
+        message_type TEXT DEFAULT 'text',
+        content TEXT,
+        template_name TEXT,
+        status TEXT DEFAULT 'sent',
+        whatsapp_message_id TEXT,
+        entity_type TEXT,
+        entity_id TEXT,
+        sent_by TEXT REFERENCES users(id),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS alert_config (
+        id TEXT PRIMARY KEY,
+        alert_type TEXT UNIQUE NOT NULL,
+        is_enabled INTEGER DEFAULT 1,
+        threshold_days INTEGER,
+        config_json TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS alert_escalations (
+        id TEXT PRIMARY KEY,
+        alert_type TEXT,
+        entity_id TEXT,
+        level INTEGER DEFAULT 1,
+        message TEXT,
+        status TEXT DEFAULT 'pending',
+        escalated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TEXT
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS alert_mutes (
+        id TEXT PRIMARY KEY,
+        alert_type TEXT,
+        entity_id TEXT,
+        muted_by TEXT REFERENCES users(id),
+        muted_until TEXT,
+        reason TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // System config
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS system_config (
+        id TEXT PRIMARY KEY,
+        key TEXT UNIQUE NOT NULL,
+        value TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS calendar_exceptions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        date TEXT NOT NULL,
+        type TEXT DEFAULT 'holiday',
+        is_workday INTEGER DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // KPI targets
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS kpi_targets (
+        id TEXT PRIMARY KEY,
+        metric_name TEXT NOT NULL,
+        target_value REAL,
+        period TEXT,
+        period_start TEXT,
+        period_end TEXT,
+        created_by TEXT REFERENCES users(id),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create indexes
     await execDDL(`CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status)`);
     await execDDL(`CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status)`);
