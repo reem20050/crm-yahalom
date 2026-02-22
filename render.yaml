@@ -1,20 +1,30 @@
 # Render.com deployment configuration
+databases:
+  - name: crm-yahalom-db
+    plan: free
+    databaseName: crm_yahalom
+    user: crm_user
+    region: frankfurt
+
 services:
   - type: web
-    name: tzevet-yahalom-crm
+    name: crm-yahalom
     env: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
+    region: frankfurt
     healthCheckPath: /api/health
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: crm-yahalom-db
+          property: connectionString
       - key: NODE_ENV
         value: production
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
-    disk:
-      name: crm-data
-      mountPath: /app/data
-      sizeGB: 1
+      - key: TZ
+        value: Asia/Jerusalem
