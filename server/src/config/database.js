@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
 // ============================================================
-// Dual-mode database: SQLite (local dev) / PostgreSQL (Railway)
+// Dual-mode database: SQLite (local dev) / PostgreSQL (Render)
 // ============================================================
 
 const isPostgres = !!process.env.DATABASE_URL;
@@ -1274,5 +1274,6 @@ initializeDatabase().catch(err => {
 module.exports = {
   query,
   generateUUID,
-  initializeDatabase
+  initializeDatabase,
+  convertSqliteToPostgres
 };

@@ -18,8 +18,10 @@ import {
   Smartphone,
   Wifi,
   WifiOff,
+  Server,
 } from 'lucide-react';
 import api from '../services/api';
+import type { MutationError } from '../types';
 
 // Types
 interface IntegrationSettings {
@@ -101,7 +103,7 @@ export default function Settings() {
         window.location.href = data.authUrl;
       }
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       const data = err.response?.data;
       if (data?.needsSetup) {
         setGoogleSetupNeeded(true);
@@ -136,7 +138,7 @@ export default function Settings() {
       setWahaStep('qr');
       startQrPolling();
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err.response?.data?.message || 'שגיאה בהתחברות לשרת WAHA');
     },
   });
@@ -161,7 +163,7 @@ export default function Settings() {
       if (res.data.qr) {
         setQrCode(res.data.qr);
       }
-    } catch (err: any) {
+    } catch {
       // Ignore errors during polling
     }
   }, [queryClient]);
@@ -254,7 +256,7 @@ export default function Settings() {
       toast.success('הודעת בדיקה נשלחה בהצלחה! ✅');
       setTestPhone('');
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err.response?.data?.message || 'שגיאה בשליחת הודעת בדיקה');
     },
   });
@@ -394,7 +396,7 @@ export default function Settings() {
           <div className="bg-green-50 rounded-lg p-4 border border-green-200">
             <h4 className="font-bold text-green-900 mb-2">חיבור שרת WAHA</h4>
             <p className="text-sm text-green-700 mb-3">
-              הכנס את כתובת שרת ה-WAHA שלך. אם עדיין אין לך, לחץ על הכפתור למטה כדי להקים אחד ב-Railway בחינם.
+              הכנס את כתובת שרת ה-WAHA שלך. אם עדיין אין לך, לחץ על הכפתור למטה כדי להקים אחד ב-Render בחינם.
             </p>
 
             <div className="space-y-3">
@@ -444,17 +446,17 @@ export default function Settings() {
             <div className="mt-4 pt-3 border-t border-green-200">
               <p className="text-xs text-green-800 font-medium mb-2">אין לך שרת WAHA? הקם אחד בחינם:</p>
               <a
-                href="https://railway.com/new/template/waha"
+                href="https://github.com/devlikeapro/waha"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors"
               >
-                <img src="https://railway.com/button.svg" alt="" className="h-4 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                Deploy on Railway (חינם)
+                <Server className="w-4 h-4" />
+                Deploy WAHA Server (חינם)
                 <ExternalLink className="w-3 h-3" />
               </a>
               <p className="text-xs text-green-600 mt-2">
-                אחרי ההקמה, העתק את ה-URL של השרת (למשל: https://waha-production-xxxx.up.railway.app) והכנס אותו למעלה.
+                אחרי ההקמה, העתק את ה-URL של השרת והכנס אותו למעלה.
               </p>
             </div>
           </div>
@@ -592,12 +594,12 @@ export default function Settings() {
                         <li>
                           צור <span className="font-bold">OAuth 2.0 Client ID</span> (Credentials → Create → Web Application):
                           <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
-                            <li>Authorized redirect URI: <code className="bg-red-100 px-1 rounded text-xs" dir="ltr">https://web-production-9c7e4.up.railway.app/api/integrations/google/callback</code></li>
+                            <li>Authorized redirect URI: <code className="bg-red-100 px-1 rounded text-xs" dir="ltr">https://crm-yahalom.onrender.com/api/integrations/google/callback</code></li>
                           </ul>
                         </li>
                         <li>העתק את <span className="font-bold">Client ID</span> ו-<span className="font-bold">Client Secret</span></li>
                         <li>
-                          הגדר ב-Railway (Environment Variables):
+                          הגדר ב-Render (Environment Variables):
                           <ul className="list-disc list-inside mr-4 mt-1 space-y-0.5">
                             <li><code className="bg-red-100 px-1 rounded text-xs" dir="ltr">GOOGLE_CLIENT_ID=your-client-id</code></li>
                             <li><code className="bg-red-100 px-1 rounded text-xs" dir="ltr">GOOGLE_CLIENT_SECRET=your-client-secret</code></li>
