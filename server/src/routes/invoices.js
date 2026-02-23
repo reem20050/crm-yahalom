@@ -18,9 +18,6 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
-    // Always exclude soft-deleted
-    whereClause.push(`i.deleted_at IS NULL`);
-
     if (status) {
       paramCount++;
       whereClause.push(`i.status = $${paramCount}`);
@@ -45,7 +42,7 @@ router.get('/', async (req, res) => {
       params.push(end_date);
     }
 
-    const whereString = `WHERE ${whereClause.join(' AND ')}`;
+    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
 
     const countResult = await db.query(`SELECT COUNT(*) as count FROM invoices i ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
@@ -59,11 +56,11 @@ router.get('/', async (req, res) => {
       SELECT i.*,
              c.company_name,
              CASE
-               WHEN i.status = 'sent' AND i.due_date < date('now', 'localtime') THEN 'overdue'
+               WHEN i.status = 'sent' AND i.due_date < date('now') THEN 'overdue'
                ELSE i.status
              END as computed_status,
              CASE
-               WHEN i.due_date < date('now', 'localtime') THEN CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER)
+               WHEN i.due_date < date('now') THEN CAST(julianday('now') - julianday(i.due_date) AS INTEGER)
                ELSE 0
              END as days_overdue
       FROM invoices i
@@ -89,12 +86,11 @@ router.get('/status/overdue', async (req, res) => {
     const result = await db.query(`
       SELECT i.*,
              c.company_name,
-             CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) as days_overdue
+             CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
       FROM invoices i
       LEFT JOIN customers c ON i.customer_id = c.id
       WHERE i.status = 'sent'
-      AND i.due_date < date('now', 'localtime')
-      AND i.deleted_at IS NULL
+      AND i.due_date < date('now')
       ORDER BY i.due_date
     `);
 
@@ -123,161 +119,12 @@ router.get('/summary/monthly', async (req, res) => {
       FROM invoices
       WHERE CAST(strftime('%Y', issue_date) AS INTEGER) = $1
       AND CAST(strftime('%m', issue_date) AS INTEGER) = $2
-      AND deleted_at IS NULL
     `, [targetYear, targetMonth]);
 
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Get invoice summary error:', error);
     res.status(500).json({ error: 'שגיאה בטעינת סיכום חשבוניות' });
-  }
-});
-
-// Get deleted invoices (trash) - MUST be before /:id
-router.get('/trash/list', requireManager, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT i.*, c.company_name
-      FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id
-      WHERE i.deleted_at IS NOT NULL ORDER BY i.deleted_at DESC
-    `);
-    res.json({ invoices: result.rows });
-  } catch (error) {
-    console.error('Get trash error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
-  }
-});
-
-// Manually trigger monthly auto-invoicing - MUST be before /:id
-router.post('/auto-generate/monthly', requireManager, async (req, res) => {
-  try {
-    const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-    const results = autoInvoiceGenerator.generateMonthlyInvoices(req.user.id);
-
-    res.json({
-      message: `נוצרו ${results.created} חשבוניות טיוטה`,
-      ...results
-    });
-  } catch (error) {
-    console.error('Manual invoice generation error:', error);
-    res.status(500).json({ error: 'שגיאה ביצירת חשבוניות אוטומטית' });
-  }
-});
-
-// Bulk approve draft invoices
-router.post('/bulk-approve', requireManager, async (req, res) => {
-  try {
-    const { invoice_ids } = req.body;
-    if (!invoice_ids || !Array.isArray(invoice_ids) || invoice_ids.length === 0) {
-      return res.status(400).json({ error: 'נדרשים מזהי חשבוניות' });
-    }
-    const placeholders = invoice_ids.map(() => '?').join(',');
-    db.query(`UPDATE invoices SET status = 'sent' WHERE id IN (${placeholders}) AND status = 'draft'`, invoice_ids);
-    res.json({ message: `${invoice_ids.length} חשבוניות אושרו`, count: invoice_ids.length });
-  } catch (error) {
-    console.error('Bulk approve invoices error:', error);
-    res.status(500).json({ error: 'שגיאה באישור חשבוניות' });
-  }
-});
-
-// Bulk delete invoices
-router.post('/bulk-delete', requireManager, async (req, res) => {
-  try {
-    const { invoice_ids } = req.body;
-    if (!invoice_ids || !Array.isArray(invoice_ids) || invoice_ids.length === 0) {
-      return res.status(400).json({ error: 'נדרשים מזהי חשבוניות' });
-    }
-    const placeholders = invoice_ids.map(() => '?').join(',');
-    db.query(`DELETE FROM invoices WHERE id IN (${placeholders})`, invoice_ids);
-    res.json({ message: `${invoice_ids.length} חשבוניות נמחקו`, count: invoice_ids.length });
-  } catch (error) {
-    console.error('Bulk delete invoices error:', error);
-    res.status(500).json({ error: 'שגיאה במחיקת חשבוניות' });
-  }
-});
-
-// Calculate invoice amount for a customer based on shifts/events in date range
-router.get('/calculate', requireManager, async (req, res) => {
-  try {
-    const { customer_id, start_date, end_date } = req.query;
-    if (!customer_id || !start_date || !end_date) {
-      return res.status(400).json({ error: 'נדרש לקוח, תאריך התחלה ותאריך סיום' });
-    }
-
-    // Get contract for hourly rate
-    const contract = db.query(`
-      SELECT monthly_value, service_type FROM contracts
-      WHERE customer_id = ? AND status = 'active'
-      ORDER BY created_at DESC LIMIT 1
-    `, [customer_id]);
-
-    const hourlyRate = contract.rows.length > 0 ? (contract.rows[0].monthly_value / 160) : 50; // default 50/hr
-
-    // Get all completed shifts for this customer in date range
-    const shifts = db.query(`
-      SELECT s.date, s.start_time, s.end_time,
-             COUNT(sa.id) as guard_count,
-             ROUND((julianday(s.date || ' ' || s.end_time) - julianday(s.date || ' ' || s.start_time)) * 24, 1) as hours
-      FROM shifts s
-      LEFT JOIN shift_assignments sa ON sa.shift_id = s.id AND sa.status IN ('completed', 'checked_out', 'checked_in')
-      WHERE s.customer_id = ? AND s.date BETWEEN ? AND ?
-      GROUP BY s.id
-      ORDER BY s.date, s.start_time
-    `, [customer_id, start_date, end_date]);
-
-    let totalHours = 0;
-    let totalGuardHours = 0;
-    const shiftDetails = [];
-
-    for (const shift of shifts.rows) {
-      const hours = shift.hours || 0;
-      const guardHours = hours * (shift.guard_count || 1);
-      totalHours += hours;
-      totalGuardHours += guardHours;
-      shiftDetails.push({
-        date: shift.date,
-        start_time: shift.start_time,
-        end_time: shift.end_time,
-        hours,
-        guards: shift.guard_count,
-        guard_hours: guardHours,
-        amount: Math.round(guardHours * hourlyRate),
-      });
-    }
-
-    // Get events
-    const events = db.query(`
-      SELECT event_name, event_date, start_time, end_time, actual_cost
-      FROM events
-      WHERE customer_id = ? AND event_date BETWEEN ? AND ? AND status = 'completed'
-      ORDER BY event_date
-    `, [customer_id, start_date, end_date]);
-
-    const eventTotal = events.rows.reduce((sum, e) => sum + (e.actual_cost || 0), 0);
-    const shiftTotal = Math.round(totalGuardHours * hourlyRate);
-
-    res.json({
-      customer_id,
-      start_date,
-      end_date,
-      hourly_rate: hourlyRate,
-      shifts: {
-        count: shifts.rows.length,
-        total_hours: totalHours,
-        total_guard_hours: totalGuardHours,
-        total_amount: shiftTotal,
-        details: shiftDetails,
-      },
-      events: {
-        count: events.rows.length,
-        total_amount: eventTotal,
-        details: events.rows,
-      },
-      grand_total: shiftTotal + eventTotal,
-    });
-  } catch (error) {
-    console.error('Invoice calculate error:', error);
-    res.status(500).json({ error: 'שגיאה בחישוב חשבונית' });
   }
 });
 
@@ -293,7 +140,7 @@ router.get('/:id', async (req, res) => {
       FROM invoices i
       LEFT JOIN customers c ON i.customer_id = c.id
       LEFT JOIN events e ON i.event_id = e.id
-      WHERE i.id = $1 AND i.deleted_at IS NULL
+      WHERE i.id = $1
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -310,6 +157,7 @@ router.get('/:id', async (req, res) => {
 // Create invoice (will integrate with Green Invoice)
 router.post('/', requireManager, [
   body('customer_id').notEmpty().withMessage('נדרש לקוח'),
+  body('amount').isNumeric().withMessage('נדרש סכום'),
   body('issue_date').isDate().withMessage('נדרש תאריך הפקה'),
   body('due_date').isDate().withMessage('נדרש תאריך תשלום')
 ], async (req, res) => {
@@ -321,18 +169,11 @@ router.post('/', requireManager, [
 
     const {
       customer_id, event_id, issue_date, due_date,
-      amount, vat_amount, total_amount, description,
-      payment_type // 1=cash, 2=check, 3=credit card, 4=bank transfer
+      amount, vat_amount, total_amount, description
     } = req.body;
 
-    // Support both: total_amount from frontend, or amount (pre-VAT) + calculated VAT
-    const baseAmount = amount || total_amount;
-    if (!baseAmount || isNaN(baseAmount) || baseAmount <= 0) {
-      return res.status(400).json({ error: 'נדרש סכום תקין' });
-    }
-
-    const vatCalc = vat_amount || (amount ? amount * 0.17 : 0);
-    const totalCalc = total_amount || (amount ? amount + vatCalc : baseAmount);
+    const vatCalc = vat_amount || (amount * 0.17);
+    const totalCalc = total_amount || (amount + vatCalc);
 
     const invoiceId = db.generateUUID();
     const result = await db.query(`
@@ -341,7 +182,7 @@ router.post('/', requireManager, [
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [invoiceId, customer_id, event_id, issue_date, due_date,
-        baseAmount, vatCalc, totalCalc, description]);
+        amount, vatCalc, totalCalc, description]);
 
     const invoice = result.rows[0];
 
@@ -366,10 +207,9 @@ router.post('/', requireManager, [
               address: customer.address,
               city: customer.city
             },
-            [{ description: description || 'שירותי אבטחה', price: baseAmount, quantity: 1 }],
+            [{ description: description || 'שירותי אבטחה', price: amount, quantity: 1 }],
             due_date,
-            description,
-            payment_type || 4
+            description
           );
 
           // Update our invoice with Green Invoice ID
@@ -391,107 +231,6 @@ router.post('/', requireManager, [
   } catch (error) {
     console.error('Create invoice error:', error);
     res.status(500).json({ error: 'שגיאה ביצירת חשבונית' });
-  }
-});
-
-// Send invoice email to customer
-router.post('/:id/send-email', requireManager, async (req, res) => {
-  try {
-    // Get invoice with customer details
-    const result = await db.query(`
-      SELECT i.*,
-             c.company_name,
-             ct.email as contact_email,
-             ct.name as contact_name
-      FROM invoices i
-      LEFT JOIN customers c ON i.customer_id = c.id
-      LEFT JOIN contacts ct ON ct.customer_id = c.id AND ct.is_primary = 1
-      WHERE i.id = $1
-    `, [req.params.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'חשבונית לא נמצאה' });
-    }
-
-    const invoice = result.rows[0];
-
-    // Try: 1) email from request body, 2) primary contact, 3) any contact with email
-    let email = req.body.email || invoice.contact_email;
-    if (!email && invoice.customer_id) {
-      const anyContact = await db.query(
-        `SELECT email, name FROM contacts WHERE customer_id = $1 AND email IS NOT NULL AND email != '' ORDER BY is_primary DESC LIMIT 1`,
-        [invoice.customer_id]
-      );
-      if (anyContact.rows.length > 0) {
-        email = anyContact.rows[0].email;
-        if (!invoice.contact_name) invoice.contact_name = anyContact.rows[0].name;
-      }
-    }
-
-    if (!email) {
-      return res.status(400).json({ error: 'לא נמצא אימייל ללקוח. הוסף איש קשר עם כתובת אימייל בדף הלקוח, או שלח עם אימייל ידני.' });
-    }
-
-    const googleHelper = require('../utils/googleHelper');
-    if (!googleHelper.isConfigured()) {
-      return res.status(400).json({ error: 'Gmail לא מחובר. חבר Google בדף ההגדרות, ולוודא שניתנו הרשאות Gmail (צריך להתנתק ולהתחבר מחדש אם חיברת בעבר בלי הרשאות Gmail).' });
-    }
-
-    const invoiceNumber = invoice.invoice_number || invoice.id.slice(0, 8);
-    const customerName = invoice.contact_name || invoice.company_name;
-
-    const emailBody = `
-      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: #2563eb; color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-          <h1 style="margin: 0; font-size: 24px;">חשבונית #${invoiceNumber}</h1>
-          <p style="margin: 8px 0 0; opacity: 0.9;">צוות יהלום - שירותי אבטחה</p>
-        </div>
-        <div style="background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0;">
-          <p style="font-size: 16px;">שלום ${customerName},</p>
-          <p>מצורפת חשבונית מספר <strong>#${invoiceNumber}</strong>.</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-            <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 8px 0; color: #64748b;">תאריך הפקה:</td>
-              <td style="padding: 8px 0; font-weight: bold;">${invoice.issue_date}</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 8px 0; color: #64748b;">תאריך לתשלום:</td>
-              <td style="padding: 8px 0; font-weight: bold;">${invoice.due_date}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #64748b;">סכום לתשלום:</td>
-              <td style="padding: 8px 0; font-weight: bold; font-size: 18px; color: #2563eb;">₪${Number(invoice.total_amount).toLocaleString()}</td>
-            </tr>
-          </table>
-          ${invoice.description ? `<p style="color: #64748b;">פירוט: ${invoice.description}</p>` : ''}
-          ${invoice.document_url ? `<p style="margin-top: 16px;"><a href="${invoice.document_url}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">צפה בחשבונית</a></p>` : ''}
-          <p style="margin-top: 24px; color: #64748b;">לכל שאלה, אנו כאן לשירותכם.</p>
-        </div>
-        <div style="text-align: center; padding: 16px; color: #94a3b8; font-size: 12px;">
-          צוות יהלום - שירותי אבטחה ו-CRM
-        </div>
-      </div>
-    `;
-
-    await googleHelper.sendEmail(email, `חשבונית #${invoiceNumber} - צוות יהלום`, emailBody);
-
-    // Update invoice status to sent if it was draft
-    if (invoice.status === 'draft') {
-      await db.query(`UPDATE invoices SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [req.params.id]);
-    }
-
-    res.json({ message: `חשבונית נשלחה בהצלחה ל-${email}` });
-  } catch (error) {
-    console.error('Send invoice email error:', error);
-    const errMsg = error.message || 'שגיאה בשליחת חשבונית במייל';
-    // Provide helpful error messages
-    if (errMsg.includes('insufficient') || errMsg.includes('scope') || errMsg.includes('permission')) {
-      return res.status(400).json({ error: 'אין הרשאות Gmail. יש להתנתק מ-Google בהגדרות ולהתחבר מחדש כדי לאשר הרשאות שליחת מייל.' });
-    }
-    if (errMsg.includes('Gmail לא מחובר') || errMsg.includes('invalid_grant') || errMsg.includes('Token')) {
-      return res.status(400).json({ error: errMsg });
-    }
-    res.status(500).json({ error: 'שגיאה בשליחת חשבונית במייל: ' + errMsg });
   }
 });
 
@@ -546,54 +285,32 @@ router.patch('/:id/status', requireManager, [
   }
 });
 
-// Delete invoice - soft delete (admin/manager only)
+// Delete invoice (admin/manager only, draft status only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {
-    const result = await db.query(
-      `UPDATE invoices SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+    // Check if invoice is in draft status
+    const invoiceResult = await db.query(
+      'SELECT status FROM invoices WHERE id = $1',
       [req.params.id]
     );
 
-    if (result.rows.length === 0) {
+    if (invoiceResult.rows.length === 0) {
       return res.status(404).json({ error: 'חשבונית לא נמצאה' });
     }
+
+    if (invoiceResult.rows[0].status !== 'draft') {
+      return res.status(400).json({ error: 'ניתן למחוק רק חשבוניות בסטטוס טיוטה' });
+    }
+
+    const result = await db.query(
+      'DELETE FROM invoices WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
 
     res.json({ message: 'חשבונית נמחקה בהצלחה' });
   } catch (error) {
     console.error('Delete invoice error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת חשבונית' });
-  }
-});
-
-// Restore invoice
-router.post('/:id/restore', requireManager, async (req, res) => {
-  try {
-    const result = await db.query(
-      `UPDATE invoices SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'חשבונית לא נמצאה בפח' });
-    }
-    res.json({ invoice: result.rows[0], message: 'חשבונית שוחזרה בהצלחה' });
-  } catch (error) {
-    console.error('Restore invoice error:', error);
-    res.status(500).json({ error: 'שגיאה בשחזור חשבונית' });
-  }
-});
-
-// Permanently delete invoice
-router.delete('/:id/permanent', requireManager, async (req, res) => {
-  try {
-    const check = await db.query('SELECT id FROM invoices WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'חשבונית לא נמצאה בפח' });
-    }
-    await db.query('DELETE FROM invoices WHERE id = $1', [req.params.id]);
-    res.json({ message: 'חשבונית נמחקה לצמיתות' });
-  } catch (error) {
-    console.error('Permanent delete invoice error:', error);
-    res.status(500).json({ error: 'שגיאה במחיקת חשבונית לצמיתות' });
   }
 });
 

@@ -19,19 +19,19 @@ class AlertEscalation {
 
     try {
       // Load alert configs with escalation settings
-      const configs = db.query(`
+      const configs = await db.query(`
         SELECT * FROM alert_config WHERE is_enabled = 1 AND escalation_delay_hours > 0
       `);
 
       for (const config of configs.rows) {
         try {
           // Find unread notifications older than escalation delay, not yet escalated
-          const unescalated = db.query(`
+          const unescalated = await db.query(`
             SELECT n.id, n.user_id, n.type, n.title, n.message, n.related_entity_type, n.related_entity_id, n.created_at
             FROM notifications n
             WHERE n.type = $1
             AND n.is_read = 0
-            AND n.created_at < datetime('now', '-' || $2 || ' hours')
+            AND n.created_at < NOW() - ($2 || ' hours')::interval
             AND NOT EXISTS (
               SELECT 1 FROM alert_escalations ae WHERE ae.notification_id = n.id
             )
@@ -70,13 +70,13 @@ class AlertEscalation {
   async _escalateNotification(config, notification) {
     // 1. Create escalation record
     const escalationId = crypto.randomUUID();
-    db.query(`
+    await db.query(`
       INSERT INTO alert_escalations (id, notification_id, alert_type, escalation_level, escalated_at, escalated_to)
-      VALUES ($1, $2, $3, 1, datetime('now'), 'admins')
+      VALUES ($1, $2, $3, 1, NOW(), 'admins')
     `, [escalationId, notification.id, config.alert_type]);
 
     // 2. Create a new escalated notification for all admin users
-    const admins = db.query(`
+    const admins = await db.query(`
       SELECT u.id, e.phone, e.first_name
       FROM users u
       LEFT JOIN employees e ON u.id = e.user_id
@@ -85,9 +85,9 @@ class AlertEscalation {
 
     for (const admin of admins.rows) {
       const notifId = crypto.randomUUID();
-      db.query(`
+      await db.query(`
         INSERT INTO notifications (id, user_id, type, title, message, related_entity_type, related_entity_id, is_read, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 0, datetime('now'))
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 0, NOW())
       `, [
         notifId,
         admin.id,
@@ -121,9 +121,9 @@ class AlertEscalation {
   /**
    * Get recent escalations with details
    */
-  getRecentEscalations(limit = 20) {
+  async getRecentEscalations(limit = 20) {
     try {
-      const result = db.query(`
+      const result = await db.query(`
         SELECT ae.*, n.title as notification_title, n.message as notification_message,
                ac.display_name as alert_display_name
         FROM alert_escalations ae

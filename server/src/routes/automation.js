@@ -11,14 +11,14 @@ router.use(authenticateToken);
 router.get('/status', requireManager, async (req, res) => {
   try {
     // Count auto-generate templates
-    const templates = db.query(`
+    const templates = await db.query(`
       SELECT COUNT(*) as total,
              SUM(CASE WHEN auto_generate = 1 THEN 1 ELSE 0 END) as auto_enabled
       FROM shift_templates WHERE is_active = 1
     `);
 
     // Recent generation logs
-    const logs = db.query(`
+    const logs = await db.query(`
       SELECT * FROM auto_generation_log
       ORDER BY created_at DESC
       LIMIT 20
@@ -61,7 +61,7 @@ router.post('/generate-from-template/:templateId', requireManager, async (req, r
       return res.status(400).json({ error: 'נדרש תאריך התחלה' });
     }
 
-    const template = db.query('SELECT * FROM shift_templates WHERE id = $1', [req.params.templateId]);
+    const template = await db.query('SELECT * FROM shift_templates WHERE id = $1', [req.params.templateId]);
     if (template.rows.length === 0) {
       return res.status(404).json({ error: 'תבנית לא נמצאה' });
     }
@@ -99,7 +99,7 @@ router.get('/logs', requireManager, async (req, res) => {
     paramCount++;
     params.push(limit);
 
-    const result = db.query(`
+    const result = await db.query(`
       SELECT agl.*, u.first_name || ' ' || u.last_name as created_by_name
       FROM auto_generation_log agl
       LEFT JOIN users u ON agl.created_by = u.id
@@ -193,7 +193,7 @@ router.get('/jobs/:name/logs', requireManager, async (req, res) => {
     const { name } = req.params;
     const limit = parseInt(req.query.limit) || 50;
 
-    const result = db.query(`
+    const result = await db.query(`
       SELECT * FROM automation_run_log
       WHERE job_name = $1
       ORDER BY started_at DESC
@@ -233,7 +233,7 @@ router.get('/runs', requireManager, async (req, res) => {
     paramCount++;
     params.push(limit);
 
-    const result = db.query(`
+    const result = await db.query(`
       SELECT arl.*, ac.display_name, ac.category
       FROM automation_run_log arl
       LEFT JOIN automation_config ac ON arl.job_name = ac.job_name
@@ -253,30 +253,30 @@ router.get('/runs', requireManager, async (req, res) => {
 router.get('/stats', requireManager, async (req, res) => {
   try {
     // Total runs by period
-    const todayRuns = db.query(`
+    const todayRuns = await db.query(`
       SELECT COUNT(*) as count,
              SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
       FROM automation_run_log
-      WHERE started_at >= date('now', 'localtime')
+      WHERE started_at >= CURRENT_DATE
     `);
 
-    const weekRuns = db.query(`
+    const weekRuns = await db.query(`
       SELECT COUNT(*) as count,
              SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
       FROM automation_run_log
-      WHERE started_at >= date('now', 'localtime', '-7 days')
+      WHERE started_at >= CURRENT_DATE - INTERVAL '7 days'
     `);
 
-    const monthRuns = db.query(`
+    const monthRuns = await db.query(`
       SELECT COUNT(*) as count,
              SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
              SUM(items_processed) as total_processed,
              SUM(items_created) as total_created
       FROM automation_run_log
-      WHERE started_at >= date('now', 'localtime', '-30 days')
+      WHERE started_at >= CURRENT_DATE - INTERVAL '30 days'
     `);
 
     // Success rate
@@ -285,41 +285,41 @@ router.get('/stats', requireManager, async (req, res) => {
     const successRate = totalMonth > 0 ? Math.round((successMonth / totalMonth) * 100) : 100;
 
     // Most active job
-    const mostActive = db.query(`
+    const mostActive = await db.query(`
       SELECT job_name, COUNT(*) as run_count, ac.display_name
       FROM automation_run_log arl
       LEFT JOIN automation_config ac ON arl.job_name = ac.job_name
-      WHERE arl.started_at >= date('now', 'localtime', '-30 days')
+      WHERE arl.started_at >= CURRENT_DATE - INTERVAL '30 days'
       GROUP BY arl.job_name
       ORDER BY run_count DESC
       LIMIT 1
     `);
 
     // Most failed job
-    const mostFailed = db.query(`
+    const mostFailed = await db.query(`
       SELECT job_name, COUNT(*) as fail_count, ac.display_name
       FROM automation_run_log arl
       LEFT JOIN automation_config ac ON arl.job_name = ac.job_name
-      WHERE arl.status = 'failed' AND arl.started_at >= date('now', 'localtime', '-30 days')
+      WHERE arl.status = 'failed' AND arl.started_at >= CURRENT_DATE - INTERVAL '30 days'
       GROUP BY arl.job_name
       ORDER BY fail_count DESC
       LIMIT 1
     `);
 
     // Runs over time (last 14 days)
-    const runsOverTime = db.query(`
-      SELECT date(started_at) as day,
+    const runsOverTime = await db.query(`
+      SELECT started_at::date as day,
              COUNT(*) as total,
              SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
       FROM automation_run_log
-      WHERE started_at >= date('now', 'localtime', '-14 days')
-      GROUP BY date(started_at)
+      WHERE started_at >= CURRENT_DATE - INTERVAL '14 days'
+      GROUP BY started_at::date
       ORDER BY day
     `);
 
     // Enabled/disabled counts
-    const jobCounts = db.query(`
+    const jobCounts = await db.query(`
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN is_enabled = 1 THEN 1 ELSE 0 END) as enabled,
@@ -379,7 +379,7 @@ router.post('/invoices/generate-selected', requireManager, async (req, res) => {
 // Get system invoice config (VAT, payment days)
 router.get('/invoice-config', requireManager, async (req, res) => {
   try {
-    const result = db.query('SELECT key, value, description FROM system_config');
+    const result = await db.query('SELECT key, value, description FROM system_config');
     const config = {};
     for (const row of result.rows) {
       config[row.key] = { value: row.value, description: row.description };
@@ -495,7 +495,7 @@ const crypto = require('crypto');
 // GET /api/automation/alerts/config - List all alert configurations
 router.get('/alerts/config', requireManager, async (req, res) => {
   try {
-    const result = db.query('SELECT * FROM alert_config ORDER BY alert_type');
+    const result = await db.query('SELECT * FROM alert_config ORDER BY alert_type');
     res.json({ configs: result.rows });
   } catch (error) {
     console.error('Get alert config error:', error);
@@ -518,7 +518,7 @@ router.patch('/alerts/config/:type', requireManager, async (req, res) => {
     } = req.body;
 
     // Check config exists
-    const existing = db.query('SELECT * FROM alert_config WHERE alert_type = $1', [type]);
+    const existing = await db.query('SELECT * FROM alert_config WHERE alert_type = $1', [type]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'סוג התראה לא נמצא' });
     }
@@ -569,15 +569,15 @@ router.patch('/alerts/config/:type', requireManager, async (req, res) => {
     }
 
     paramIdx++;
-    updates.push(`updated_at = datetime('now')`);
+    updates.push(`updated_at = NOW()`);
     params.push(type);
 
-    db.query(`
+    await db.query(`
       UPDATE alert_config SET ${updates.join(', ')} WHERE alert_type = $${paramIdx}
     `, params);
 
     // Return updated config
-    const updated = db.query('SELECT * FROM alert_config WHERE alert_type = $1', [type]);
+    const updated = await db.query('SELECT * FROM alert_config WHERE alert_type = $1', [type]);
     res.json(updated.rows[0]);
   } catch (error) {
     console.error('Update alert config error:', error);
@@ -596,9 +596,9 @@ router.post('/alerts/mute', async (req, res) => {
     }
 
     const id = crypto.randomUUID();
-    db.query(`
+    await db.query(`
       INSERT INTO alert_mutes (id, user_id, alert_type, related_entity_type, related_entity_id, muted_until, reason, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, datetime('now'))
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
     `, [id, userId, alert_type, related_entity_type || null, related_entity_id || null, muted_until || null, reason || null]);
 
     res.status(201).json({ id, message: 'התראה הושתקה בהצלחה' });
@@ -611,7 +611,7 @@ router.post('/alerts/mute', async (req, res) => {
 // DELETE /api/automation/alerts/mute/:id - Unmute an alert
 router.delete('/alerts/mute/:id', async (req, res) => {
   try {
-    const result = db.query('DELETE FROM alert_mutes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    const result = await db.query('DELETE FROM alert_mutes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'השתקה לא נמצאה' });
     }
@@ -626,12 +626,12 @@ router.delete('/alerts/mute/:id', async (req, res) => {
 router.get('/alerts/mutes', async (req, res) => {
   try {
     const userId = req.user.id;
-    const result = db.query(`
+    const result = await db.query(`
       SELECT am.*, ac.display_name as alert_display_name
       FROM alert_mutes am
       LEFT JOIN alert_config ac ON am.alert_type = ac.alert_type
       WHERE am.user_id = $1
-      AND (am.muted_until IS NULL OR am.muted_until > datetime('now'))
+      AND (am.muted_until IS NULL OR am.muted_until > NOW())
       ORDER BY am.created_at DESC
     `, [userId]);
     res.json({ mutes: result.rows });

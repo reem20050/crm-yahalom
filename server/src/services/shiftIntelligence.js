@@ -13,13 +13,13 @@ class ShiftIntelligence {
    * For each site + day_of_week, count shifts where assigned < required.
    * Flag patterns where understaffing rate > 30%.
    */
-  detectShortagePatterns() {
+  async detectShortagePatterns() {
     try {
-      const result = db.query(`
+      const result = await db.query(`
         SELECT
           s.site_id,
           si.name as site_name,
-          CAST(strftime('%w', s.date) AS INTEGER) as day_of_week,
+          EXTRACT(DOW FROM s.date::date)::integer as day_of_week,
           COUNT(*) as total_shifts,
           SUM(CASE
             WHEN (SELECT COUNT(*) FROM shift_assignments sa WHERE sa.shift_id = s.id AND sa.status != 'cancelled') < s.required_employees
@@ -27,11 +27,11 @@ class ShiftIntelligence {
           END) as understaffed_count
         FROM shifts s
         JOIN sites si ON s.site_id = si.id
-        WHERE s.date >= date('now', '-90 days')
+        WHERE s.date >= CURRENT_DATE - INTERVAL '90 days'
         AND s.status != 'cancelled'
         AND s.site_id IS NOT NULL
-        GROUP BY s.site_id, CAST(strftime('%w', s.date) AS INTEGER)
-        HAVING total_shifts >= 2
+        GROUP BY s.site_id, si.name, EXTRACT(DOW FROM s.date::date)::integer
+        HAVING COUNT(*) >= 2
         ORDER BY si.name, day_of_week
       `);
 
@@ -48,7 +48,7 @@ class ShiftIntelligence {
       const today = new Date().toISOString().split('T')[0];
       const flagged = patterns.filter(p => p.rate > 0.3);
       for (const p of flagged) {
-        db.query(`
+        await db.query(`
           INSERT INTO shift_analytics (id, analysis_date, analysis_type, site_id, details, severity)
           VALUES ($1, $2, 'shortage', $3, $4, $5)
         `, [
@@ -72,10 +72,10 @@ class ShiftIntelligence {
    * Checks: total shifts, consecutive shifts with <8h gap, total weekly hours.
    * Flags if: shifts > 5, rest gap < 8h, or weekly hours > 50.
    */
-  analyzeFatigueRisk() {
+  async analyzeFatigueRisk() {
     try {
       // Get all employees with shifts this week
-      const employees = db.query(`
+      const employees = await db.query(`
         SELECT
           e.id as employee_id,
           e.first_name || ' ' || e.last_name as employee_name,
@@ -83,16 +83,16 @@ class ShiftIntelligence {
           COALESCE(SUM(
             CASE
               WHEN sa.actual_hours IS NOT NULL THEN sa.actual_hours
-              ELSE (julianday(s.date || ' ' || s.end_time) - julianday(s.date || ' ' || s.start_time)) * 24
+              ELSE EXTRACT(EPOCH FROM ((s.date || ' ' || s.end_time)::timestamp - (s.date || ' ' || s.start_time)::timestamp)) / 3600
             END
           ), 0) as weekly_hours
         FROM employees e
         JOIN shift_assignments sa ON sa.employee_id = e.id
         JOIN shifts s ON sa.shift_id = s.id
-        WHERE s.date BETWEEN date('now', 'weekday 0', '-6 days') AND date('now', 'weekday 6')
+        WHERE s.date BETWEEN CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int AND CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int + 6
         AND sa.status NOT IN ('cancelled', 'no_show')
         AND e.status = 'active'
-        GROUP BY e.id
+        GROUP BY e.id, e.first_name, e.last_name
         ORDER BY weekly_shifts DESC
       `);
 
@@ -100,12 +100,12 @@ class ShiftIntelligence {
 
       for (const emp of employees.rows) {
         // Find minimum rest gap between consecutive shifts
-        const shifts = db.query(`
+        const shifts = await db.query(`
           SELECT s.date, s.start_time, s.end_time
           FROM shift_assignments sa
           JOIN shifts s ON sa.shift_id = s.id
           WHERE sa.employee_id = $1
-          AND s.date BETWEEN date('now', 'weekday 0', '-6 days') AND date('now', 'weekday 6')
+          AND s.date BETWEEN CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int AND CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int + 6
           AND sa.status NOT IN ('cancelled', 'no_show')
           ORDER BY s.date, s.start_time
         `, [emp.employee_id]);
@@ -161,7 +161,7 @@ class ShiftIntelligence {
       // Save fatigue results
       const today = new Date().toISOString().split('T')[0];
       for (const f of fatigueResults.filter(f => f.risk_level === 'high')) {
-        db.query(`
+        await db.query(`
           INSERT INTO shift_analytics (id, analysis_date, analysis_type, employee_id, details, severity)
           VALUES ($1, $2, 'fatigue', $3, $4, $5)
         `, [
@@ -188,20 +188,20 @@ class ShiftIntelligence {
    * Based on historical data, suggest optimal guards per site per day.
    * Calculates average assigned, no-show rate, and optimal staffing.
    */
-  suggestOptimalStaffing(siteId = null) {
+  async suggestOptimalStaffing(siteId = null) {
     try {
-      let whereClause = `s.date >= date('now', '-56 days') AND s.status != 'cancelled' AND s.site_id IS NOT NULL`;
+      let whereClause = `s.date >= CURRENT_DATE - INTERVAL '56 days' AND s.status != 'cancelled' AND s.site_id IS NOT NULL`;
       const params = [];
       if (siteId) {
         whereClause += ` AND s.site_id = $1`;
         params.push(siteId);
       }
 
-      const result = db.query(`
+      const result = await db.query(`
         SELECT
           s.site_id,
           si.name as site_name,
-          CAST(strftime('%w', s.date) AS INTEGER) as day_of_week,
+          EXTRACT(DOW FROM s.date::date)::integer as day_of_week,
           s.required_employees as current_required,
           COUNT(DISTINCT s.id) as shift_count,
           COALESCE(AVG(
@@ -216,8 +216,8 @@ class ShiftIntelligence {
         FROM shifts s
         JOIN sites si ON s.site_id = si.id
         WHERE ${whereClause}
-        GROUP BY s.site_id, CAST(strftime('%w', s.date) AS INTEGER), s.required_employees
-        HAVING shift_count >= 2
+        GROUP BY s.site_id, si.name, EXTRACT(DOW FROM s.date::date)::integer, s.required_employees
+        HAVING COUNT(DISTINCT s.id) >= 2
         ORDER BY si.name, day_of_week
       `, params);
 
@@ -247,20 +247,20 @@ class ShiftIntelligence {
    * Includes shortages, fatigue, staffing, no-show rates,
    * declining ratings, cert gaps, and overtime analysis.
    */
-  generateWeeklyInsights() {
+  async generateWeeklyInsights() {
     const today = new Date().toISOString().split('T')[0];
 
     // Clean old analytics for today to avoid duplicates
-    db.query(`DELETE FROM shift_analytics WHERE analysis_date = $1 AND analysis_type IN ('shortage', 'fatigue', 'weekly_insights')`, [today]);
+    await db.query(`DELETE FROM shift_analytics WHERE analysis_date = $1 AND analysis_type IN ('shortage', 'fatigue', 'weekly_insights')`, [today]);
 
-    const shortages = this.detectShortagePatterns();
-    const fatigue = this.analyzeFatigueRisk();
-    const staffing = this.suggestOptimalStaffing();
+    const shortages = await this.detectShortagePatterns();
+    const fatigue = await this.analyzeFatigueRisk();
+    const staffing = await this.suggestOptimalStaffing();
 
     // Sites with >20% no-show rate this month
     let highNoShowSites = [];
     try {
-      const noShowResult = db.query(`
+      const noShowResult = await db.query(`
         SELECT
           s.site_id, si.name as site_name,
           COUNT(DISTINCT sa.id) as total_assignments,
@@ -268,10 +268,10 @@ class ShiftIntelligence {
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
         JOIN sites si ON s.site_id = si.id
-        WHERE s.date >= date('now', '-30 days')
+        WHERE s.date >= CURRENT_DATE - INTERVAL '30 days'
         AND s.site_id IS NOT NULL
-        GROUP BY s.site_id
-        HAVING total_assignments > 0 AND CAST(no_shows AS REAL) / total_assignments > 0.2
+        GROUP BY s.site_id, si.name
+        HAVING COUNT(DISTINCT sa.id) > 0 AND CAST(SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) AS REAL) / COUNT(DISTINCT sa.id) > 0.2
       `);
       highNoShowSites = noShowResult.rows.map(r => ({
         site_id: r.site_id,
@@ -287,18 +287,20 @@ class ShiftIntelligence {
     // Employees with declining ratings (compare last 30 vs previous 30 days)
     let decliningRatings = [];
     try {
-      const ratingsResult = db.query(`
+      const ratingsResult = await db.query(`
         SELECT
           e.id as employee_id,
           e.first_name || ' ' || e.last_name as employee_name,
-          COALESCE(AVG(CASE WHEN gr.created_at >= date('now', '-30 days') THEN gr.rating END), 0) as recent_avg,
-          COALESCE(AVG(CASE WHEN gr.created_at >= date('now', '-60 days') AND gr.created_at < date('now', '-30 days') THEN gr.rating END), 0) as previous_avg
+          COALESCE(AVG(CASE WHEN gr.created_at >= CURRENT_DATE - INTERVAL '30 days' THEN gr.rating END), 0) as recent_avg,
+          COALESCE(AVG(CASE WHEN gr.created_at >= CURRENT_DATE - INTERVAL '60 days' AND gr.created_at < CURRENT_DATE - INTERVAL '30 days' THEN gr.rating END), 0) as previous_avg
         FROM employees e
         JOIN guard_ratings gr ON gr.employee_id = e.id
-        WHERE gr.created_at >= date('now', '-60 days')
+        WHERE gr.created_at >= CURRENT_DATE - INTERVAL '60 days'
         AND e.status = 'active'
-        GROUP BY e.id
-        HAVING recent_avg > 0 AND previous_avg > 0 AND recent_avg < previous_avg - 0.5
+        GROUP BY e.id, e.first_name, e.last_name
+        HAVING COALESCE(AVG(CASE WHEN gr.created_at >= CURRENT_DATE - INTERVAL '30 days' THEN gr.rating END), 0) > 0
+        AND COALESCE(AVG(CASE WHEN gr.created_at >= CURRENT_DATE - INTERVAL '60 days' AND gr.created_at < CURRENT_DATE - INTERVAL '30 days' THEN gr.rating END), 0) > 0
+        AND COALESCE(AVG(CASE WHEN gr.created_at >= CURRENT_DATE - INTERVAL '30 days' THEN gr.rating END), 0) < COALESCE(AVG(CASE WHEN gr.created_at >= CURRENT_DATE - INTERVAL '60 days' AND gr.created_at < CURRENT_DATE - INTERVAL '30 days' THEN gr.rating END), 0) - 0.5
       `);
       decliningRatings = ratingsResult.rows.map(r => ({
         employee_id: r.employee_id,
@@ -314,7 +316,7 @@ class ShiftIntelligence {
     // Overtime employees (>5 shifts this week)
     let overtimeEmployees = [];
     try {
-      const overtimeResult = db.query(`
+      const overtimeResult = await db.query(`
         SELECT
           e.id as employee_id,
           e.first_name || ' ' || e.last_name as employee_name,
@@ -323,17 +325,17 @@ class ShiftIntelligence {
           COALESCE(SUM(
             CASE
               WHEN sa.actual_hours IS NOT NULL THEN sa.actual_hours
-              ELSE (julianday(s.date || ' ' || s.end_time) - julianday(s.date || ' ' || s.start_time)) * 24
+              ELSE EXTRACT(EPOCH FROM ((s.date || ' ' || s.end_time)::timestamp - (s.date || ' ' || s.start_time)::timestamp)) / 3600
             END
           ), 0) as total_hours
         FROM employees e
         JOIN shift_assignments sa ON sa.employee_id = e.id
         JOIN shifts s ON sa.shift_id = s.id
-        WHERE s.date BETWEEN date('now', 'weekday 0', '-6 days') AND date('now', 'weekday 6')
+        WHERE s.date BETWEEN CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int AND CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int + 6
         AND sa.status NOT IN ('cancelled', 'no_show')
         AND e.status = 'active'
-        GROUP BY e.id
-        HAVING shift_count > 5
+        GROUP BY e.id, e.first_name, e.last_name, e.hourly_rate
+        HAVING COUNT(DISTINCT sa.shift_id) > 5
         ORDER BY total_hours DESC
       `);
       overtimeEmployees = overtimeResult.rows.map(r => ({
@@ -366,7 +368,7 @@ class ShiftIntelligence {
     };
 
     // Save summary to shift_analytics
-    db.query(`
+    await db.query(`
       INSERT INTO shift_analytics (id, analysis_date, analysis_type, details, severity)
       VALUES ($1, $2, 'weekly_insights', $3, $4)
     `, [
@@ -388,9 +390,9 @@ class ShiftIntelligence {
   /**
    * Get the most recent weekly insights from shift_analytics.
    */
-  getLatestInsights() {
+  async getLatestInsights() {
     try {
-      const result = db.query(`
+      const result = await db.query(`
         SELECT * FROM shift_analytics
         WHERE analysis_type = 'weekly_insights'
         ORDER BY created_at DESC
@@ -413,13 +415,13 @@ class ShiftIntelligence {
   /**
    * Get shortage heatmap data: matrix of site x day_of_week with understaffing rates.
    */
-  getShortageHeatmap() {
+  async getShortageHeatmap() {
     try {
-      const result = db.query(`
+      const result = await db.query(`
         SELECT
           s.site_id,
           si.name as site_name,
-          CAST(strftime('%w', s.date) AS INTEGER) as day_of_week,
+          EXTRACT(DOW FROM s.date::date)::integer as day_of_week,
           COUNT(*) as total_shifts,
           SUM(CASE
             WHEN (SELECT COUNT(*) FROM shift_assignments sa WHERE sa.shift_id = s.id AND sa.status NOT IN ('cancelled')) < s.required_employees
@@ -427,10 +429,10 @@ class ShiftIntelligence {
           END) as understaffed_count
         FROM shifts s
         JOIN sites si ON s.site_id = si.id
-        WHERE s.date >= date('now', '-90 days')
+        WHERE s.date >= CURRENT_DATE - INTERVAL '90 days'
         AND s.status != 'cancelled'
         AND s.site_id IS NOT NULL
-        GROUP BY s.site_id, CAST(strftime('%w', s.date) AS INTEGER)
+        GROUP BY s.site_id, si.name, EXTRACT(DOW FROM s.date::date)::integer
         ORDER BY si.name, day_of_week
       `);
 

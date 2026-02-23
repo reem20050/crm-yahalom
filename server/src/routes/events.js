@@ -18,9 +18,6 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
-    // Always exclude soft-deleted
-    whereClause.push(`e.deleted_at IS NULL`);
-
     if (start_date) {
       paramCount++;
       whereClause.push(`event_date >= $${paramCount}`);
@@ -45,16 +42,9 @@ router.get('/', async (req, res) => {
       params.push(customer_id);
     }
 
-    // Employee: only see events they are assigned to
-    if (req.user.role === 'employee' && req.user.employeeId) {
-      paramCount++;
-      whereClause.push(`e.id IN (SELECT event_id FROM event_assignments WHERE employee_id = $${paramCount})`);
-      params.push(req.user.employeeId);
-    }
+    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
 
-    const whereString = `WHERE ${whereClause.join(' AND ')}`;
-
-    const countResult = await db.query(`SELECT COUNT(*) as count FROM events e ${whereString}`, params);
+    const countResult = await db.query(`SELECT COUNT(*) as count FROM events ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
 
     paramCount++;
@@ -92,9 +82,8 @@ router.get('/upcoming/week', async (req, res) => {
              (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
       FROM events e
       LEFT JOIN customers c ON e.customer_id = c.id
-      WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')
+      WHERE e.event_date BETWEEN date('now') AND date('now', '+7 days')
       AND e.status NOT IN ('completed', 'cancelled')
-      AND e.deleted_at IS NULL
       ORDER BY e.event_date, e.start_time
     `);
 
@@ -105,21 +94,6 @@ router.get('/upcoming/week', async (req, res) => {
   }
 });
 
-// Get deleted events (trash) - MUST be before /:id
-router.get('/trash/list', requireManager, async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT e.*, c.company_name
-      FROM events e LEFT JOIN customers c ON e.customer_id = c.id
-      WHERE e.deleted_at IS NOT NULL ORDER BY e.deleted_at DESC
-    `);
-    res.json({ events: result.rows });
-  } catch (error) {
-    console.error('Get trash error:', error);
-    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
-  }
-});
-
 // Get single event with assignments
 router.get('/:id', async (req, res) => {
   try {
@@ -127,35 +101,26 @@ router.get('/:id', async (req, res) => {
       SELECT e.*, c.company_name
       FROM events e
       LEFT JOIN customers c ON e.customer_id = c.id
-      WHERE e.id = $1 AND e.deleted_at IS NULL
+      WHERE e.id = $1
     `, [req.params.id]);
 
     if (eventResult.rows.length === 0) {
       return res.status(404).json({ error: 'אירוע לא נמצא' });
     }
 
-    const [assignmentsResult, contractorAssignmentsResult] = await Promise.all([
-      db.query(`
-        SELECT ea.*,
-               emp.first_name || ' ' || emp.last_name as employee_name,
-               emp.phone as employee_phone,
-               emp.has_weapon_license
-        FROM event_assignments ea
-        JOIN employees emp ON ea.employee_id = emp.id
-        WHERE ea.event_id = $1
-      `, [req.params.id]),
-      db.query(`
-        SELECT eca.*, con.company_name, con.contact_name, con.phone as contractor_phone
-        FROM event_contractor_assignments eca
-        JOIN contractors con ON con.id = eca.contractor_id
-        WHERE eca.event_id = $1
-      `, [req.params.id])
-    ]);
+    const assignmentsResult = await db.query(`
+      SELECT ea.*,
+             emp.first_name || ' ' || emp.last_name as employee_name,
+             emp.phone as employee_phone,
+             emp.has_weapon_license
+      FROM event_assignments ea
+      JOIN employees emp ON ea.employee_id = emp.id
+      WHERE ea.event_id = $1
+    `, [req.params.id]);
 
     res.json({
       event: eventResult.rows[0],
-      assignments: assignmentsResult.rows,
-      contractorAssignments: contractorAssignmentsResult.rows
+      assignments: assignmentsResult.rows
     });
   } catch (error) {
     console.error('Get event error:', error);
@@ -164,7 +129,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create event
-router.post('/', requireManager, [
+router.post('/', [
   body('event_name').notEmpty().withMessage('נדרש שם אירוע'),
   body('event_date').isDate().withMessage('נדרש תאריך'),
   body('start_time').notEmpty().withMessage('נדרשת שעת התחלה'),
@@ -221,7 +186,7 @@ router.post('/', requireManager, [
 });
 
 // Update event
-router.put('/:id', requireManager, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const {
       event_name, event_type, event_date, start_time, end_time,
@@ -265,19 +230,6 @@ router.put('/:id', requireManager, async (req, res) => {
     // Sync to Google Calendar if connected (non-blocking)
     if (updatedEvent.google_calendar_event_id) {
       googleHelper.updateCalendarEvent(updatedEvent.google_calendar_event_id, updatedEvent).catch(() => {});
-    }
-
-    // Auto-generate invoice for completed event
-    if (status === 'completed') {
-      try {
-        const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-        const invoice = autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
-        if (invoice) {
-          console.log(`Auto-generated invoice for event ${req.params.id}: ${invoice.id}`);
-        }
-      } catch (autoErr) {
-        console.warn('Auto-invoice generation failed:', autoErr.message);
-      }
     }
 
     res.json({ event: updatedEvent });
@@ -358,7 +310,7 @@ router.post('/:id/complete', requireManager, async (req, res) => {
     const result = await db.query(`
       UPDATE events SET
         status = 'completed',
-        notes = CASE WHEN notes IS NOT NULL AND notes != '' THEN notes || char(10) || char(10) ELSE '' END || 'דוח אירוע: ' || COALESCE($2, ''),
+        notes = COALESCE(notes || char(10) || char(10) || 'דוח אירוע: ' || $2, notes),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
@@ -368,17 +320,6 @@ router.post('/:id/complete', requireManager, async (req, res) => {
       return res.status(404).json({ error: 'אירוע לא נמצא' });
     }
 
-    // Auto-generate invoice for completed event
-    try {
-      const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-      const invoice = autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
-      if (invoice) {
-        console.log(`Auto-generated invoice for event ${req.params.id}: ${invoice.id}`);
-      }
-    } catch (autoErr) {
-      console.warn('Auto-invoice generation failed:', autoErr.message);
-    }
-
     res.json({ event: result.rows[0], message: 'אירוע סומן כהושלם' });
   } catch (error) {
     console.error('Complete event error:', error);
@@ -386,11 +327,14 @@ router.post('/:id/complete', requireManager, async (req, res) => {
   }
 });
 
-// Delete event - soft delete (admin/manager only)
+// Delete event (admin/manager only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {
+    // Delete related assignments first
+    await db.query('DELETE FROM event_assignments WHERE event_id = $1', [req.params.id]);
+
     const result = await db.query(
-      `UPDATE events SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+      'DELETE FROM events WHERE id = $1 RETURNING id',
       [req.params.id]
     );
 
@@ -402,93 +346,6 @@ router.delete('/:id', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Delete event error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת אירוע' });
-  }
-});
-
-// Restore event
-router.post('/:id/restore', requireManager, async (req, res) => {
-  try {
-    const result = await db.query(
-      `UPDATE events SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'אירוע לא נמצא בפח' });
-    }
-    res.json({ event: result.rows[0], message: 'אירוע שוחזר בהצלחה' });
-  } catch (error) {
-    console.error('Restore event error:', error);
-    res.status(500).json({ error: 'שגיאה בשחזור אירוע' });
-  }
-});
-
-// Permanently delete event
-router.delete('/:id/permanent', requireManager, async (req, res) => {
-  try {
-    const check = await db.query('SELECT id FROM events WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'אירוע לא נמצא בפח' });
-    }
-    await db.query('DELETE FROM event_assignments WHERE event_id = $1', [req.params.id]);
-    await db.query('DELETE FROM events WHERE id = $1', [req.params.id]);
-    res.json({ message: 'אירוע נמחק לצמיתות' });
-  } catch (error) {
-    console.error('Permanent delete event error:', error);
-    res.status(500).json({ error: 'שגיאה במחיקת אירוע לצמיתות' });
-  }
-});
-
-// Assign contractor to event
-router.post('/:id/contractors', requireManager, [
-  body('contractor_id').notEmpty().withMessage('נדרש קבלן')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { contractor_id, workers_count, hourly_rate, notes } = req.body;
-
-    const existingResult = await db.query(
-      'SELECT id FROM event_contractor_assignments WHERE event_id = $1 AND contractor_id = $2',
-      [req.params.id, contractor_id]
-    );
-
-    if (existingResult.rows.length > 0) {
-      return res.status(400).json({ error: 'הקבלן כבר משובץ לאירוע זה' });
-    }
-
-    const assignmentId = db.generateUUID();
-    const result = await db.query(`
-      INSERT INTO event_contractor_assignments (id, event_id, contractor_id, workers_count, hourly_rate, notes)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `, [assignmentId, req.params.id, contractor_id, workers_count, hourly_rate, notes]);
-
-    res.status(201).json({ assignment: result.rows[0] });
-  } catch (error) {
-    console.error('Assign contractor to event error:', error);
-    res.status(500).json({ error: 'שגיאה בשיבוץ קבלן לאירוע' });
-  }
-});
-
-// Remove contractor from event
-router.delete('/:id/contractors/:assignmentId', requireManager, async (req, res) => {
-  try {
-    const result = await db.query(
-      'DELETE FROM event_contractor_assignments WHERE id = $1 AND event_id = $2 RETURNING id',
-      [req.params.assignmentId, req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'שיבוץ קבלן לא נמצא' });
-    }
-
-    res.json({ message: 'שיבוץ קבלן הוסר בהצלחה' });
-  } catch (error) {
-    console.error('Remove contractor from event error:', error);
-    res.status(500).json({ error: 'שגיאה בהסרת שיבוץ קבלן' });
   }
 });
 

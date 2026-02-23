@@ -7,7 +7,7 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Get all equipment (with optional filters)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { employee_id, item_type, status } = req.query;
     let sql = `
@@ -18,13 +18,16 @@ router.get('/', (req, res) => {
       WHERE 1=1
     `;
     const params = [];
+    let paramIndex = 0;
 
     if (employee_id) {
-      sql += ' AND ge.employee_id = ?';
+      paramIndex++;
+      sql += ` AND ge.employee_id = $${paramIndex}`;
       params.push(employee_id);
     }
     if (item_type) {
-      sql += ' AND ge.item_type = ?';
+      paramIndex++;
+      sql += ` AND ge.item_type = $${paramIndex}`;
       params.push(item_type);
     }
     if (status === 'assigned') {
@@ -35,7 +38,7 @@ router.get('/', (req, res) => {
 
     sql += ' ORDER BY ge.created_at DESC';
 
-    const result = db.query(sql, params);
+    const result = await db.query(sql, params);
     res.json({ equipment: result.rows });
   } catch (error) {
     console.error('Get equipment error:', error);
@@ -44,11 +47,11 @@ router.get('/', (req, res) => {
 });
 
 // Get equipment by employee
-router.get('/employee/:employeeId', (req, res) => {
+router.get('/employee/:employeeId', async (req, res) => {
   try {
-    const result = db.query(`
+    const result = await db.query(`
       SELECT * FROM guard_equipment
-      WHERE employee_id = ? AND return_date IS NULL
+      WHERE employee_id = $1 AND return_date IS NULL
       ORDER BY assigned_date DESC
     `, [req.params.employeeId]);
     res.json({ equipment: result.rows });
@@ -59,7 +62,7 @@ router.get('/employee/:employeeId', (req, res) => {
 });
 
 // Create equipment
-router.post('/', requireAdmin, (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   try {
     const id = crypto.randomUUID();
     const { employee_id, item_type, item_name, serial_number, condition, assigned_date, notes } = req.body;
@@ -68,12 +71,12 @@ router.post('/', requireAdmin, (req, res) => {
       return res.status(400).json({ error: 'סוג ושם הציוד נדרשים' });
     }
 
-    db.query(`
+    await db.query(`
       INSERT INTO guard_equipment (id, employee_id, item_type, item_name, serial_number, condition, assigned_date, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [id, employee_id || null, item_type, item_name, serial_number || null, condition || 'good', assigned_date || new Date().toISOString().split('T')[0], notes || null]);
 
-    const result = db.query('SELECT * FROM guard_equipment WHERE id = ?', [id]);
+    const result = await db.query('SELECT * FROM guard_equipment WHERE id = $1', [id]);
     res.status(201).json({ equipment: result.rows[0] });
   } catch (error) {
     console.error('Create equipment error:', error);
@@ -82,18 +85,18 @@ router.post('/', requireAdmin, (req, res) => {
 });
 
 // Update equipment
-router.put('/:id', requireAdmin, (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const { employee_id, item_type, item_name, serial_number, condition, assigned_date, return_date, notes } = req.body;
 
-    db.query(`
+    await db.query(`
       UPDATE guard_equipment SET
-        employee_id = ?, item_type = ?, item_name = ?, serial_number = ?,
-        condition = ?, assigned_date = ?, return_date = ?, notes = ?
-      WHERE id = ?
+        employee_id = $1, item_type = $2, item_name = $3, serial_number = $4,
+        condition = $5, assigned_date = $6, return_date = $7, notes = $8
+      WHERE id = $9
     `, [employee_id || null, item_type, item_name, serial_number || null, condition || 'good', assigned_date || null, return_date || null, notes || null, req.params.id]);
 
-    const result = db.query('SELECT * FROM guard_equipment WHERE id = ?', [req.params.id]);
+    const result = await db.query('SELECT * FROM guard_equipment WHERE id = $1', [req.params.id]);
     res.json({ equipment: result.rows[0] });
   } catch (error) {
     console.error('Update equipment error:', error);
@@ -102,14 +105,14 @@ router.put('/:id', requireAdmin, (req, res) => {
 });
 
 // Return equipment (set return date)
-router.post('/:id/return', requireAdmin, (req, res) => {
+router.post('/:id/return', requireAdmin, async (req, res) => {
   try {
-    db.query(`
-      UPDATE guard_equipment SET return_date = ?, condition = ?
-      WHERE id = ?
+    await db.query(`
+      UPDATE guard_equipment SET return_date = $1, condition = $2
+      WHERE id = $3
     `, [new Date().toISOString().split('T')[0], req.body.condition || 'good', req.params.id]);
 
-    const result = db.query('SELECT * FROM guard_equipment WHERE id = ?', [req.params.id]);
+    const result = await db.query('SELECT * FROM guard_equipment WHERE id = $1', [req.params.id]);
     res.json({ equipment: result.rows[0] });
   } catch (error) {
     console.error('Return equipment error:', error);
@@ -118,9 +121,9 @@ router.post('/:id/return', requireAdmin, (req, res) => {
 });
 
 // Delete equipment
-router.delete('/:id', requireAdmin, (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    db.query('DELETE FROM guard_equipment WHERE id = ?', [req.params.id]);
+    await db.query('DELETE FROM guard_equipment WHERE id = $1', [req.params.id]);
     res.json({ message: 'ציוד נמחק בהצלחה' });
   } catch (error) {
     console.error('Delete equipment error:', error);

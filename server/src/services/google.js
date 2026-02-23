@@ -5,24 +5,31 @@ class GoogleService {
   constructor() {
     this.clientId = process.env.GOOGLE_CLIENT_ID;
     this.clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    this.redirectUri = process.env.GOOGLE_REDIRECT_URI;
+    // Use dedicated integration redirect URI, fallback to constructed URI
+    this.redirectUri = process.env.GOOGLE_INTEGRATION_REDIRECT_URI
+      || process.env.GOOGLE_REDIRECT_URI
+      || (process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/integrations/google/callback`
+        : 'http://localhost:5000/api/integrations/google/callback');
 
-    this.oauth2Client = new google.auth.OAuth2(
-      this.clientId,
-      this.clientSecret,
-      this.redirectUri
-    );
+    if (this.clientId && this.clientSecret) {
+      this.oauth2Client = new google.auth.OAuth2(
+        this.clientId,
+        this.clientSecret,
+        this.redirectUri
+      );
+    } else {
+      // Create a dummy client - will fail gracefully when used
+      this.oauth2Client = new google.auth.OAuth2();
+    }
   }
 
-  // Generate auth URL with all needed scopes
+  // Generate auth URL
   getAuthUrl() {
     const scopes = [
-      'openid',
-      'email',
-      'profile',
-      'https://www.googleapis.com/auth/gmail.send',
       'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/gmail.send',
     ];
 
     return this.oauth2Client.generateAuthUrl({
@@ -104,32 +111,6 @@ class GoogleService {
     });
 
     return response.data;
-  }
-
-  async listCalendarEvents(startDate, endDate) {
-    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
-
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin: `${startDate}T00:00:00+03:00`,
-      timeMax: `${endDate}T23:59:59+03:00`,
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 100,
-    });
-
-    return (response.data.items || []).map(event => ({
-      id: event.id,
-      title: event.summary || '(ללא כותרת)',
-      description: event.description || '',
-      location: event.location || '',
-      start_date: event.start?.date || event.start?.dateTime?.split('T')[0] || '',
-      start_time: event.start?.dateTime ? event.start.dateTime.split('T')[1]?.substring(0, 5) : '',
-      end_time: event.end?.dateTime ? event.end.dateTime.split('T')[1]?.substring(0, 5) : '',
-      all_day: !!event.start?.date,
-      html_link: event.htmlLink || '',
-      source: 'google',
-    }));
   }
 
   async deleteCalendarEvent(eventId) {

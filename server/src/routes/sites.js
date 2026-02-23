@@ -7,9 +7,9 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Get all active sites with customer info
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const result = query(`
+    const result = await query(`
       SELECT s.*, c.company_name
       FROM sites s
       JOIN customers c ON s.customer_id = c.id
@@ -24,9 +24,9 @@ router.get('/', (req, res) => {
 });
 
 // Get sites with coordinates (for map)
-router.get('/with-coordinates', (req, res) => {
+router.get('/with-coordinates', async (req, res) => {
   try {
-    const result = query(`
+    const result = await query(`
       SELECT s.*, c.company_name
       FROM sites s
       JOIN customers c ON s.customer_id = c.id
@@ -44,7 +44,7 @@ router.get('/with-coordinates', (req, res) => {
 // Batch geocode all sites without coordinates (admin only)
 router.post('/geocode-all', requireManager, async (req, res) => {
   try {
-    const result = query(`
+    const result = await query(`
       SELECT s.id, s.address, s.city FROM sites s
       WHERE s.is_active = 1 AND (s.latitude IS NULL OR s.longitude IS NULL)
     `);
@@ -56,7 +56,7 @@ router.post('/geocode-all', requireManager, async (req, res) => {
       try {
         const geo = await geocodeAddress(site.address, site.city);
         if (geo) {
-          query(`UPDATE sites SET latitude = $1, longitude = $2 WHERE id = $3`,
+          await query(`UPDATE sites SET latitude = $1, longitude = $2 WHERE id = $3`,
             [geo.latitude, geo.longitude, site.id]);
           success++;
         } else {

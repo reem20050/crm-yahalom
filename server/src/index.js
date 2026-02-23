@@ -1,19 +1,12 @@
-// Set timezone to Israel before anything else
-process.env.TZ = 'Asia/Jerusalem';
-
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// Validate required environment variables
-if (!process.env.JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is required. Set it before starting the server.');
-  process.exit(1);
-}
+// Import database initializer
+const { initializeDatabase } = require('./config/database');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -27,112 +20,30 @@ const reportsRoutes = require('./routes/reports');
 const dashboardRoutes = require('./routes/dashboard');
 const integrationsRoutes = require('./routes/integrations');
 const searchRoutes = require('./routes/search');
-const usersRoutes = require('./routes/users');
-const incidentsRoutes = require('./routes/incidents');
-const certificationsRoutes = require('./routes/certifications');
-const weaponsRoutes = require('./routes/weapons');
-const shiftTemplatesRoutes = require('./routes/shiftTemplates');
-const patrolsRoutes = require('./routes/patrols');
-const performanceRoutes = require('./routes/performance');
-const equipmentRoutes = require('./routes/equipment');
-const documentsRoutes = require('./routes/documents');
-const sitesRoutes = require('./routes/sites');
-const automationRoutes = require('./routes/automation');
-const contractorsRoutes = require('./routes/contractors');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
 
+// Import error handler middleware
+const errorHandler = require('./middleware/errorHandler');
+
+// Sentry error tracking (gracefully skips if SENTRY_DSN not set)
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+  });
+}
+
 const app = express();
 
 // Middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: [
-        "'self'",
-        "'unsafe-inline'",
-        "'unsafe-eval'",
-        "https://maps.googleapis.com",
-        "https://maps.gstatic.com",
-        "https://accounts.google.com",
-        "https://apis.google.com",
-        "https://ssl.gstatic.com",
-      ],
-      styleSrc: [
-        "'self'",
-        "'unsafe-inline'",
-        "https://fonts.googleapis.com",
-        "https://maps.googleapis.com",
-        "https://maps.gstatic.com",
-        "https://accounts.google.com",
-      ],
-      imgSrc: [
-        "'self'",
-        "data:",
-        "blob:",
-        "https://maps.googleapis.com",
-        "https://maps.gstatic.com",
-        "https://*.ggpht.com",
-        "https://*.googleusercontent.com",
-        "https://lh3.googleusercontent.com",
-      ],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
-      connectSrc: [
-        "'self'",
-        "https://maps.googleapis.com",
-        "https://accounts.google.com",
-        "https://api.greeninvoice.co.il",
-        "https://wa.me",
-        "https://api.whatsapp.com",
-      ],
-      frameSrc: [
-        "'self'",
-        "https://accounts.google.com",
-        "https://maps.google.com",
-        "https://www.google.com",
-      ],
-      workerSrc: ["'self'", "blob:"],
-    },
-  },
-  crossOriginOpenerPolicy: false,
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: false,
-}));
+app.use(helmet());
 app.use(cors());
-if (process.env.NODE_ENV !== 'production') {
-  app.use(morgan('dev'));
-}
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-
-// Compression for production
-try {
-  const compression = require('compression');
-  app.use(compression());
-} catch (e) { /* compression not installed, skip */ }
-
-// Rate limiting
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // 300 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'יותר מדי בקשות, נסה שוב מאוחר יותר' }
-});
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // 15 login attempts per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'יותר מדי ניסיונות התחברות, נסה שוב מאוחר יותר' }
-});
-
-app.use('/api', globalLimiter);
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/google', authLimiter);
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -146,72 +57,56 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/incidents', incidentsRoutes);
-app.use('/api/certifications', certificationsRoutes);
-app.use('/api/weapons', weaponsRoutes);
-app.use('/api/shift-templates', shiftTemplatesRoutes);
-app.use('/api/patrols', patrolsRoutes);
-app.use('/api/sites', sitesRoutes);
-app.use('/api/performance', performanceRoutes);
-app.use('/api/equipment', equipmentRoutes);
-app.use('/api/documents', documentsRoutes);
-app.use('/api/automation', automationRoutes);
-app.use('/api/contractors', contractorsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running' });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', req.method, req.path, err.message);
-  if (!res.headersSent) {
-    res.status(500).json({
-      error: 'שגיאה בשרת',
-      message: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
-  }
-});
+// Error handling middleware (with Sentry integration)
+app.use(errorHandler);
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../public')));
+// Serve static files (frontend build)
+const publicDir = path.join(__dirname, '../public');
+const fs = require('fs');
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
 
   // Handle SPA routing - send all non-API requests to index.html
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(__dirname, '../public/index.html'));
+      res.sendFile(path.join(publicDir, 'index.html'));
     } else {
       res.status(404).json({ error: 'נתיב לא נמצא' });
     }
   });
 } else {
-  // 404 handler for development
+  // 404 handler when no frontend build
   app.use((req, res) => {
     res.status(404).json({ error: 'נתיב לא נמצא' });
   });
 }
 
-// Process-level error handlers
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Tzevet Yahalom CRM Backend Ready`);
+// Initialize database then start server
+async function startServer() {
+  try {
+    await initializeDatabase();
 
-  // Start scheduled tasks (cron jobs)
-  scheduler.start();
-});
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Tzevet Yahalom CRM Backend Ready`);
+
+      // Start scheduled tasks (cron jobs)
+      scheduler.start();
+    });
+  } catch (err) {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 module.exports = app;

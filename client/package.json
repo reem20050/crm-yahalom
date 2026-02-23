@@ -11,7 +11,7 @@
     "@hookform/resolvers": "^3.3.2",
     "@react-google-maps/api": "^2.20.8",
     "@tanstack/react-query": "^5.14.0",
-    "@vis.gl/react-google-maps": "^1.7.1",
+    "@sentry/react": "^9.5.0",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "date-fns": "^2.30.0",

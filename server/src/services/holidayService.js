@@ -11,8 +11,8 @@ class HolidayService {
    * @param {string} endDate   - YYYY-MM-DD
    * @returns {Array} exceptions
    */
-  getExceptionsForRange(startDate, endDate) {
-    const result = query(
+  async getExceptionsForRange(startDate, endDate) {
+    const result = await query(
       `SELECT * FROM calendar_exceptions WHERE date BETWEEN $1 AND $2 ORDER BY date ASC`,
       [startDate, endDate]
     );
@@ -24,8 +24,8 @@ class HolidayService {
    * @param {string} date - YYYY-MM-DD
    * @returns {object|null} exception row or null
    */
-  isException(date) {
-    const result = query(
+  async isException(date) {
+    const result = await query(
       `SELECT * FROM calendar_exceptions WHERE date = $1 LIMIT 1`,
       [date]
     );
@@ -37,8 +37,8 @@ class HolidayService {
    * @param {string} date - YYYY-MM-DD
    * @returns {boolean}
    */
-  shouldSkipShift(date) {
-    const result = query(
+  async shouldSkipShift(date) {
+    const result = await query(
       `SELECT id FROM calendar_exceptions
        WHERE date = $1 AND action = 'skip' AND affects IN ('all', 'shifts')`,
       [date]
@@ -54,8 +54,8 @@ class HolidayService {
    * @param {string} date - YYYY-MM-DD
    * @returns {number} modifier (1.0 = normal staffing)
    */
-  getStaffingModifier(date) {
-    const result = query(
+  async getStaffingModifier(date) {
+    const result = await query(
       `SELECT action, modifier FROM calendar_exceptions
        WHERE date = $1 AND affects IN ('all', 'shifts') AND action IN ('reduce', 'increase')
        LIMIT 1`,
@@ -77,13 +77,13 @@ class HolidayService {
    * @param {number} days - number of days to look ahead (default 30)
    * @returns {Array} exceptions sorted by date
    */
-  getUpcoming(days = 30) {
+  async getUpcoming(days = 30) {
     const today = new Date().toISOString().split('T')[0];
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
     const endDate = futureDate.toISOString().split('T')[0];
 
-    const result = query(
+    const result = await query(
       `SELECT * FROM calendar_exceptions WHERE date BETWEEN $1 AND $2 ORDER BY date ASC`,
       [today, endDate]
     );
@@ -95,17 +95,17 @@ class HolidayService {
    * @param {number|null} year - optional year filter
    * @returns {Array}
    */
-  getAll(year = null) {
+  async getAll(year = null) {
     if (year) {
       const startDate = `${year}-01-01`;
       const endDate = `${year}-12-31`;
-      const result = query(
+      const result = await query(
         `SELECT * FROM calendar_exceptions WHERE date BETWEEN $1 AND $2 ORDER BY date ASC`,
         [startDate, endDate]
       );
       return result.rows;
     }
-    const result = query(`SELECT * FROM calendar_exceptions ORDER BY date ASC`);
+    const result = await query(`SELECT * FROM calendar_exceptions ORDER BY date ASC`);
     return result.rows;
   }
 
@@ -114,9 +114,9 @@ class HolidayService {
    * @param {object} data
    * @returns {object} created exception
    */
-  create(data) {
+  async create(data) {
     const id = generateUUID();
-    query(
+    await query(
       `INSERT INTO calendar_exceptions (id, date, exception_type, name, affects, action, modifier, notes, recurring)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
@@ -131,7 +131,7 @@ class HolidayService {
         data.recurring ? 1 : 0,
       ]
     );
-    const result = query(`SELECT * FROM calendar_exceptions WHERE id = $1`, [id]);
+    const result = await query(`SELECT * FROM calendar_exceptions WHERE id = $1`, [id]);
     return result.rows[0];
   }
 
@@ -141,8 +141,8 @@ class HolidayService {
    * @param {object} data
    * @returns {object|null} updated exception
    */
-  update(id, data) {
-    query(
+  async update(id, data) {
+    await query(
       `UPDATE calendar_exceptions
        SET date = $1, exception_type = $2, name = $3, affects = $4,
            action = $5, modifier = $6, notes = $7, recurring = $8
@@ -159,7 +159,7 @@ class HolidayService {
         id,
       ]
     );
-    const result = query(`SELECT * FROM calendar_exceptions WHERE id = $1`, [id]);
+    const result = await query(`SELECT * FROM calendar_exceptions WHERE id = $1`, [id]);
     return result.rows.length > 0 ? result.rows[0] : null;
   }
 
@@ -168,8 +168,8 @@ class HolidayService {
    * @param {string} id
    * @returns {boolean}
    */
-  delete(id) {
-    const result = query(`DELETE FROM calendar_exceptions WHERE id = $1`, [id]);
+  async delete(id) {
+    const result = await query(`DELETE FROM calendar_exceptions WHERE id = $1`, [id]);
     return result.rowCount > 0;
   }
 }

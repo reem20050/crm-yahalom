@@ -23,7 +23,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // Get Google tokens
-    const settings = query(`SELECT google_tokens FROM integration_settings WHERE id = 'main'`);
+    const settings = await query(`SELECT google_tokens FROM integration_settings WHERE id = 'main'`);
     if (!settings.rows.length || !settings.rows[0].google_tokens) {
       return res.status(400).json({ message: 'Google Drive לא מחובר. חבר את Google בהגדרות.' });
     }
@@ -40,7 +40,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     // Save to DB
     const id = crypto.randomUUID();
-    query(`
+    await query(`
       INSERT INTO documents (id, entity_type, entity_id, file_name, file_type, file_size, google_drive_id, google_drive_url, uploaded_by, uploaded_by_name)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [id, entity_type, entity_id, req.file.originalname, req.file.mimetype, req.file.size,
@@ -63,14 +63,14 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // Get documents by entity
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { entity_type, entity_id } = req.query;
     if (!entity_type || !entity_id) {
       return res.status(400).json({ message: 'נדרש סוג ישות ומזהה ישות' });
     }
 
-    const result = query(
+    const result = await query(
       'SELECT * FROM documents WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC',
       [entity_type, entity_id]
     );
@@ -85,7 +85,7 @@ router.get('/', (req, res) => {
 // Delete a document
 router.delete('/:id', async (req, res) => {
   try {
-    const doc = query('SELECT * FROM documents WHERE id = $1', [req.params.id]);
+    const doc = await query('SELECT * FROM documents WHERE id = $1', [req.params.id]);
     if (!doc.rows.length) {
       return res.status(404).json({ message: 'מסמך לא נמצא' });
     }
@@ -93,7 +93,7 @@ router.delete('/:id', async (req, res) => {
     // Try to delete from Google Drive (non-blocking)
     if (doc.rows[0].google_drive_id) {
       try {
-        const settings = query(`SELECT google_tokens FROM integration_settings WHERE id = 'main'`);
+        const settings = await query(`SELECT google_tokens FROM integration_settings WHERE id = 'main'`);
         if (settings.rows.length && settings.rows[0].google_tokens) {
           const tokens = JSON.parse(settings.rows[0].google_tokens);
           googleService.setCredentials(tokens);
@@ -106,7 +106,7 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    query('DELETE FROM documents WHERE id = $1', [req.params.id]);
+    await query('DELETE FROM documents WHERE id = $1', [req.params.id]);
     res.json({ message: 'מסמך נמחק' });
   } catch (error) {
     console.error('Delete document error:', error);

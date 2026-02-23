@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
 
 const api = axios.create({
@@ -17,14 +18,31 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle auth errors
+// Handle auth errors and global error toasts
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+
+    if (status === 401) {
       useAuthStore.getState().logout();
       window.location.href = '/login';
     }
+
+    if (status === 403) {
+      toast.error('אין הרשאה לפעולה זו');
+    }
+
+    if (status >= 500) {
+      toast.error('שגיאת שרת — נסה שוב מאוחר יותר');
+    }
+
+    // Retry once on network error
+    if (!error.response && !error._retried) {
+      error._retried = true;
+      return api.request(error.config);
+    }
+
     return Promise.reject(error);
   }
 );
