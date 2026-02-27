@@ -17,8 +17,9 @@ function errorHandler(err, req, res, _next) {
   }
   res.status(err.status || 500).json({
     success: false,
-    error: process.env.NODE_ENV === 'production' ? 'שגיאת שרת' : err.message,
+    error: 'שגיאת שרת',
     code: 'INTERNAL_ERROR',
+    debug: err.message,
   });
 }
 

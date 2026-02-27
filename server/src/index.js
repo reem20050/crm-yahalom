@@ -9,6 +9,7 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+const db = require('./config/database');
 const validateEnv = require('./config/validateEnv');
 validateEnv();
 
@@ -171,8 +172,15 @@ app.use('/api/automation', automationRoutes);
 app.use('/api/contractors', contractorsRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running' });
+app.get('/api/health', async (req, res) => {
+  let dbStatus = 'unknown';
+  try {
+    const r = await db.query('SELECT COUNT(*) as count FROM users');
+    dbStatus = `OK (${r.rows[0].count} users)`;
+  } catch (e) {
+    dbStatus = `ERROR: ${e.message}`;
+  }
+  res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', db: dbStatus, version: 'ef8c1b5-debug' });
 });
 
 // Serve static files in production
