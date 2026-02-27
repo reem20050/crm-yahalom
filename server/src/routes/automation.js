@@ -258,7 +258,7 @@ router.get('/stats', requireManager, async (req, res) => {
              SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
       FROM automation_run_log
-      WHERE started_at >= CURRENT_DATE
+      WHERE started_at >= date('now', 'localtime')
     `);
 
     const weekRuns = await db.query(`
@@ -266,7 +266,7 @@ router.get('/stats', requireManager, async (req, res) => {
              SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
       FROM automation_run_log
-      WHERE started_at >= CURRENT_DATE - INTERVAL '7 days'
+      WHERE started_at >= date('now', 'localtime', '-7 days')
     `);
 
     const monthRuns = await db.query(`
@@ -276,7 +276,7 @@ router.get('/stats', requireManager, async (req, res) => {
              SUM(items_processed) as total_processed,
              SUM(items_created) as total_created
       FROM automation_run_log
-      WHERE started_at >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE started_at >= date('now', 'localtime', '-30 days')
     `);
 
     // Success rate
@@ -289,7 +289,7 @@ router.get('/stats', requireManager, async (req, res) => {
       SELECT job_name, COUNT(*) as run_count, ac.display_name
       FROM automation_run_log arl
       LEFT JOIN automation_config ac ON arl.job_name = ac.job_name
-      WHERE arl.started_at >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE arl.started_at >= date('now', 'localtime', '-30 days')
       GROUP BY arl.job_name
       ORDER BY run_count DESC
       LIMIT 1
@@ -300,7 +300,7 @@ router.get('/stats', requireManager, async (req, res) => {
       SELECT job_name, COUNT(*) as fail_count, ac.display_name
       FROM automation_run_log arl
       LEFT JOIN automation_config ac ON arl.job_name = ac.job_name
-      WHERE arl.status = 'failed' AND arl.started_at >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE arl.status = 'failed' AND arl.started_at >= date('now', 'localtime', '-30 days')
       GROUP BY arl.job_name
       ORDER BY fail_count DESC
       LIMIT 1
@@ -308,13 +308,13 @@ router.get('/stats', requireManager, async (req, res) => {
 
     // Runs over time (last 14 days)
     const runsOverTime = await db.query(`
-      SELECT started_at::date as day,
+      SELECT date(started_at) as day,
              COUNT(*) as total,
              SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
       FROM automation_run_log
-      WHERE started_at >= CURRENT_DATE - INTERVAL '14 days'
-      GROUP BY started_at::date
+      WHERE started_at >= date('now', 'localtime', '-14 days')
+      GROUP BY date(started_at)
       ORDER BY day
     `);
 
@@ -569,7 +569,7 @@ router.patch('/alerts/config/:type', requireManager, async (req, res) => {
     }
 
     paramIdx++;
-    updates.push(`updated_at = NOW()`);
+    updates.push(`updated_at = datetime('now')`);
     params.push(type);
 
     await db.query(`
@@ -598,7 +598,7 @@ router.post('/alerts/mute', async (req, res) => {
     const id = crypto.randomUUID();
     await db.query(`
       INSERT INTO alert_mutes (id, user_id, alert_type, related_entity_type, related_entity_id, muted_until, reason, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, datetime('now'))
     `, [id, userId, alert_type, related_entity_type || null, related_entity_id || null, muted_until || null, reason || null]);
 
     res.status(201).json({ id, message: 'התראה הושתקה בהצלחה' });
@@ -631,7 +631,7 @@ router.get('/alerts/mutes', async (req, res) => {
       FROM alert_mutes am
       LEFT JOIN alert_config ac ON am.alert_type = ac.alert_type
       WHERE am.user_id = $1
-      AND (am.muted_until IS NULL OR am.muted_until > NOW())
+      AND (am.muted_until IS NULL OR am.muted_until > datetime('now'))
       ORDER BY am.created_at DESC
     `, [userId]);
     res.json({ mutes: result.rows });

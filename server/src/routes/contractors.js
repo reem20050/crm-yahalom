@@ -59,7 +59,7 @@ router.get('/:id', async (req, res) => {
 
     const [workers, eventAssignments] = await Promise.all([
       db.query('SELECT * FROM contractor_workers WHERE contractor_id = $1 ORDER BY first_name', [req.params.id]),
-      db.query(`
+      await db.query(`
         SELECT eca.*, e.event_name, e.event_date, e.location
         FROM event_contractor_assignments eca
         JOIN events e ON e.id = eca.event_id

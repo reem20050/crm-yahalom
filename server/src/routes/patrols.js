@@ -11,7 +11,7 @@ router.get('/sites/:siteId/checkpoints', async (req, res) => {
   try {
     const result = await db.query(`
       SELECT * FROM site_checkpoints
-      WHERE site_id = $1 AND is_active = 1
+      WHERE site_id = ? AND is_active = 1
       ORDER BY sort_order, name
     `, [req.params.siteId]);
     res.json({ checkpoints: result.rows });
@@ -29,10 +29,10 @@ router.post('/sites/:siteId/checkpoints', requireAdmin, async (req, res) => {
 
     await db.query(`
       INSERT INTO site_checkpoints (id, site_id, name, description, location_notes, check_interval_minutes, sort_order)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [id, req.params.siteId, name, description || null, location_notes || null, check_interval_minutes || null, sort_order || 0]);
 
-    const result = await db.query('SELECT * FROM site_checkpoints WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM site_checkpoints WHERE id = ?', [id]);
     res.status(201).json({ checkpoint: result.rows[0] });
   } catch (error) {
     console.error('Create checkpoint error:', error);
@@ -47,12 +47,12 @@ router.put('/checkpoints/:id', requireAdmin, async (req, res) => {
 
     await db.query(`
       UPDATE site_checkpoints SET
-        name = $1, description = $2, location_notes = $3,
-        check_interval_minutes = $4, sort_order = $5, is_active = $6
-      WHERE id = $7
+        name = ?, description = ?, location_notes = ?,
+        check_interval_minutes = ?, sort_order = ?, is_active = ?
+      WHERE id = ?
     `, [name, description, location_notes, check_interval_minutes, sort_order || 0, is_active !== undefined ? (is_active ? 1 : 0) : 1, req.params.id]);
 
-    const result = await db.query('SELECT * FROM site_checkpoints WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM site_checkpoints WHERE id = ?', [req.params.id]);
     res.json({ checkpoint: result.rows[0] });
   } catch (error) {
     console.error('Update checkpoint error:', error);
@@ -63,7 +63,7 @@ router.put('/checkpoints/:id', requireAdmin, async (req, res) => {
 // Delete checkpoint
 router.delete('/checkpoints/:id', requireAdmin, async (req, res) => {
   try {
-    await db.query('DELETE FROM site_checkpoints WHERE id = $1', [req.params.id]);
+    await db.query('DELETE FROM site_checkpoints WHERE id = ?', [req.params.id]);
     res.json({ message: 'נקודת ביקורת נמחקה' });
   } catch (error) {
     console.error('Delete checkpoint error:', error);
@@ -79,10 +79,10 @@ router.post('/log', async (req, res) => {
 
     await db.query(`
       INSERT INTO patrol_logs (id, shift_assignment_id, employee_id, checkpoint_id, site_id, status, observation)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [id, shift_assignment_id || null, employee_id, checkpoint_id, site_id, status || 'ok', observation || null]);
 
-    const result = await db.query('SELECT * FROM patrol_logs WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM patrol_logs WHERE id = ?', [id]);
     res.status(201).json({ log: result.rows[0] });
   } catch (error) {
     console.error('Log patrol error:', error);
@@ -97,7 +97,7 @@ router.get('/shift/:assignmentId', async (req, res) => {
       SELECT pl.*, sc.name as checkpoint_name
       FROM patrol_logs pl
       LEFT JOIN site_checkpoints sc ON pl.checkpoint_id = sc.id
-      WHERE pl.shift_assignment_id = $1
+      WHERE pl.shift_assignment_id = ?
       ORDER BY pl.checked_at DESC
     `, [req.params.assignmentId]);
     res.json({ logs: result.rows });
@@ -116,14 +116,14 @@ router.get('/site/:siteId/today', async (req, res) => {
       FROM patrol_logs pl
       LEFT JOIN site_checkpoints sc ON pl.checkpoint_id = sc.id
       LEFT JOIN employees e ON pl.employee_id = e.id
-      WHERE pl.site_id = $1
-      AND pl.checked_at::date = CURRENT_DATE
+      WHERE pl.site_id = ?
+      AND date(pl.checked_at) = date('now', 'localtime')
       ORDER BY pl.checked_at DESC
     `, [req.params.siteId]);
 
     const checkpoints = await db.query(`
       SELECT * FROM site_checkpoints
-      WHERE site_id = $1 AND is_active = 1
+      WHERE site_id = ? AND is_active = 1
       ORDER BY sort_order
     `, [req.params.siteId]);
 
@@ -155,7 +155,7 @@ router.get('/stats', async (req, res) => {
         COUNT(DISTINCT employee_id) as unique_guards,
         COUNT(DISTINCT site_id) as unique_sites
       FROM patrol_logs
-      WHERE checked_at::date BETWEEN $1 AND $2
+      WHERE date(checked_at) BETWEEN ? AND ?
     `, [fromDate, toDate]);
 
     res.json(result.rows[0] || {});

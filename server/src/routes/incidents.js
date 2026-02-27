@@ -1,10 +1,18 @@
 const express = require('express');
 const db = require('../config/database');
 const { authenticateToken, requireManager } = require('../middleware/auth');
+const { body, validationResult } = require('express-validator');
 const crypto = require('crypto');
 
 const router = express.Router();
 router.use(authenticateToken);
+
+const incidentValidation = [
+  body('title').notEmpty().withMessage('כותרת חובה'),
+  body('incident_type').notEmpty().withMessage('סוג אירוע חובה'),
+  body('severity').optional().isIn(['low', 'medium', 'high', 'critical']),
+  body('incident_date').optional().isISO8601(),
+];
 
 // Get all incidents with filters
 router.get('/', async (req, res) => {
@@ -24,45 +32,34 @@ router.get('/', async (req, res) => {
       WHERE 1=1
     `;
     const params = [];
-    let paramIndex = 0;
 
     if (status) {
       params.push(status);
-      paramIndex++;
-      sql += ` AND i.status = $${paramIndex}`;
+      sql += ` AND i.status = ?`;
     }
     if (severity) {
       params.push(severity);
-      paramIndex++;
-      sql += ` AND i.severity = $${paramIndex}`;
+      sql += ` AND i.severity = ?`;
     }
     if (customer_id) {
       params.push(customer_id);
-      paramIndex++;
-      sql += ` AND i.customer_id = $${paramIndex}`;
+      sql += ` AND i.customer_id = ?`;
     }
     if (site_id) {
       params.push(site_id);
-      paramIndex++;
-      sql += ` AND i.site_id = $${paramIndex}`;
+      sql += ` AND i.site_id = ?`;
     }
     if (from_date) {
       params.push(from_date);
-      paramIndex++;
-      sql += ` AND i.incident_date >= $${paramIndex}`;
+      sql += ` AND i.incident_date >= ?`;
     }
     if (to_date) {
       params.push(to_date);
-      paramIndex++;
-      sql += ` AND i.incident_date <= $${paramIndex}`;
+      sql += ` AND i.incident_date <= ?`;
     }
     if (search) {
       params.push(`%${search}%`, `%${search}%`);
-      paramIndex++;
-      const p1 = paramIndex;
-      paramIndex++;
-      const p2 = paramIndex;
-      sql += ` AND (i.title LIKE $${p1} OR i.description LIKE $${p2})`;
+      sql += ` AND (i.title LIKE ? OR i.description LIKE ?)`;
     }
 
     sql += ` ORDER BY i.incident_date DESC, i.incident_time DESC`;
@@ -82,10 +79,10 @@ router.get('/stats', async (req, res) => {
       SELECT
         SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
         SUM(CASE WHEN status = 'investigating' THEN 1 ELSE 0 END) as investigating_count,
-        SUM(CASE WHEN status = 'resolved' AND resolution_date >= date_trunc('month', CURRENT_DATE) THEN 1 ELSE 0 END) as resolved_this_month,
-        SUM(CASE WHEN status = 'closed' AND resolution_date >= date_trunc('month', CURRENT_DATE) THEN 1 ELSE 0 END) as closed_this_month,
+        SUM(CASE WHEN status = 'resolved' AND resolution_date >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as resolved_this_month,
+        SUM(CASE WHEN status = 'closed' AND resolution_date >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as closed_this_month,
         SUM(CASE WHEN severity = 'critical' AND status IN ('open', 'investigating') THEN 1 ELSE 0 END) as critical_open,
-        SUM(CASE WHEN incident_date >= date_trunc('month', CURRENT_DATE) THEN 1 ELSE 0 END) as total_this_month
+        SUM(CASE WHEN incident_date >= date('now', 'localtime', 'start of month') THEN 1 ELSE 0 END) as total_this_month
       FROM incidents
     `);
     res.json(result.rows[0] || {});
@@ -107,7 +104,7 @@ router.get('/:id', async (req, res) => {
       LEFT JOIN customers c ON i.customer_id = c.id
       LEFT JOIN sites s ON i.site_id = s.id
       LEFT JOIN employees e ON i.reported_by = e.id
-      WHERE i.id = $1
+      WHERE i.id = ?
     `, [req.params.id]);
 
     if (incident.rows.length === 0) {
@@ -118,7 +115,7 @@ router.get('/:id', async (req, res) => {
       SELECT iu.*, u.first_name || ' ' || u.last_name as user_name
       FROM incident_updates iu
       LEFT JOIN users u ON iu.user_id = u.id
-      WHERE iu.incident_id = $1
+      WHERE iu.incident_id = ?
       ORDER BY iu.created_at DESC
     `, [req.params.id]);
 
@@ -133,8 +130,13 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create incident
-router.post('/', async (req, res) => {
+router.post('/', incidentValidation, async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: errors.array()[0].msg, code: 'VALIDATION_ERROR' });
+    }
+
     const id = crypto.randomUUID();
     const {
       site_id, customer_id, shift_id, reported_by,
@@ -150,14 +152,14 @@ router.post('/', async (req, res) => {
         incident_type, severity, title, description, location_details,
         incident_date, incident_time, police_called, police_report_number,
         ambulance_called, injuries_reported, property_damage, witnesses, actions_taken)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [id, site_id || null, customer_id || null, shift_id || null, reported_by || null,
         incident_type, severity || 'low', title, description, location_details || null,
         incident_date, incident_time, police_called ? 1 : 0, police_report_number || null,
         ambulance_called ? 1 : 0, injuries_reported ? 1 : 0, property_damage ? 1 : 0,
         witnesses || null, actions_taken || null]);
 
-    const result = await db.query('SELECT * FROM incidents WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM incidents WHERE id = ?', [id]);
     const incident = result.rows[0];
 
     // Create notifications for admins/managers on critical/high severity
@@ -168,7 +170,7 @@ router.post('/', async (req, res) => {
         const notifId = crypto.randomUUID();
         await db.query(`
           INSERT INTO notifications (id, user_id, type, title, message, related_entity_type, related_entity_id)
-          VALUES ($1, $2, 'incident', $3, $4, 'incident', $5)
+          VALUES (?, ?, 'incident', ?, ?, 'incident', ?)
         `, [notifId, admin.id,
             `אירוע אבטחה ${severityLabel}: ${title}`,
             `${description?.substring(0, 100) || ''}${description?.length > 100 ? '...' : ''}`,
@@ -196,19 +198,19 @@ router.put('/:id', requireManager, async (req, res) => {
 
     await db.query(`
       UPDATE incidents SET
-        incident_type = $1, severity = $2, title = $3, description = $4,
-        location_details = $5, incident_date = $6, incident_time = $7,
-        police_called = $8, police_report_number = $9, ambulance_called = $10,
-        injuries_reported = $11, property_damage = $12, witnesses = $13,
-        actions_taken = $14, status = $15, updated_at = NOW()
-      WHERE id = $16
+        incident_type = ?, severity = ?, title = ?, description = ?,
+        location_details = ?, incident_date = ?, incident_time = ?,
+        police_called = ?, police_report_number = ?, ambulance_called = ?,
+        injuries_reported = ?, property_damage = ?, witnesses = ?,
+        actions_taken = ?, status = ?, updated_at = datetime('now')
+      WHERE id = ?
     `, [incident_type, severity, title, description,
         location_details, incident_date, incident_time,
         police_called ? 1 : 0, police_report_number, ambulance_called ? 1 : 0,
         injuries_reported ? 1 : 0, property_damage ? 1 : 0, witnesses,
         actions_taken, status, req.params.id]);
 
-    const result = await db.query('SELECT * FROM incidents WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM incidents WHERE id = ?', [req.params.id]);
     res.json({ incident: result.rows[0] });
   } catch (error) {
     console.error('Update incident error:', error);
@@ -224,16 +226,16 @@ router.post('/:id/updates', async (req, res) => {
 
     await db.query(`
       INSERT INTO incident_updates (id, incident_id, user_id, update_text)
-      VALUES ($1, $2, $3, $4)
+      VALUES (?, ?, ?, ?)
     `, [id, req.params.id, req.user.id, update_text]);
 
-    await db.query(`UPDATE incidents SET updated_at = NOW() WHERE id = $1`, [req.params.id]);
+    await db.query(`UPDATE incidents SET updated_at = datetime('now') WHERE id = ?`, [req.params.id]);
 
     const result = await db.query(`
       SELECT iu.*, u.first_name || ' ' || u.last_name as user_name
       FROM incident_updates iu
       LEFT JOIN users u ON iu.user_id = u.id
-      WHERE iu.id = $1
+      WHERE iu.id = ?
     `, [id]);
 
     res.status(201).json({ update: result.rows[0] });
@@ -250,12 +252,12 @@ router.patch('/:id/resolve', requireManager, async (req, res) => {
 
     await db.query(`
       UPDATE incidents SET
-        status = 'resolved', resolution = $1, resolution_date = CURRENT_DATE,
-        updated_at = NOW()
-      WHERE id = $2
+        status = 'resolved', resolution = ?, resolution_date = date('now', 'localtime'),
+        updated_at = datetime('now')
+      WHERE id = ?
     `, [resolution, req.params.id]);
 
-    const result = await db.query('SELECT * FROM incidents WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM incidents WHERE id = ?', [req.params.id]);
     res.json({ incident: result.rows[0] });
   } catch (error) {
     console.error('Resolve incident error:', error);

@@ -15,7 +15,7 @@ router.get('/sales', async (req, res) => {
 
     const [leadsBySource, conversionRate, monthlyLeads, topSales] = await Promise.all([
       // Leads by source
-      db.query(`
+      await db.query(`
         SELECT source, COUNT(*) as count
         FROM leads
         WHERE created_at BETWEEN $1 AND $2
@@ -24,7 +24,7 @@ router.get('/sales', async (req, res) => {
       `, [startDateParam, endDateParam]),
 
       // Conversion rate
-      db.query(`
+      await db.query(`
         SELECT
           COUNT(*) as total_leads,
           SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
@@ -35,19 +35,19 @@ router.get('/sales', async (req, res) => {
       `, [startDateParam, endDateParam]),
 
       // Monthly leads
-      db.query(`
+      await db.query(`
         SELECT
-          TO_CHAR(created_at::date, 'YYYY-MM') as month,
+          strftime('%Y-%m', created_at) as month,
           COUNT(*) as total,
           SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won
         FROM leads
         WHERE created_at BETWEEN $1 AND $2
-        GROUP BY TO_CHAR(created_at::date, 'YYYY-MM')
+        GROUP BY strftime('%Y-%m', created_at)
         ORDER BY month
       `, [startDateParam, endDateParam]),
 
       // Top sales people
-      db.query(`
+      await db.query(`
         SELECT
           u.first_name || ' ' || u.last_name as name,
           SUM(CASE WHEN l.status = 'won' THEN 1 ELSE 0 END) as deals_won,
@@ -78,7 +78,7 @@ router.get('/customers', async (req, res) => {
   try {
     const [revenueByCustomer, customersByType, churnRisk] = await Promise.all([
       // Revenue by customer (top 10)
-      db.query(`
+      await db.query(`
         SELECT c.id, c.company_name,
                COALESCE(SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END), 0) as total_revenue,
                COUNT(DISTINCT i.id) as invoice_count
@@ -91,7 +91,7 @@ router.get('/customers', async (req, res) => {
       `),
 
       // Customers by service type
-      db.query(`
+      await db.query(`
         SELECT service_type, COUNT(*) as count
         FROM customers
         WHERE status = 'active'
@@ -99,7 +99,7 @@ router.get('/customers', async (req, res) => {
       `),
 
       // Churn risk (no activity in 90 days)
-      db.query(`
+      await db.query(`
         SELECT c.id, c.company_name, c.created_at,
                MAX(s.date) as last_shift_date,
                MAX(e.event_date) as last_event_date
@@ -108,8 +108,8 @@ router.get('/customers', async (req, res) => {
         LEFT JOIN events e ON e.customer_id = c.id
         WHERE c.status = 'active'
         GROUP BY c.id, c.company_name, c.created_at
-        HAVING COALESCE(MAX(s.date), MAX(e.event_date), c.created_at::date) < CURRENT_DATE - INTERVAL '90 days'
-        ORDER BY COALESCE(MAX(s.date), MAX(e.event_date), c.created_at::date) DESC
+        HAVING COALESCE(MAX(s.date), MAX(e.event_date), date(c.created_at)) < date('now', 'localtime', '-90 days')
+        ORDER BY COALESCE(MAX(s.date), MAX(e.event_date), date(c.created_at)) DESC
         LIMIT 10
       `)
     ]);
@@ -135,33 +135,33 @@ router.get('/employees', async (req, res) => {
 
     const [hoursBreakdown, attendanceIssues, topPerformers] = await Promise.all([
       // Hours breakdown by employee
-      db.query(`
+      await db.query(`
         SELECT
           e.id,
           e.first_name || ' ' || e.last_name as name,
           COALESCE(SUM(sa.actual_hours), 0) as total_hours,
-          COALESCE(SUM(CASE WHEN EXTRACT(DOW FROM s.date::date)::integer = 6 THEN sa.actual_hours ELSE 0 END), 0) as saturday_hours,
+          COALESCE(SUM(CASE WHEN CAST(strftime('%w', s.date) AS INTEGER) = 6 THEN sa.actual_hours ELSE 0 END), 0) as saturday_hours,
           COUNT(DISTINCT s.date) as days_worked
         FROM employees e
         LEFT JOIN shift_assignments sa ON sa.employee_id = e.id
         LEFT JOIN shifts s ON sa.shift_id = s.id
-          AND TO_CHAR(s.date::date, 'YYYY') = $1
-          AND TO_CHAR(s.date::date, 'MM') = $2
+          AND strftime('%Y', s.date) = $1
+          AND strftime('%m', s.date) = $2
         WHERE e.status = 'active'
         GROUP BY e.id, e.first_name, e.last_name
         ORDER BY total_hours DESC
       `, [String(targetYear), monthStr]),
 
       // Attendance issues (no-shows)
-      db.query(`
+      await db.query(`
         SELECT
           e.first_name || ' ' || e.last_name as name,
           SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) as no_shows
         FROM employees e
         LEFT JOIN shift_assignments sa ON sa.employee_id = e.id
         LEFT JOIN shifts s ON sa.shift_id = s.id
-          AND TO_CHAR(s.date::date, 'YYYY') = $1
-          AND TO_CHAR(s.date::date, 'MM') = $2
+          AND strftime('%Y', s.date) = $1
+          AND strftime('%m', s.date) = $2
         WHERE e.status = 'active'
         GROUP BY e.id, e.first_name, e.last_name
         HAVING SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) > 0
@@ -169,7 +169,7 @@ router.get('/employees', async (req, res) => {
       `, [String(targetYear), monthStr]),
 
       // Top performers (most hours, no issues)
-      db.query(`
+      await db.query(`
         SELECT
           e.first_name || ' ' || e.last_name as name,
           COALESCE(SUM(sa.actual_hours), 0) as total_hours,
@@ -177,8 +177,8 @@ router.get('/employees', async (req, res) => {
         FROM employees e
         LEFT JOIN shift_assignments sa ON sa.employee_id = e.id
         LEFT JOIN shifts s ON sa.shift_id = s.id
-          AND TO_CHAR(s.date::date, 'YYYY') = $1
-          AND TO_CHAR(s.date::date, 'MM') = $2
+          AND strftime('%Y', s.date) = $1
+          AND strftime('%m', s.date) = $2
         WHERE e.status = 'active'
         GROUP BY e.id, e.first_name, e.last_name
         HAVING SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) = 0
@@ -206,35 +206,35 @@ router.get('/events', async (req, res) => {
 
     const [eventsByType, monthlyEvents, revenueByType] = await Promise.all([
       // Events by type
-      db.query(`
+      await db.query(`
         SELECT event_type, COUNT(*) as count
         FROM events
-        WHERE TO_CHAR(event_date::date, 'YYYY') = $1
+        WHERE strftime('%Y', event_date) = $1
         GROUP BY event_type
         ORDER BY count DESC
       `, [String(targetYear)]),
 
       // Monthly events
-      db.query(`
+      await db.query(`
         SELECT
-          TO_CHAR(event_date::date, 'YYYY-MM') as month,
+          strftime('%Y-%m', event_date) as month,
           COUNT(*) as total,
           SUM(price) as revenue
         FROM events
-        WHERE TO_CHAR(event_date::date, 'YYYY') = $1
+        WHERE strftime('%Y', event_date) = $1
         AND status = 'completed'
-        GROUP BY TO_CHAR(event_date::date, 'YYYY-MM')
+        GROUP BY strftime('%Y-%m', event_date)
         ORDER BY month
       `, [String(targetYear)]),
 
       // Revenue by event type
-      db.query(`
+      await db.query(`
         SELECT event_type,
                COUNT(*) as count,
                SUM(price) as total_revenue,
                AVG(price) as avg_price
         FROM events
-        WHERE TO_CHAR(event_date::date, 'YYYY') = $1
+        WHERE strftime('%Y', event_date) = $1
         AND status = 'completed'
         GROUP BY event_type
         ORDER BY total_revenue DESC
@@ -260,36 +260,36 @@ router.get('/financial', async (req, res) => {
 
     const [monthlyRevenue, outstandingPayments, revenueByCustomer] = await Promise.all([
       // Monthly revenue
-      db.query(`
+      await db.query(`
         SELECT
-          TO_CHAR(issue_date::date, 'YYYY-MM') as month,
+          strftime('%Y-%m', issue_date) as month,
           SUM(total_amount) as invoiced,
           SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END) as collected
         FROM invoices
-        WHERE TO_CHAR(issue_date::date, 'YYYY') = $1
-        GROUP BY TO_CHAR(issue_date::date, 'YYYY-MM')
+        WHERE strftime('%Y', issue_date) = $1
+        GROUP BY strftime('%Y-%m', issue_date)
         ORDER BY month
       `, [String(targetYear)]),
 
       // Outstanding payments
-      db.query(`
+      await db.query(`
         SELECT
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date >= CURRENT_DATE THEN total_amount ELSE 0 END), 0) as pending,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < CURRENT_DATE THEN total_amount ELSE 0 END), 0) as overdue,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < CURRENT_DATE - INTERVAL '30 days' THEN total_amount ELSE 0 END), 0) as overdue_30,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < CURRENT_DATE - INTERVAL '60 days' THEN total_amount ELSE 0 END), 0) as overdue_60,
-          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < CURRENT_DATE - INTERVAL '90 days' THEN total_amount ELSE 0 END), 0) as overdue_90
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date >= date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as pending,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as overdue,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime', '-30 days') THEN total_amount ELSE 0 END), 0) as overdue_30,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime', '-60 days') THEN total_amount ELSE 0 END), 0) as overdue_60,
+          COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime', '-90 days') THEN total_amount ELSE 0 END), 0) as overdue_90
         FROM invoices
       `),
 
       // Revenue by customer (this year)
-      db.query(`
+      await db.query(`
         SELECT c.company_name,
                COALESCE(SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END), 0) as paid,
                COALESCE(SUM(CASE WHEN i.status = 'sent' THEN i.total_amount ELSE 0 END), 0) as pending
         FROM customers c
         LEFT JOIN invoices i ON i.customer_id = c.id
-          AND TO_CHAR(i.issue_date::date, 'YYYY') = $1
+          AND strftime('%Y', i.issue_date) = $1
         WHERE c.status = 'active'
         GROUP BY c.id, c.company_name
         HAVING SUM(i.total_amount) > 0
@@ -317,21 +317,21 @@ router.get('/profit-loss', async (req, res) => {
 
     const [monthlyRevenue, monthlyLaborCost, revenueByCustomer, costByCustomer] = await Promise.all([
       // Monthly revenue from invoices (paid)
-      db.query(`
+      await db.query(`
         SELECT
-          TO_CHAR(issue_date::date, 'YYYY-MM') as month,
+          strftime('%Y-%m', issue_date) as month,
           COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as revenue,
           COALESCE(SUM(total_amount), 0) as invoiced
         FROM invoices
-        WHERE TO_CHAR(issue_date::date, 'YYYY') = $1
-        GROUP BY TO_CHAR(issue_date::date, 'YYYY-MM')
+        WHERE strftime('%Y', issue_date) = $1
+        GROUP BY strftime('%Y-%m', issue_date)
         ORDER BY month
       `, [String(targetYear)]),
 
       // Monthly labor costs (employee hours * hourly_rate)
-      db.query(`
+      await db.query(`
         SELECT
-          TO_CHAR(s.date::date, 'YYYY-MM') as month,
+          strftime('%Y-%m', s.date) as month,
           COALESCE(SUM(
             CASE
               WHEN e.hourly_rate > 0 THEN sa.actual_hours * e.hourly_rate
@@ -344,21 +344,21 @@ router.get('/profit-loss', async (req, res) => {
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
         JOIN employees e ON sa.employee_id = e.id
-        WHERE TO_CHAR(s.date::date, 'YYYY') = $1
+        WHERE strftime('%Y', s.date) = $1
           AND sa.status IN ('checked_out', 'checked_in')
-        GROUP BY TO_CHAR(s.date::date, 'YYYY-MM')
+        GROUP BY strftime('%Y-%m', s.date)
         ORDER BY month
       `, [String(targetYear)]),
 
       // Revenue by customer (for per-customer profitability)
-      db.query(`
+      await db.query(`
         SELECT
           c.id as customer_id,
           c.company_name,
           COALESCE(SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END), 0) as revenue
         FROM customers c
         LEFT JOIN invoices i ON i.customer_id = c.id
-          AND TO_CHAR(i.issue_date::date, 'YYYY') = $1
+          AND strftime('%Y', i.issue_date) = $1
         WHERE c.status = 'active'
         GROUP BY c.id, c.company_name
         HAVING SUM(i.total_amount) > 0
@@ -366,7 +366,7 @@ router.get('/profit-loss', async (req, res) => {
       `, [String(targetYear)]),
 
       // Labor cost by customer
-      db.query(`
+      await db.query(`
         SELECT
           s.customer_id,
           COALESCE(SUM(
@@ -380,7 +380,7 @@ router.get('/profit-loss', async (req, res) => {
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
         JOIN employees e ON sa.employee_id = e.id
-        WHERE TO_CHAR(s.date::date, 'YYYY') = $1
+        WHERE strftime('%Y', s.date) = $1
           AND sa.status IN ('checked_out', 'checked_in')
           AND s.customer_id IS NOT NULL
         GROUP BY s.customer_id

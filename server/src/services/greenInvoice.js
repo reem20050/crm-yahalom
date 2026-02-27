@@ -55,6 +55,7 @@ class GreenInvoiceService {
   }
 
   // Create a new invoice/quote
+  // Payment types: 1=cash, 2=check, 3=credit card, 4=bank transfer, 10=other
   async createDocument(params) {
     const {
       type, // 320 = invoice, 400 = receipt, 305 = quote
@@ -62,13 +63,15 @@ class GreenInvoiceService {
       items,
       dueDate,
       remarks,
+      paymentType = 4, // default: bank transfer
+      vatType = 0, // 0 = include VAT, 1 = exclude VAT
     } = params;
 
     const payload = {
       type,
       lang: 'he',
       currency: 'ILS',
-      vatType: 0, // 0 = include VAT, 1 = exclude VAT
+      vatType,
       client: {
         name: customer.name,
         emails: customer.email ? [customer.email] : [],
@@ -82,23 +85,24 @@ class GreenInvoiceService {
         quantity: item.quantity || 1,
         price: item.price,
         currency: 'ILS',
-        vatType: 0,
+        vatType,
       })),
-      payment: dueDate ? [{ dueDate, type: 4 }] : [], // 4 = bank transfer
+      payment: dueDate ? [{ dueDate, type: paymentType }] : [],
       remarks,
     };
 
     return await this.request('POST', '/documents', payload);
   }
 
-  // Create an invoice
-  async createInvoice(customer, items, dueDate, remarks) {
+  // Create an invoice (paymentType: 1=cash, 2=check, 3=credit card, 4=bank transfer)
+  async createInvoice(customer, items, dueDate, remarks, paymentType = 4) {
     return await this.createDocument({
       type: 320, // Invoice
       customer,
       items,
       dueDate,
       remarks,
+      paymentType,
     });
   }
 
@@ -148,31 +152,41 @@ class GreenInvoiceService {
   }
 
   // Sync invoices from Green Invoice to our database
-  async syncInvoices(db, fromDate) {
+  async syncInvoices(dbModule, fromDate) {
     const documents = await this.getDocuments({
       fromDate,
       type: 320, // Invoices only
     });
 
+    const queryFn = dbModule.query || dbModule;
+    let synced = 0;
+
     for (const doc of documents.items || []) {
-      // Update or create invoice in our database
-      await db.query(`
-        INSERT INTO invoices (green_invoice_id, invoice_number, issue_date, due_date, total_amount, status, document_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (green_invoice_id)
-        DO UPDATE SET status = $6, updated_at = CURRENT_TIMESTAMP
-      `, [
-        doc.id,
-        doc.number,
-        doc.documentDate,
-        doc.dueDate,
-        doc.total,
-        doc.status === 0 ? 'draft' : doc.status === 1 ? 'sent' : doc.status === 2 ? 'paid' : 'sent',
-        doc.url?.he,
-      ]);
+      try {
+        const status = doc.status === 0 ? 'draft' : doc.status === 1 ? 'sent' : doc.status === 2 ? 'paid' : 'sent';
+        const docUrl = doc.url?.he || '';
+
+        // Check if exists
+        const existing = queryFn(`SELECT id FROM invoices WHERE green_invoice_id = ?`, [doc.id]);
+
+        if (existing.rows && existing.rows.length > 0) {
+          // Update status
+          queryFn(`UPDATE invoices SET status = ?, document_url = ?, updated_at = datetime('now') WHERE green_invoice_id = ?`,
+            [status, docUrl, doc.id]);
+        } else {
+          // Insert new
+          const id = require('crypto').randomUUID();
+          queryFn(`INSERT INTO invoices (id, green_invoice_id, invoice_number, issue_date, due_date, total_amount, amount, vat_amount, status, document_url, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+            [id, doc.id, doc.number, doc.documentDate, doc.dueDate, doc.total, doc.amount || doc.total, doc.vat || 0, status, docUrl]);
+        }
+        synced++;
+      } catch (err) {
+        console.warn('Sync single invoice failed:', doc.id, err.message);
+      }
     }
 
-    return documents.items?.length || 0;
+    return synced;
   }
 }
 

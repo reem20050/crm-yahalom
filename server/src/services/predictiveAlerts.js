@@ -13,9 +13,9 @@ class PredictiveAlerts {
   /**
    * Load all alert configurations from database
    */
-  async _loadAlertConfigs() {
+  _loadAlertConfigs() {
     try {
-      const result = await db.query('SELECT * FROM alert_config ORDER BY alert_type');
+      const result = db.query('SELECT * FROM alert_config ORDER BY alert_type');
       return result.rows;
     } catch (e) {
       console.error('[PredictiveAlerts] Failed to load alert configs:', e.message);
@@ -26,9 +26,9 @@ class PredictiveAlerts {
   /**
    * Check if an alert is muted for a specific user + entity
    */
-  async _isAlertMuted(userId, alertType, entityType, entityId) {
+  _isAlertMuted(userId, alertType, entityType, entityId) {
     try {
-      const result = await db.query(`
+      const result = db.query(`
         SELECT id FROM alert_mutes
         WHERE user_id = $1
         AND (alert_type = $2 OR alert_type IS NULL)
@@ -36,7 +36,7 @@ class PredictiveAlerts {
           (related_entity_type = $3 AND related_entity_id = $4)
           OR (related_entity_type IS NULL AND related_entity_id IS NULL)
         )
-        AND (muted_until IS NULL OR muted_until > NOW())
+        AND (muted_until IS NULL OR muted_until > datetime('now'))
       `, [userId, alertType, entityType, entityId]);
       return result.rows.length > 0;
     } catch (e) {
@@ -77,10 +77,10 @@ class PredictiveAlerts {
   /**
    * Create notification with severity, checking mutes and dedup
    */
-  async _createAlertNotification(config, userId, title, message, entityType, entityId, severity) {
+  _createAlertNotification(config, userId, title, message, entityType, entityId, severity) {
     try {
       // Check if muted for this user
-      if (await this._isAlertMuted(userId, config.alert_type, entityType, entityId)) {
+      if (this._isAlertMuted(userId, config.alert_type, entityType, entityId)) {
         return false;
       }
 
@@ -88,9 +88,9 @@ class PredictiveAlerts {
       const prefixedTitle = `${prefix} ${title}`;
 
       const id = crypto.randomUUID();
-      await db.query(`
+      db.query(`
         INSERT INTO notifications (id, user_id, type, title, message, related_entity_type, related_entity_id, is_read, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 0, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
       `, [id, userId, config.alert_type, prefixedTitle, message, entityType, entityId]);
       return true;
     } catch (e) {
@@ -102,14 +102,14 @@ class PredictiveAlerts {
   /**
    * Create notification for all admin/manager users, with mute checking
    */
-  async _notifyManagers(config, title, message, entityType, entityId, severity) {
+  _notifyManagers(config, title, message, entityType, entityId, severity) {
     try {
-      const managers = await db.query(`
+      const managers = db.query(`
         SELECT id FROM users WHERE role IN ('admin', 'manager') AND is_active = 1
       `);
       let created = 0;
       for (const user of managers.rows) {
-        const wasCreated = await this._createAlertNotification(config, user.id, title, message, entityType, entityId, severity);
+        const wasCreated = this._createAlertNotification(config, user.id, title, message, entityType, entityId, severity);
         if (wasCreated) created++;
       }
       return created;
@@ -122,13 +122,13 @@ class PredictiveAlerts {
   /**
    * Check dedup: has a notification of this type+entity been created within dedup_hours?
    */
-  async _isDuplicate(config, entityId) {
+  _isDuplicate(config, entityId) {
     try {
       const dedupHours = config.dedup_hours || 168;
-      const result = await db.query(`
+      const result = db.query(`
         SELECT id FROM notifications
         WHERE type = $1 AND related_entity_id = $2
-        AND created_at >= NOW() - ($3 || ' hours')::interval
+        AND created_at >= datetime('now', '-' || $3 || ' hours')
       `, [config.alert_type, entityId, dedupHours]);
       return result.rows.length > 0;
     } catch (e) {
@@ -140,8 +140,8 @@ class PredictiveAlerts {
    * Run all predictive alert checks
    * Called daily by cron job
    */
-  async runAll() {
-    const configs = await this._loadAlertConfigs();
+  runAll() {
+    const configs = this._loadAlertConfigs();
     const results = {};
 
     // Map alert_type to check method names
@@ -162,7 +162,7 @@ class PredictiveAlerts {
       const methodName = checkMap[config.alert_type];
       if (methodName && typeof this[methodName] === 'function') {
         try {
-          results[config.alert_type] = await this[methodName](config);
+          results[config.alert_type] = this[methodName](config);
         } catch (err) {
           console.error(`[PredictiveAlerts] Alert check failed: ${config.alert_type}`, err);
           results[config.alert_type] = { error: err.message };
@@ -177,28 +177,28 @@ class PredictiveAlerts {
   /**
    * Certifications expiring within threshold days
    */
-  async _check_cert_expiry(config) {
+  _check_cert_expiry(config) {
     try {
       const thresholdDays = Math.round(config.threshold_value);
-      const expiring = await db.query(`
+      const expiring = db.query(`
         SELECT gc.id, gc.cert_type, gc.cert_name, gc.expiry_date, gc.employee_id,
                e.first_name || ' ' || e.last_name as employee_name
         FROM guard_certifications gc
         JOIN employees e ON gc.employee_id = e.id
-        WHERE gc.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + ($1 || ' days')::interval
+        WHERE gc.expiry_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+${thresholdDays} days')
         AND gc.status = 'active'
         AND e.status = 'active'
-      `, [thresholdDays]);
+      `);
 
       let created = 0;
       for (const cert of expiring.rows) {
         const daysLeft = Math.ceil((new Date(cert.expiry_date) - new Date()) / (1000 * 60 * 60 * 24));
 
         // Check dedup
-        if (await this._isDuplicate(config, cert.id)) continue;
+        if (this._isDuplicate(config, cert.id)) continue;
 
         const severity = this._determineSeverity(config, daysLeft);
-        const notified = await this._notifyManagers(
+        const notified = this._notifyManagers(
           config,
           `הסמכה פגת תוקף: ${cert.employee_name}`,
           `הסמכת ${cert.cert_name} של ${cert.employee_name} פגה בעוד ${daysLeft} ימים (${cert.expiry_date})`,
@@ -218,28 +218,28 @@ class PredictiveAlerts {
   /**
    * Employees with more than threshold shifts this week
    */
-  async _check_overwork(config) {
+  _check_overwork(config) {
     try {
       const thresholdCount = Math.round(config.threshold_value);
-      const overworked = await db.query(`
+      const overworked = db.query(`
         SELECT sa.employee_id, e.first_name || ' ' || e.last_name as employee_name,
                COUNT(*) as shift_count
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
         JOIN employees e ON sa.employee_id = e.id
-        WHERE s.date BETWEEN CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int - 6 AND CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::int
+        WHERE s.date BETWEEN date('now', 'localtime', 'weekday 0', '-7 days') AND date('now', 'localtime', 'weekday 0')
         AND e.status = 'active'
-        GROUP BY sa.employee_id, e.first_name, e.last_name
-        HAVING COUNT(*) > $1
-      `, [thresholdCount]);
+        GROUP BY sa.employee_id
+        HAVING COUNT(*) > ${thresholdCount}
+      `);
 
       let created = 0;
       for (const emp of overworked.rows) {
         // Check dedup
-        if (await this._isDuplicate(config, emp.employee_id)) continue;
+        if (this._isDuplicate(config, emp.employee_id)) continue;
 
         const severity = this._determineSeverity(config, emp.shift_count);
-        const notified = await this._notifyManagers(
+        const notified = this._notifyManagers(
           config,
           `עומס יתר: ${emp.employee_name}`,
           `${emp.employee_name} עם ${emp.shift_count} משמרות השבוע - עומס יתר!`,
@@ -259,25 +259,25 @@ class PredictiveAlerts {
   /**
    * Unpaid invoices past threshold days overdue
    */
-  async _check_unpaid_invoices(config) {
+  _check_unpaid_invoices(config) {
     try {
       const thresholdDays = Math.round(config.threshold_value);
-      const unpaid = await db.query(`
+      const unpaid = db.query(`
         SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
                c.company_name,
-               (CURRENT_DATE - i.due_date::date) as days_overdue
+               CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) as days_overdue
         FROM invoices i
         LEFT JOIN customers c ON i.customer_id = c.id
-        WHERE i.status = 'sent' AND i.due_date < CURRENT_DATE - ($1 || ' days')::interval
-      `, [thresholdDays]);
+        WHERE i.status = 'sent' AND i.due_date < date('now', 'localtime', '-${thresholdDays} days')
+      `);
 
       let created = 0;
       for (const inv of unpaid.rows) {
         // Check dedup
-        if (await this._isDuplicate(config, inv.id)) continue;
+        if (this._isDuplicate(config, inv.id)) continue;
 
         const severity = this._determineSeverity(config, inv.days_overdue);
-        const notified = await this._notifyManagers(
+        const notified = this._notifyManagers(
           config,
           `חשבונית באיחור: ${inv.company_name || 'לא ידוע'}`,
           `חשבונית ${inv.invoice_number || inv.id} של ${inv.company_name || 'לא ידוע'} - ${inv.total_amount} ש"ח באיחור ${inv.days_overdue} ימים`,
@@ -297,27 +297,27 @@ class PredictiveAlerts {
   /**
    * Contracts expiring within threshold days
    */
-  async _check_contract_expiry(config) {
+  _check_contract_expiry(config) {
     try {
       const thresholdDays = Math.round(config.threshold_value);
-      const expiring = await db.query(`
+      const expiring = db.query(`
         SELECT ct.id, ct.end_date, ct.monthly_value,
                c.company_name
         FROM contracts ct
         JOIN customers c ON ct.customer_id = c.id
         WHERE ct.status = 'active'
-        AND ct.end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + ($1 || ' days')::interval
-      `, [thresholdDays]);
+        AND ct.end_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+${thresholdDays} days')
+      `);
 
       let created = 0;
       for (const contract of expiring.rows) {
         const daysLeft = Math.ceil((new Date(contract.end_date) - new Date()) / (1000 * 60 * 60 * 24));
 
         // Check dedup
-        if (await this._isDuplicate(config, contract.id)) continue;
+        if (this._isDuplicate(config, contract.id)) continue;
 
         const severity = this._determineSeverity(config, daysLeft);
-        const notified = await this._notifyManagers(
+        const notified = this._notifyManagers(
           config,
           `חוזה מסתיים: ${contract.company_name}`,
           `חוזה של ${contract.company_name} (${contract.monthly_value || 0} ש"ח/חודש) מסתיים בעוד ${daysLeft} ימים`,
@@ -337,26 +337,26 @@ class PredictiveAlerts {
   /**
    * Weapon licenses expiring within threshold days
    */
-  async _check_weapon_license(config) {
+  _check_weapon_license(config) {
     try {
       const thresholdDays = Math.round(config.threshold_value);
-      const expiring = await db.query(`
+      const expiring = db.query(`
         SELECT e.id, e.first_name || ' ' || e.last_name as employee_name,
                e.weapon_license_expiry
         FROM employees e
         WHERE e.status = 'active' AND e.has_weapon_license = 1
-        AND e.weapon_license_expiry BETWEEN CURRENT_DATE AND CURRENT_DATE + ($1 || ' days')::interval
-      `, [thresholdDays]);
+        AND e.weapon_license_expiry BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+${thresholdDays} days')
+      `);
 
       let created = 0;
       for (const emp of expiring.rows) {
         const daysLeft = Math.ceil((new Date(emp.weapon_license_expiry) - new Date()) / (1000 * 60 * 60 * 24));
 
         // Check dedup
-        if (await this._isDuplicate(config, emp.id)) continue;
+        if (this._isDuplicate(config, emp.id)) continue;
 
         const severity = this._determineSeverity(config, daysLeft);
-        const notified = await this._notifyManagers(
+        const notified = this._notifyManagers(
           config,
           `רישיון נשק פג: ${emp.employee_name}`,
           `רישיון נשק של ${emp.employee_name} פג בעוד ${daysLeft} ימים (${emp.weapon_license_expiry})`,

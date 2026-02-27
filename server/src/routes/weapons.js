@@ -1,10 +1,22 @@
 const express = require('express');
 const db = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { body, validationResult } = require('express-validator');
 const crypto = require('crypto');
 
 const router = express.Router();
 router.use(authenticateToken);
+
+const weaponValidation = [
+  body('weapon_type').notEmpty().withMessage('סוג נשק חובה'),
+  body('serial_number').notEmpty().withMessage('מספר סידורי חובה'),
+  body('employee_id').optional({ nullable: true }).isString(),
+  body('manufacturer').optional({ nullable: true }).isString(),
+  body('model').optional({ nullable: true }).isString(),
+  body('license_number').optional({ nullable: true }).isString(),
+  body('license_expiry').optional({ nullable: true }).isISO8601(),
+  body('status').optional().isIn(['in_armory', 'assigned', 'maintenance', 'decommissioned']),
+];
 
 // Get all weapons
 router.get('/', async (req, res) => {
@@ -43,7 +55,7 @@ router.get('/employee/:employeeId', async (req, res) => {
   try {
     const result = await db.query(`
       SELECT * FROM guard_weapons
-      WHERE employee_id = $1
+      WHERE employee_id = ?
       ORDER BY status, assigned_date DESC
     `, [req.params.employeeId]);
     res.json({ weapons: result.rows });
@@ -54,17 +66,22 @@ router.get('/employee/:employeeId', async (req, res) => {
 });
 
 // Create weapon
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', requireAdmin, weaponValidation, async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: errors.array()[0].msg, code: 'VALIDATION_ERROR' });
+    }
+
     const id = crypto.randomUUID();
     const { employee_id, weapon_type, manufacturer, model, serial_number, license_number, license_expiry, status, notes } = req.body;
 
     await db.query(`
       INSERT INTO guard_weapons (id, employee_id, weapon_type, manufacturer, model, serial_number, license_number, license_expiry, status, assigned_date, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [id, employee_id || null, weapon_type, manufacturer || null, model || null, serial_number, license_number || null, license_expiry || null, status || (employee_id ? 'assigned' : 'in_armory'), employee_id ? new Date().toISOString().split('T')[0] : null, notes || null]);
 
-    const result = await db.query('SELECT * FROM guard_weapons WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM guard_weapons WHERE id = ?', [id]);
     res.status(201).json({ weapon: result.rows[0] });
   } catch (error) {
     console.error('Create weapon error:', error);
@@ -76,19 +93,24 @@ router.post('/', requireAdmin, async (req, res) => {
 });
 
 // Update weapon
-router.put('/:id', requireAdmin, async (req, res) => {
+router.put('/:id', requireAdmin, weaponValidation, async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: errors.array()[0].msg, code: 'VALIDATION_ERROR' });
+    }
+
     const { employee_id, weapon_type, manufacturer, model, serial_number, license_number, license_expiry, status, notes } = req.body;
 
     await db.query(`
       UPDATE guard_weapons SET
-        employee_id = $1, weapon_type = $2, manufacturer = $3, model = $4,
-        serial_number = $5, license_number = $6, license_expiry = $7,
-        status = $8, notes = $9, updated_at = NOW()
-      WHERE id = $10
+        employee_id = ?, weapon_type = ?, manufacturer = ?, model = ?,
+        serial_number = ?, license_number = ?, license_expiry = ?,
+        status = ?, notes = ?, updated_at = datetime('now')
+      WHERE id = ?
     `, [employee_id || null, weapon_type, manufacturer, model, serial_number, license_number, license_expiry, status, notes, req.params.id]);
 
-    const result = await db.query('SELECT * FROM guard_weapons WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM guard_weapons WHERE id = ?', [req.params.id]);
     res.json({ weapon: result.rows[0] });
   } catch (error) {
     console.error('Update weapon error:', error);
@@ -103,18 +125,18 @@ router.post('/:id/transfer', requireAdmin, async (req, res) => {
 
     await db.query(`
       UPDATE guard_weapons SET
-        employee_id = $1,
-        status = $2,
-        assigned_date = $3,
-        updated_at = NOW()
-      WHERE id = $4
+        employee_id = ?,
+        status = ?,
+        assigned_date = ?,
+        updated_at = datetime('now')
+      WHERE id = ?
     `, [new_employee_id || null, new_employee_id ? 'assigned' : 'in_armory', new_employee_id ? new Date().toISOString().split('T')[0] : null, req.params.id]);
 
     const result = await db.query(`
       SELECT gw.*, e.first_name || ' ' || e.last_name as employee_name
       FROM guard_weapons gw
       LEFT JOIN employees e ON gw.employee_id = e.id
-      WHERE gw.id = $1
+      WHERE gw.id = ?
     `, [req.params.id]);
     res.json({ weapon: result.rows[0] });
   } catch (error) {
@@ -126,7 +148,7 @@ router.post('/:id/transfer', requireAdmin, async (req, res) => {
 // Delete weapon
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    await db.query('DELETE FROM guard_weapons WHERE id = $1', [req.params.id]);
+    await db.query('DELETE FROM guard_weapons WHERE id = ?', [req.params.id]);
     res.json({ message: 'נשק נמחק' });
   } catch (error) {
     console.error('Delete weapon error:', error);

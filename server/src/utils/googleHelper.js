@@ -132,18 +132,16 @@ ${event.notes || ''}`,
 
   /**
    * Send email via Gmail
+   * Throws errors so callers (like invoice send-email) can report failures to the user
    */
   async sendEmail(to, subject, body) {
-    try {
-      if (!this.isConfigured()) return null;
-
-      const result = await googleService.sendEmail(to, subject, body);
-      console.log(`Email sent via Gmail to: ${to}`);
-      return result;
-    } catch (error) {
-      console.error('Gmail send error:', error.message);
-      return null;
+    if (!this.isConfigured()) {
+      throw new Error('Gmail לא מחובר. יש לחבר Google בדף ההגדרות ולוודא שניתנו הרשאות Gmail.');
     }
+
+    const result = await googleService.sendEmail(to, subject, body);
+    console.log(`Email sent via Gmail to: ${to}`);
+    return result;
   }
 
   /**

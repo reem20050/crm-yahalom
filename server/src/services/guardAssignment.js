@@ -5,7 +5,7 @@
  */
 const { query } = require('../config/database');
 
-// -- Haversine Distance (km) ---------------------------------------------------
+// ── Haversine Distance (km) ──────────────────────────────────────────────────
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // Earth radius in km
@@ -19,7 +19,7 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// -- Guard Assignment Class ----------------------------------------------------
+// ── Guard Assignment Class ───────────────────────────────────────────────────
 
 class GuardAssignment {
   /**
@@ -34,9 +34,9 @@ class GuardAssignment {
    * @param {number} params.limit - Max suggestions to return (default 5)
    * @returns {Array} Scored and ranked guard suggestions
    */
-  async getSuggestions({ date, startTime, endTime, requiresWeapon = false, siteId = null, templateId = null, limit = 5 }) {
-    // -- 1. Get all active employees with home coordinates --------------------
-    const employees = await query(`
+  getSuggestions({ date, startTime, endTime, requiresWeapon = false, siteId = null, templateId = null, limit = 5 }) {
+    // ── 1. Get all active employees with home coordinates ─────────────────
+    const employees = query(`
       SELECT e.id, e.first_name, e.last_name, e.phone, e.address, e.city,
              e.has_weapon_license, e.weapon_license_expiry, e.status,
              e.home_latitude, e.home_longitude
@@ -46,12 +46,12 @@ class GuardAssignment {
 
     if (employees.rows.length === 0) return [];
 
-    // -- 2. Get site info (coords + required certifications) ------------------
+    // ── 2. Get site info (coords + required certifications) ───────────────
     let siteLat = null;
     let siteLng = null;
     let siteRequiredCerts = [];
     if (siteId) {
-      const siteResult = await query(
+      const siteResult = query(
         'SELECT latitude, longitude, required_certifications FROM sites WHERE id = $1',
         [siteId]
       );
@@ -65,10 +65,10 @@ class GuardAssignment {
       }
     }
 
-    // -- 3. Get preferred employees from template -----------------------------
+    // ── 3. Get preferred employees from template ──────────────────────────
     let preferredEmployeeIds = new Set();
     if (templateId) {
-      const tmpl = await query('SELECT preferred_employees FROM shift_templates WHERE id = $1', [templateId]);
+      const tmpl = query('SELECT preferred_employees FROM shift_templates WHERE id = $1', [templateId]);
       if (tmpl.rows.length > 0) {
         try {
           const parsed = JSON.parse(tmpl.rows[0].preferred_employees || '[]');
@@ -76,7 +76,7 @@ class GuardAssignment {
         } catch (e) { /* ignore parse error */ }
       }
     } else if (siteId) {
-      const tmpl = await query('SELECT preferred_employees FROM shift_templates WHERE site_id = $1 AND is_active = 1 LIMIT 1', [siteId]);
+      const tmpl = query('SELECT preferred_employees FROM shift_templates WHERE site_id = $1 AND is_active = 1 LIMIT 1', [siteId]);
       if (tmpl.rows.length > 0) {
         try {
           const parsed = JSON.parse(tmpl.rows[0].preferred_employees || '[]');
@@ -85,7 +85,7 @@ class GuardAssignment {
       }
     }
 
-    // -- 4. Calculate week boundaries for workload ----------------------------
+    // ── 4. Calculate week boundaries for workload ─────────────────────────
     const shiftDate = new Date(date + 'T00:00:00');
     const dayOfWeek = shiftDate.getDay();
     const weekStart = new Date(shiftDate);
@@ -95,8 +95,8 @@ class GuardAssignment {
     const weekStartStr = weekStart.toISOString().split('T')[0];
     const weekEndStr = weekEnd.toISOString().split('T')[0];
 
-    // -- 5. Get weekly shift counts for all employees -------------------------
-    const weeklyShifts = await query(`
+    // ── 5. Get weekly shift counts for all employees ──────────────────────
+    const weeklyShifts = query(`
       SELECT sa.employee_id, COUNT(*) as shift_count
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
@@ -110,8 +110,8 @@ class GuardAssignment {
       shiftCountMap[row.employee_id] = row.shift_count;
     }
 
-    // -- 6. Get employees with time conflicts on the target date --------------
-    const conflicts = await query(`
+    // ── 6. Get employees with time conflicts on the target date ───────────
+    const conflicts = query(`
       SELECT sa.employee_id
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
@@ -122,9 +122,9 @@ class GuardAssignment {
 
     const conflictSet = new Set(conflicts.rows.map(r => r.employee_id));
 
-    // -- 7. Get availability for this day of week -----------------------------
+    // ── 7. Get availability for this day of week ──────────────────────────
     const targetDayOfWeek = shiftDate.getDay();
-    const availability = await query(`
+    const availability = query(`
       SELECT employee_id, is_available
       FROM employee_availability
       WHERE day_of_week = $1
@@ -137,11 +137,11 @@ class GuardAssignment {
       }
     }
 
-    // -- 8. Weapon requirement filter -----------------------------------------
+    // ── 8. Weapon requirement filter ──────────────────────────────────────
     let weaponValidSet = null;
     if (requiresWeapon) {
       const today = new Date().toISOString().split('T')[0];
-      const weaponEmployees = await query(`
+      const weaponEmployees = query(`
         SELECT DISTINCT e.id FROM employees e
         WHERE e.status = 'active'
         AND (
@@ -157,8 +157,8 @@ class GuardAssignment {
       weaponValidSet = new Set(weaponEmployees.rows.map(r => r.id));
     }
 
-    // -- 9. Get performance ratings for all employees -------------------------
-    const ratings = await query(`
+    // ── 9. Get performance ratings for all employees ──────────────────────
+    const ratings = query(`
       SELECT employee_id, AVG(rating) as avg_rating
       FROM guard_ratings
       GROUP BY employee_id
@@ -168,12 +168,12 @@ class GuardAssignment {
       ratingMap[row.employee_id] = parseFloat(row.avg_rating) || 0;
     }
 
-    // -- 10. Get certifications for all employees -----------------------------
-    const certifications = await query(`
+    // ── 10. Get certifications for all employees ──────────────────────────
+    const certifications = query(`
       SELECT employee_id, cert_type
       FROM guard_certifications
       WHERE status = 'active'
-      AND (expiry_date IS NULL OR expiry_date >= CURRENT_DATE)
+      AND (expiry_date IS NULL OR expiry_date >= date('now'))
     `);
     const certMap = {};
     for (const row of certifications.rows) {
@@ -181,9 +181,9 @@ class GuardAssignment {
       certMap[row.employee_id].push(row.cert_type);
     }
 
-    // -- 11. Get last shift end time for fatigue calculation -------------------
+    // ── 11. Get last shift end time for fatigue calculation ───────────────
     // Find the most recent shift end for each employee relative to the target shift
-    const lastShifts = await query(`
+    const lastShifts = query(`
       SELECT sa.employee_id, MAX(s.date || 'T' || s.end_time) as last_shift_end
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
@@ -197,14 +197,14 @@ class GuardAssignment {
       lastShiftEndMap[row.employee_id] = row.last_shift_end;
     }
 
-    // -- 12. Team cohesion: employees who worked at same site in last 3 months -
+    // ── 12. Team cohesion: employees who worked at same site in last 3 months ──
     let siteVeteranSet = new Set();
     if (siteId) {
       const threeMonthsAgo = new Date(shiftDate);
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
       const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
 
-      const siteVeterans = await query(`
+      const siteVeterans = query(`
         SELECT DISTINCT sa.employee_id
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
@@ -216,8 +216,8 @@ class GuardAssignment {
       siteVeteranSet = new Set(siteVeterans.rows.map(r => r.employee_id));
     }
 
-    // -- 13. Reliability: no-show ratio per employee --------------------------
-    const reliabilityData = await query(`
+    // ── 13. Reliability: no-show ratio per employee ───────────────────────
+    const reliabilityData = query(`
       SELECT employee_id,
              COUNT(*) as total_assignments,
              SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) as no_shows
@@ -235,7 +235,7 @@ class GuardAssignment {
       };
     }
 
-    // -- 14. Score each employee ----------------------------------------------
+    // ── 14. Score each employee ───────────────────────────────────────────
     const scored = [];
 
     for (const emp of employees.rows) {
@@ -243,7 +243,7 @@ class GuardAssignment {
       const scoreBreakdown = { base: 40 };
       let score = 40; // base score
 
-      // -- MANDATORY EXCLUSIONS --
+      // ── MANDATORY EXCLUSIONS ──
 
       // No time conflict
       if (conflictSet.has(emp.id)) continue;
@@ -254,7 +254,7 @@ class GuardAssignment {
       // Weapon requirement
       if (weaponValidSet && !weaponValidSet.has(emp.id)) continue;
 
-      // -- FATIGUE: <8 hours since last shift end -> EXCLUDE --
+      // ── FATIGUE: <8 hours since last shift end → EXCLUDE ──
       let fatigueWarning = false;
       const lastEnd = lastShiftEndMap[emp.id];
       if (lastEnd && startTime) {
@@ -263,7 +263,7 @@ class GuardAssignment {
           const targetStart = new Date(date + 'T' + startTime);
           const hoursBetween = (targetStart - lastEndTime) / (1000 * 60 * 60);
           if (hoursBetween < 8 && hoursBetween >= 0) {
-            // Less than 8 hours rest -> EXCLUDE
+            // Less than 8 hours rest → EXCLUDE
             continue;
           }
           if (hoursBetween < 12 && hoursBetween >= 8) {
@@ -272,7 +272,7 @@ class GuardAssignment {
         } catch (e) { /* parsing error, skip fatigue check */ }
       }
 
-      // -- SCORING FACTORS --
+      // ── SCORING FACTORS ──
 
       // Preferred employee (+15)
       if (preferredEmployeeIds.has(emp.id)) {
@@ -333,7 +333,7 @@ class GuardAssignment {
         reasons.push(`${weeklyCount} משמרות השבוע`);
       }
 
-      // Fatigue prevention: >5 shifts/week -> -20
+      // Fatigue prevention: >5 shifts/week → -20
       if (weeklyCount > 5) {
         score -= 20;
         scoreBreakdown.fatigue = -20;

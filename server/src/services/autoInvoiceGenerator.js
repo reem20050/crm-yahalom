@@ -5,8 +5,8 @@
  * 2. Monthly for active contracts with auto_invoice enabled
  *
  * v2 enhancements:
- * - Configurable VAT rate chain: contract -> customer -> system config -> 17%
- * - Configurable payment terms chain: contract -> customer -> system config -> 30 days
+ * - Configurable VAT rate chain: contract → customer → system config → 17%
+ * - Configurable payment terms chain: contract → customer → system config → 30 days
  * - Prorating for partial months (start/end mid-month)
  * - Custom billing description templates with variable substitution
  * - Invoice preview (dry-run) without inserting
@@ -18,15 +18,15 @@ const HEBREW_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מ
 
 class AutoInvoiceGenerator {
 
-  // -- System Config Helpers ---------------------------------------------------
+  // ── System Config Helpers ───────────────────────────────────────────
 
   /**
    * Get a system config value by key
    * @param {string} key
    * @returns {string|undefined}
    */
-  async getSystemConfig(key) {
-    const result = await query('SELECT value FROM system_config WHERE key = $1', [key]);
+  getSystemConfig(key) {
+    const result = query('SELECT value FROM system_config WHERE key = $1', [key]);
     return result.rows[0]?.value;
   }
 
@@ -35,23 +35,23 @@ class AutoInvoiceGenerator {
    * @param {string} key
    * @param {string} value
    */
-  async updateSystemConfig(key, value) {
-    await query('UPDATE system_config SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2', [value, key]);
+  updateSystemConfig(key, value) {
+    query('UPDATE system_config SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2', [value, key]);
   }
 
-  // -- Resolution Chains -------------------------------------------------------
+  // ── Resolution Chains ──────────────────────────────────────────────
 
   /**
-   * Resolve VAT rate: contract -> customer -> system_config -> 17.0
+   * Resolve VAT rate: contract → customer → system_config → 17.0
    */
-  async resolveVatRate(contract, customer) {
+  resolveVatRate(contract, customer) {
     if (contract.vat_rate != null && contract.vat_rate !== '') {
       return parseFloat(contract.vat_rate);
     }
     if (customer.default_vat_rate != null && customer.default_vat_rate !== '') {
       return parseFloat(customer.default_vat_rate);
     }
-    const systemRate = await this.getSystemConfig('default_vat_rate');
+    const systemRate = this.getSystemConfig('default_vat_rate');
     if (systemRate != null) {
       return parseFloat(systemRate);
     }
@@ -59,23 +59,23 @@ class AutoInvoiceGenerator {
   }
 
   /**
-   * Resolve payment days: contract -> customer -> system_config -> 30
+   * Resolve payment days: contract → customer → system_config → 30
    */
-  async resolvePaymentDays(contract, customer) {
+  resolvePaymentDays(contract, customer) {
     if (contract.payment_days != null && contract.payment_days !== '') {
       return parseInt(contract.payment_days);
     }
     if (customer.default_payment_days != null && customer.default_payment_days !== '') {
       return parseInt(customer.default_payment_days);
     }
-    const systemDays = await this.getSystemConfig('default_payment_days');
+    const systemDays = this.getSystemConfig('default_payment_days');
     if (systemDays != null) {
       return parseInt(systemDays);
     }
     return 30;
   }
 
-  // -- Prorating Logic ---------------------------------------------------------
+  // ── Prorating Logic ────────────────────────────────────────────────
 
   /**
    * Calculate prorated amount for partial months
@@ -123,7 +123,7 @@ class AutoInvoiceGenerator {
     return { amount: monthlyValue, isProrated: false };
   }
 
-  // -- Description Template ----------------------------------------------------
+  // ── Description Template ───────────────────────────────────────────
 
   /**
    * Build invoice description from template or default
@@ -142,13 +142,13 @@ class AutoInvoiceGenerator {
     return `שירותי אבטחה - ${monthName} ${year} - ${customerName}`;
   }
 
-  // -- Core: Build Invoice Data ------------------------------------------------
+  // ── Core: Build Invoice Data ───────────────────────────────────────
 
   /**
    * Build invoice data for a single contract (shared by generate and preview)
    * @returns {object|null} invoice data object or null if should skip
    */
-  async buildInvoiceData(contract, targetDate) {
+  buildInvoiceData(contract, targetDate) {
     const currentMonth = targetDate.toISOString().slice(0, 7); // YYYY-MM
 
     // Check if already invoiced this month
@@ -162,8 +162,8 @@ class AutoInvoiceGenerator {
     }
 
     // Resolve VAT and payment days
-    const vatRate = await this.resolveVatRate(contract, contract);
-    const paymentDays = await this.resolvePaymentDays(contract, contract);
+    const vatRate = this.resolveVatRate(contract, contract);
+    const paymentDays = this.resolvePaymentDays(contract, contract);
 
     // Calculate prorated amount
     const { amount: baseAmount, isProrated } = this.calculateProratedAmount(
@@ -200,14 +200,14 @@ class AutoInvoiceGenerator {
     };
   }
 
-  // -- Preview Monthly Invoices ------------------------------------------------
+  // ── Preview Monthly Invoices ───────────────────────────────────────
 
   /**
    * Preview monthly invoices without inserting into database
    * @returns {Array} array of preview objects
    */
-  async previewMonthlyInvoices() {
-    const contracts = await query(`
+  previewMonthlyInvoices() {
+    const contracts = query(`
       SELECT ct.*,
              c.company_name, c.id as cust_id, c.business_id, c.address as customer_address,
              c.default_vat_rate, c.default_payment_days, c.auto_send_invoice, c.invoice_email
@@ -223,7 +223,7 @@ class AutoInvoiceGenerator {
     const previews = [];
 
     for (const contract of contracts.rows) {
-      const data = await this.buildInvoiceData(contract, now);
+      const data = this.buildInvoiceData(contract, now);
       if (!data) continue; // skipped (already invoiced)
       if (data.error) {
         previews.push({ error: data.error, customer_name: contract.company_name, contract_id: contract.id });
@@ -235,7 +235,7 @@ class AutoInvoiceGenerator {
     return previews;
   }
 
-  // -- Generate Monthly Invoices -----------------------------------------------
+  // ── Generate Monthly Invoices ──────────────────────────────────────
 
   /**
    * Generate monthly invoices for all contracts with auto_invoice enabled
@@ -244,11 +244,11 @@ class AutoInvoiceGenerator {
    * @param {string[]|null} selectedContractIds - optional array to only generate for specific contracts
    * @returns {{ created: number, skipped: number, errors: string[] }}
    */
-  async generateMonthlyInvoices(createdBy = null, selectedContractIds = null) {
+  generateMonthlyInvoices(createdBy = null, selectedContractIds = null) {
     const results = { created: 0, skipped: 0, errors: [] };
 
     // Get active contracts with auto_invoice enabled
-    const contracts = await query(`
+    const contracts = query(`
       SELECT ct.*,
              c.company_name, c.id as cust_id, c.business_id, c.address as customer_address,
              c.default_vat_rate, c.default_payment_days, c.auto_send_invoice, c.invoice_email
@@ -269,7 +269,7 @@ class AutoInvoiceGenerator {
       }
 
       try {
-        const data = await this.buildInvoiceData(contract, now);
+        const data = this.buildInvoiceData(contract, now);
         if (!data) {
           results.skipped++;
           continue;
@@ -282,20 +282,20 @@ class AutoInvoiceGenerator {
         // Create draft invoice
         const invoiceId = generateUUID();
 
-        await query(`
+        query(`
           INSERT INTO invoices (id, customer_id, issue_date, due_date, amount, vat_amount, total_amount, description, status, auto_generated, source_type, source_id)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', 1, 'contract', $9)
         `, [invoiceId, data.customer_id, data.issue_date, data.due_date, data.amount, data.vat_amount, data.total, data.description, data.contract_id]);
 
         // Update last_invoiced_date on contract
-        await query(`UPDATE contracts SET last_invoiced_date = $1 WHERE id = $2`, [data.issue_date, data.contract_id]);
+        query(`UPDATE contracts SET last_invoiced_date = $1 WHERE id = $2`, [data.issue_date, data.contract_id]);
 
         results.created++;
 
         // Auto-send via Green Invoice if enabled (non-blocking)
         if (data.auto_send && data.invoice_email) {
           try {
-            await this.attemptAutoSend(invoiceId, data);
+            this.attemptAutoSend(invoiceId, data);
           } catch (sendErr) {
             // Log but don't fail the generation
             console.warn(`Auto-send failed for invoice ${invoiceId}:`, sendErr.message);
@@ -309,7 +309,7 @@ class AutoInvoiceGenerator {
     // Log the generation
     if (results.created > 0 || results.errors.length > 0) {
       const logId = generateUUID();
-      await query(`
+      query(`
         INSERT INTO auto_generation_log (id, type, generated_count, details, created_by)
         VALUES ($1, 'auto_invoices_monthly', $2, $3, $4)
       `, [logId, results.created, JSON.stringify(results), createdBy]);
@@ -321,9 +321,9 @@ class AutoInvoiceGenerator {
   /**
    * Attempt to auto-send invoice via Green Invoice API (best-effort)
    */
-  async attemptAutoSend(invoiceId, invoiceData) {
+  attemptAutoSend(invoiceId, invoiceData) {
     try {
-      const settings = await query(`SELECT green_invoice_api_key FROM integration_settings WHERE id = 'main'`);
+      const settings = query(`SELECT green_invoice_api_key FROM integration_settings WHERE id = 'main'`);
       if (settings.rows.length > 0 && settings.rows[0].green_invoice_api_key) {
         // Green Invoice integration exists - mark for sending
         // Actual sending would be handled by greenInvoice service
@@ -334,7 +334,7 @@ class AutoInvoiceGenerator {
     }
   }
 
-  // -- Event Invoice Generation ------------------------------------------------
+  // ── Event Invoice Generation ───────────────────────────────────────
 
   /**
    * Generate invoice for a completed event
@@ -343,9 +343,9 @@ class AutoInvoiceGenerator {
    * @param {string|null} createdBy
    * @returns {object|null} created invoice or null if skipped
    */
-  async generateEventInvoice(eventId, createdBy = null) {
+  generateEventInvoice(eventId, createdBy = null) {
     // Get event details
-    const eventResult = await query(`
+    const eventResult = query(`
       SELECT e.*, c.company_name, c.id as cust_id,
              c.default_vat_rate, c.default_payment_days
       FROM events e
@@ -360,15 +360,15 @@ class AutoInvoiceGenerator {
     if (!event.customer_id || !event.price || event.price <= 0) return null;
 
     // Check if invoice already exists for this event
-    const existing = await query(`
+    const existing = query(`
       SELECT id FROM invoices WHERE event_id = $1 AND deleted_at IS NULL
     `, [eventId]);
 
     if (existing.rows.length > 0) return null; // already invoiced
 
     // Resolve VAT rate and payment days using customer defaults
-    const vatRate = await this.resolveVatRate({}, event);
-    const paymentDays = await this.resolvePaymentDays({}, event);
+    const vatRate = this.resolveVatRate({}, event);
+    const paymentDays = this.resolvePaymentDays({}, event);
 
     // Create draft invoice
     const invoiceId = generateUUID();
@@ -379,14 +379,14 @@ class AutoInvoiceGenerator {
     const totalAmount = Math.round((amount + vatAmount) * 100) / 100;
     const description = `אבטחת אירוע: ${event.event_name} - ${event.event_date}`;
 
-    await query(`
+    query(`
       INSERT INTO invoices (id, customer_id, event_id, issue_date, due_date, amount, vat_amount, total_amount, description, status, auto_generated, source_type, source_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft', 1, 'event', $3)
     `, [invoiceId, event.customer_id, eventId, issueDate, dueDate, amount, vatAmount, totalAmount, description]);
 
     // Log
     const logId = generateUUID();
-    await query(`
+    query(`
       INSERT INTO auto_generation_log (id, type, source_id, generated_count, details, created_by)
       VALUES ($1, 'auto_invoice_event', $2, 1, $3, $4)
     `, [logId, eventId, JSON.stringify({
@@ -398,7 +398,7 @@ class AutoInvoiceGenerator {
     return { id: invoiceId, amount, totalAmount, description };
   }
 
-  // -- Helpers -----------------------------------------------------------------
+  // ── Helpers ────────────────────────────────────────────────────────
 
   /**
    * Calculate due date from issue date

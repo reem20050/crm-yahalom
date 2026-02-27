@@ -1,5 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const bcrypt = require('bcryptjs');
 const db = require('../config/database');
 const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 
@@ -15,6 +16,9 @@ router.get('/', async (req, res) => {
     let whereClause = [];
     let params = [];
     let paramCount = 0;
+
+    // Always exclude soft-deleted
+    whereClause.push(`deleted_at IS NULL`);
 
     if (status) {
       paramCount++;
@@ -32,7 +36,7 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClause.join(' AND ')}`;
 
     const countResult = await db.query(`SELECT COUNT(*) as count FROM employees ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
@@ -46,7 +50,7 @@ router.get('/', async (req, res) => {
       SELECT e.*,
              (SELECT COUNT(*) FROM shift_assignments sa
               JOIN shifts s ON sa.shift_id = s.id
-              WHERE sa.employee_id = e.id AND s.date = date('now')) as shifts_today
+              WHERE sa.employee_id = e.id AND s.date = date('now', 'localtime')) as shifts_today
       FROM employees e
       ${whereString}
       ORDER BY e.first_name, e.last_name
@@ -71,7 +75,7 @@ router.get('/available/:date', async (req, res) => {
 
     let queryStr = `
       SELECT e.* FROM employees e
-      WHERE e.status = 'active'
+      WHERE e.status = 'active' AND e.deleted_at IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
@@ -99,10 +103,23 @@ router.get('/available/:date', async (req, res) => {
   }
 });
 
+// Get deleted employees (trash) - MUST be before /:id
+router.get('/trash/list', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT * FROM employees WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC
+    `);
+    res.json({ employees: result.rows });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
+  }
+});
+
 // Get single employee with all details
 router.get('/:id', async (req, res) => {
   try {
-    const employeeResult = await db.query('SELECT * FROM employees WHERE id = $1', [req.params.id]);
+    const employeeResult = await db.query('SELECT * FROM employees WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
 
     if (employeeResult.rows.length === 0) {
       return res.status(404).json({ error: 'עובד לא נמצא' });
@@ -111,7 +128,7 @@ router.get('/:id', async (req, res) => {
     const [documents, availability, recentShifts] = await Promise.all([
       db.query('SELECT * FROM employee_documents WHERE employee_id = $1 ORDER BY uploaded_at DESC', [req.params.id]),
       db.query('SELECT * FROM employee_availability WHERE employee_id = $1 ORDER BY day_of_week', [req.params.id]),
-      db.query(`
+      await db.query(`
         SELECT sa.*, s.date, s.start_time, s.end_time, c.company_name, si.name as site_name
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
@@ -153,8 +170,29 @@ router.post('/', requireManager, [
       first_name, last_name, id_number, phone, email, address, city,
       birth_date, hire_date, employment_type, hourly_rate, monthly_salary,
       has_weapon_license, weapon_license_expiry, has_driving_license, driving_license_type,
-      emergency_contact_name, emergency_contact_phone, notes
+      emergency_contact_name, emergency_contact_phone, notes,
+      create_user_account, user_password, user_role
     } = req.body;
+
+    // If creating user account, validate
+    let userId = null;
+    if (create_user_account && email) {
+      if (!user_password || user_password.length < 6) {
+        return res.status(400).json({ error: 'סיסמה חייבת להכיל לפחות 6 תווים' });
+      }
+      // Check email uniqueness in users
+      const existingUser = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+      if (existingUser.rows.length > 0) {
+        return res.status(400).json({ error: 'כתובת האימייל כבר קיימת כמשתמש במערכת' });
+      }
+      userId = db.generateUUID();
+      const password_hash = await bcrypt.hash(user_password, 10);
+      await db.query(
+        `INSERT INTO users (id, email, password_hash, first_name, last_name, phone, role)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, email.toLowerCase(), password_hash, first_name, last_name, phone || null, user_role || 'employee']
+      );
+    }
 
     const employeeId = db.generateUUID();
     const result = await db.query(`
@@ -162,20 +200,23 @@ router.post('/', requireManager, [
         id, first_name, last_name, id_number, phone, email, address, city,
         birth_date, hire_date, employment_type, hourly_rate, monthly_salary,
         has_weapon_license, weapon_license_expiry, has_driving_license, driving_license_type,
-        emergency_contact_name, emergency_contact_phone, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        emergency_contact_name, emergency_contact_phone, notes, user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
     `, [employeeId, first_name, last_name, id_number, phone, email, address, city,
         birth_date, hire_date, employment_type || 'hourly', hourly_rate, monthly_salary,
         has_weapon_license ? 1 : 0, weapon_license_expiry, has_driving_license ? 1 : 0, driving_license_type,
-        emergency_contact_name, emergency_contact_phone, notes]);
+        emergency_contact_name, emergency_contact_phone, notes, userId]);
 
     await db.query(`
       INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
       VALUES ($1, $2, 'employee', $3, 'create', $4)
     `, [db.generateUUID(), req.user.id, result.rows[0].id, JSON.stringify({ name: `${first_name} ${last_name}` })]);
 
-    res.status(201).json({ employee: result.rows[0] });
+    res.status(201).json({
+      employee: result.rows[0],
+      user_created: !!userId,
+    });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'מספר ת.ז כבר קיים במערכת' });
@@ -235,8 +276,7 @@ router.put('/:id', requireManager, async (req, res) => {
 
 // Add document to employee
 router.post('/:id/documents', requireManager, [
-  body('document_type').notEmpty().withMessage('נדרש סוג מסמך'),
-  body('document_url').notEmpty().withMessage('נדרש קישור למסמך')
+  body('document_type').notEmpty().withMessage('נדרש סוג מסמך')
 ], async (req, res) => {
   try {
     const { document_type, document_url, expiry_date } = req.body;
@@ -246,7 +286,7 @@ router.post('/:id/documents', requireManager, [
       INSERT INTO employee_documents (id, employee_id, document_type, document_url, expiry_date)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [docId, req.params.id, document_type, document_url, expiry_date]);
+    `, [docId, req.params.id, document_type, document_url || '', expiry_date || null]);
 
     res.status(201).json({ document: result.rows[0] });
   } catch (error) {
@@ -255,8 +295,19 @@ router.post('/:id/documents', requireManager, [
   }
 });
 
+// Delete document from employee
+router.delete('/:id/documents/:docId', requireManager, async (req, res) => {
+  try {
+    await db.query('DELETE FROM employee_documents WHERE id = $1 AND employee_id = $2', [req.params.docId, req.params.id]);
+    res.json({ message: 'מסמך נמחק' });
+  } catch (error) {
+    console.error('Delete document error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת מסמך' });
+  }
+});
+
 // Set employee availability
-router.post('/:id/availability', async (req, res) => {
+router.post('/:id/availability', requireManager, async (req, res) => {
   try {
     const { availability } = req.body; // Array of { day_of_week, start_time, end_time, is_available }
 
@@ -328,15 +379,11 @@ router.get('/:id/hours/:year/:month', async (req, res) => {
   }
 });
 
-// Delete employee (admin/manager only)
+// Delete employee - soft delete (admin/manager only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {
-    // Delete related data first
-    await db.query('DELETE FROM employee_documents WHERE employee_id = $1', [req.params.id]);
-    await db.query('DELETE FROM employee_availability WHERE employee_id = $1', [req.params.id]);
-
     const result = await db.query(
-      'DELETE FROM employees WHERE id = $1 RETURNING id',
+      `UPDATE employees SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]
     );
 
@@ -348,6 +395,40 @@ router.delete('/:id', requireManager, async (req, res) => {
   } catch (error) {
     console.error('Delete employee error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת עובד' });
+  }
+});
+
+// Restore employee
+router.post('/:id/restore', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE employees SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'עובד לא נמצא בפח' });
+    }
+    res.json({ employee: result.rows[0], message: 'עובד שוחזר בהצלחה' });
+  } catch (error) {
+    console.error('Restore employee error:', error);
+    res.status(500).json({ error: 'שגיאה בשחזור עובד' });
+  }
+});
+
+// Permanently delete employee
+router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
+  try {
+    const check = await db.query('SELECT id FROM employees WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'עובד לא נמצא בפח' });
+    }
+    await db.query('DELETE FROM employee_documents WHERE employee_id = $1', [req.params.id]);
+    await db.query('DELETE FROM employee_availability WHERE employee_id = $1', [req.params.id]);
+    await db.query('DELETE FROM employees WHERE id = $1', [req.params.id]);
+    res.json({ message: 'עובד נמחק לצמיתות' });
+  } catch (error) {
+    console.error('Permanent delete employee error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת עובד לצמיתות' });
   }
 });
 

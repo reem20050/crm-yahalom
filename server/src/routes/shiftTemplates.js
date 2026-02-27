@@ -35,7 +35,7 @@ router.get('/:id', async (req, res) => {
       FROM shift_templates st
       LEFT JOIN customers c ON st.customer_id = c.id
       LEFT JOIN sites s ON st.site_id = s.id
-      WHERE st.id = $1
+      WHERE st.id = ?
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -56,7 +56,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
     await db.query(`
       INSERT INTO shift_templates (id, name, customer_id, site_id, start_time, end_time, required_employees, requires_weapon, requires_vehicle, days_of_week, shift_type, default_notes, preferred_employees)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [id, name, customer_id || null, site_id || null, start_time, end_time, required_employees || 1, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, JSON.stringify(days_of_week || []), shift_type || 'regular', default_notes || null, JSON.stringify(preferred_employees || [])]);
 
     const result = await db.query(`
@@ -64,7 +64,7 @@ router.post('/', requireAdmin, async (req, res) => {
       FROM shift_templates st
       LEFT JOIN customers c ON st.customer_id = c.id
       LEFT JOIN sites s ON st.site_id = s.id
-      WHERE st.id = $1
+      WHERE st.id = ?
     `, [id]);
     res.status(201).json({ template: result.rows[0] });
   } catch (error) {
@@ -80,11 +80,11 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
     await db.query(`
       UPDATE shift_templates SET
-        name = $1, customer_id = $2, site_id = $3, start_time = $4, end_time = $5,
-        required_employees = $6, requires_weapon = $7, requires_vehicle = $8,
-        days_of_week = $9, shift_type = $10, default_notes = $11,
-        preferred_employees = $12, is_active = $13, auto_generate = $14, updated_at = NOW()
-      WHERE id = $15
+        name = ?, customer_id = ?, site_id = ?, start_time = ?, end_time = ?,
+        required_employees = ?, requires_weapon = ?, requires_vehicle = ?,
+        days_of_week = ?, shift_type = ?, default_notes = ?,
+        preferred_employees = ?, is_active = ?, auto_generate = ?, updated_at = datetime('now')
+      WHERE id = ?
     `, [name, customer_id, site_id, start_time, end_time, required_employees, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, JSON.stringify(days_of_week || []), shift_type, default_notes, JSON.stringify(preferred_employees || []), is_active !== undefined ? (is_active ? 1 : 0) : 1, auto_generate ? 1 : 0, req.params.id]);
 
     const result = await db.query(`
@@ -92,7 +92,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
       FROM shift_templates st
       LEFT JOIN customers c ON st.customer_id = c.id
       LEFT JOIN sites s ON st.site_id = s.id
-      WHERE st.id = $1
+      WHERE st.id = ?
     `, [req.params.id]);
     res.json({ template: result.rows[0] });
   } catch (error) {
@@ -105,7 +105,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 router.post('/:id/generate', requireAdmin, async (req, res) => {
   try {
     const { start_date, end_date } = req.body;
-    const template = await db.query('SELECT * FROM shift_templates WHERE id = $1', [req.params.id]);
+    const template = await db.query('SELECT * FROM shift_templates WHERE id = ?', [req.params.id]);
 
     if (template.rows.length === 0) {
       return res.status(404).json({ error: 'תבנית לא נמצאה' });
@@ -128,14 +128,14 @@ router.post('/:id/generate', requireAdmin, async (req, res) => {
         // Check if shift already exists for same site/date/time
         const existing = await db.query(`
           SELECT id FROM shifts
-          WHERE site_id = $1 AND date = $2 AND start_time = $3 AND end_time = $4
+          WHERE site_id = ? AND date = ? AND start_time = ? AND end_time = ?
         `, [tmpl.site_id, dateStr, tmpl.start_time, tmpl.end_time]);
 
         if (existing.rows.length === 0) {
           const shiftId = crypto.randomUUID();
           await db.query(`
             INSERT INTO shifts (id, site_id, customer_id, date, start_time, end_time, required_employees, requires_weapon, requires_vehicle, notes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [shiftId, tmpl.site_id, tmpl.customer_id, dateStr, tmpl.start_time, tmpl.end_time, tmpl.required_employees, tmpl.requires_weapon, tmpl.requires_vehicle, tmpl.default_notes]);
 
           createdShifts.push({ id: shiftId, date: dateStr });
@@ -158,8 +158,8 @@ router.patch('/:id/auto-generate', requireAdmin, async (req, res) => {
   try {
     const { auto_generate } = req.body;
     await db.query(`
-      UPDATE shift_templates SET auto_generate = $1, updated_at = NOW()
-      WHERE id = $2
+      UPDATE shift_templates SET auto_generate = ?, updated_at = datetime('now')
+      WHERE id = ?
     `, [auto_generate ? 1 : 0, req.params.id]);
 
     const result = await db.query(`
@@ -167,7 +167,7 @@ router.patch('/:id/auto-generate', requireAdmin, async (req, res) => {
       FROM shift_templates st
       LEFT JOIN customers c ON st.customer_id = c.id
       LEFT JOIN sites s ON st.site_id = s.id
-      WHERE st.id = $1
+      WHERE st.id = ?
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -184,7 +184,7 @@ router.patch('/:id/auto-generate', requireAdmin, async (req, res) => {
 // Delete template
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    await db.query('DELETE FROM shift_templates WHERE id = $1', [req.params.id]);
+    await db.query('DELETE FROM shift_templates WHERE id = ?', [req.params.id]);
     res.json({ message: 'תבנית נמחקה' });
   } catch (error) {
     console.error('Delete template error:', error);
