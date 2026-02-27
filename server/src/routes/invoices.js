@@ -152,7 +152,7 @@ router.get('/trash/list', requireManager, async (req, res) => {
 router.post('/auto-generate/monthly', requireManager, async (req, res) => {
   try {
     const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-    const results = autoInvoiceGenerator.generateMonthlyInvoices(req.user.id);
+    const results = await autoInvoiceGenerator.generateMonthlyInvoices(req.user.id);
 
     res.json({
       message: `נוצרו ${results.created} חשבוניות טיוטה`,

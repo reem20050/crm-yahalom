@@ -12,11 +12,11 @@ class AutoShiftGenerator {
    * @param {string|null} createdBy - user ID who triggered (null for cron)
    * @returns {{ created: number, skipped: number, errors: string[] }}
    */
-  generateWeekShifts(weekStartDate, createdBy = null) {
+  async generateWeekShifts(weekStartDate, createdBy = null) {
     const results = { created: 0, skipped: 0, errors: [] };
 
     // Get all active templates with auto_generate enabled
-    const templates = query(`
+    const templates = await query(`
       SELECT st.*, s.name as site_name, c.company_name
       FROM shift_templates st
       LEFT JOIN sites s ON st.site_id = s.id
@@ -26,7 +26,7 @@ class AutoShiftGenerator {
 
     for (const template of templates.rows) {
       try {
-        const templateResult = this.generateFromTemplate(template, weekStartDate, createdBy);
+        const templateResult = await this.generateFromTemplate(template, weekStartDate, createdBy);
         results.created += templateResult.created;
         results.skipped += templateResult.skipped;
       } catch (error) {
@@ -37,7 +37,7 @@ class AutoShiftGenerator {
     // Log the generation
     if (results.created > 0 || results.errors.length > 0) {
       const logId = generateUUID();
-      query(`
+      await query(`
         INSERT INTO auto_generation_log (id, type, generated_count, details, created_by)
         VALUES ($1, 'auto_shifts', $2, $3, $4)
       `, [logId, results.created, JSON.stringify(results), createdBy]);
@@ -53,7 +53,7 @@ class AutoShiftGenerator {
    * @param {string|null} createdBy
    * @returns {{ created: number, skipped: number }}
    */
-  generateFromTemplate(template, weekStartDate, createdBy = null) {
+  async generateFromTemplate(template, weekStartDate, createdBy = null) {
     const daysOfWeek = JSON.parse(template.days_of_week || '[]');
     const preferredEmployees = JSON.parse(template.preferred_employees || '[]');
     let created = 0;
@@ -72,17 +72,17 @@ class AutoShiftGenerator {
       const dateStr = currentDate.toISOString().split('T')[0];
 
       // Holiday/exception check: skip this date entirely if a skip-exception exists
-      if (holidayService.shouldSkipShift(dateStr)) {
+      if (await holidayService.shouldSkipShift(dateStr)) {
         skipped++;
         continue;
       }
 
       // Get staffing modifier for reduce/increase exceptions
-      const modifier = holidayService.getStaffingModifier(dateStr);
+      const modifier = await holidayService.getStaffingModifier(dateStr);
       const adjustedRequired = Math.ceil((template.required_employees || 1) * modifier);
 
       // Check if shift already exists for same site/date/time
-      const existing = query(`
+      const existing = await query(`
         SELECT id FROM shifts
         WHERE site_id = $1 AND date = $2 AND start_time = $3 AND end_time = $4
       `, [template.site_id, dateStr, template.start_time, template.end_time]);
@@ -94,7 +94,7 @@ class AutoShiftGenerator {
 
       // Create the shift (with adjusted required_employees based on holiday modifier)
       const shiftId = generateUUID();
-      query(`
+      await query(`
         INSERT INTO shifts (id, site_id, customer_id, date, start_time, end_time,
                            required_employees, requires_weapon, requires_vehicle, notes, status)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled')
@@ -108,7 +108,7 @@ class AutoShiftGenerator {
       // Auto-assign preferred employees if available
       for (const empId of preferredEmployees) {
         try {
-          this.tryAssignEmployee(shiftId, empId, dateStr, template.start_time, template.end_time);
+          await this.tryAssignEmployee(shiftId, empId, dateStr, template.start_time, template.end_time);
         } catch (e) {
           // Assignment failed (conflict, etc.) - skip silently
         }
@@ -120,7 +120,7 @@ class AutoShiftGenerator {
     // Log per-template generation
     if (created > 0) {
       const logId = generateUUID();
-      query(`
+      await query(`
         INSERT INTO auto_generation_log (id, type, source_id, generated_count, details, created_by)
         VALUES ($1, 'template_shifts', $2, $3, $4, $5)
       `, [logId, template.id, created, JSON.stringify({
@@ -136,13 +136,13 @@ class AutoShiftGenerator {
   /**
    * Try to assign an employee to a shift (checks conflicts)
    */
-  tryAssignEmployee(shiftId, employeeId, date, startTime, endTime) {
+  async tryAssignEmployee(shiftId, employeeId, date, startTime, endTime) {
     // Check employee exists and is active
-    const emp = query('SELECT id, status FROM employees WHERE id = $1', [employeeId]);
+    const emp = await query('SELECT id, status FROM employees WHERE id = $1', [employeeId]);
     if (emp.rows.length === 0 || emp.rows[0].status !== 'active') return false;
 
     // Check for time conflicts
-    const conflict = query(`
+    const conflict = await query(`
       SELECT sa.id FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
       WHERE sa.employee_id = $1 AND s.date = $2
@@ -154,7 +154,7 @@ class AutoShiftGenerator {
 
     // Check availability
     const dayOfWeek = new Date(date + 'T00:00:00').getDay();
-    const avail = query(`
+    const avail = await query(`
       SELECT is_available FROM employee_availability
       WHERE employee_id = $1 AND day_of_week = $2
     `, [employeeId, dayOfWeek]);
@@ -164,7 +164,7 @@ class AutoShiftGenerator {
 
     // Assign
     const assignId = generateUUID();
-    query(`
+    await query(`
       INSERT INTO shift_assignments (id, shift_id, employee_id, role, status)
       VALUES ($1, $2, $3, 'guard', 'assigned')
     `, [assignId, shiftId, employeeId]);

@@ -286,7 +286,7 @@ router.get('/suggestions/guards', requireManager, async (req, res) => {
     }
 
     const guardAssignment = require('../services/guardAssignment');
-    const suggestions = guardAssignment.getSuggestions({
+    const suggestions = await guardAssignment.getSuggestions({
       date,
       startTime: start_time,
       endTime: end_time,
@@ -697,7 +697,7 @@ router.get('/:id/suggestions', requireManager, async (req, res) => {
 
     const shift = shiftResult.rows[0];
     const guardAssignment = require('../services/guardAssignment');
-    const suggestions = guardAssignment.getSuggestions({
+    const suggestions = await guardAssignment.getSuggestions({
       date: shift.date,
       startTime: shift.start_time,
       endTime: shift.end_time,

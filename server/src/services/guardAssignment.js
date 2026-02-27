@@ -34,9 +34,9 @@ class GuardAssignment {
    * @param {number} params.limit - Max suggestions to return (default 5)
    * @returns {Array} Scored and ranked guard suggestions
    */
-  getSuggestions({ date, startTime, endTime, requiresWeapon = false, siteId = null, templateId = null, limit = 5 }) {
+  async getSuggestions({ date, startTime, endTime, requiresWeapon = false, siteId = null, templateId = null, limit = 5 }) {
     // ── 1. Get all active employees with home coordinates ─────────────────
-    const employees = query(`
+    const employees = await query(`
       SELECT e.id, e.first_name, e.last_name, e.phone, e.address, e.city,
              e.has_weapon_license, e.weapon_license_expiry, e.status,
              e.home_latitude, e.home_longitude
@@ -51,7 +51,7 @@ class GuardAssignment {
     let siteLng = null;
     let siteRequiredCerts = [];
     if (siteId) {
-      const siteResult = query(
+      const siteResult = await query(
         'SELECT latitude, longitude, required_certifications FROM sites WHERE id = $1',
         [siteId]
       );
@@ -68,7 +68,7 @@ class GuardAssignment {
     // ── 3. Get preferred employees from template ──────────────────────────
     let preferredEmployeeIds = new Set();
     if (templateId) {
-      const tmpl = query('SELECT preferred_employees FROM shift_templates WHERE id = $1', [templateId]);
+      const tmpl = await query('SELECT preferred_employees FROM shift_templates WHERE id = $1', [templateId]);
       if (tmpl.rows.length > 0) {
         try {
           const parsed = JSON.parse(tmpl.rows[0].preferred_employees || '[]');
@@ -76,7 +76,7 @@ class GuardAssignment {
         } catch (e) { /* ignore parse error */ }
       }
     } else if (siteId) {
-      const tmpl = query('SELECT preferred_employees FROM shift_templates WHERE site_id = $1 AND is_active = 1 LIMIT 1', [siteId]);
+      const tmpl = await query('SELECT preferred_employees FROM shift_templates WHERE site_id = $1 AND is_active = 1 LIMIT 1', [siteId]);
       if (tmpl.rows.length > 0) {
         try {
           const parsed = JSON.parse(tmpl.rows[0].preferred_employees || '[]');
@@ -96,7 +96,7 @@ class GuardAssignment {
     const weekEndStr = weekEnd.toISOString().split('T')[0];
 
     // ── 5. Get weekly shift counts for all employees ──────────────────────
-    const weeklyShifts = query(`
+    const weeklyShifts = await query(`
       SELECT sa.employee_id, COUNT(*) as shift_count
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
@@ -111,7 +111,7 @@ class GuardAssignment {
     }
 
     // ── 6. Get employees with time conflicts on the target date ───────────
-    const conflicts = query(`
+    const conflicts = await query(`
       SELECT sa.employee_id
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
@@ -124,7 +124,7 @@ class GuardAssignment {
 
     // ── 7. Get availability for this day of week ──────────────────────────
     const targetDayOfWeek = shiftDate.getDay();
-    const availability = query(`
+    const availability = await query(`
       SELECT employee_id, is_available
       FROM employee_availability
       WHERE day_of_week = $1
@@ -141,7 +141,7 @@ class GuardAssignment {
     let weaponValidSet = null;
     if (requiresWeapon) {
       const today = new Date().toISOString().split('T')[0];
-      const weaponEmployees = query(`
+      const weaponEmployees = await query(`
         SELECT DISTINCT e.id FROM employees e
         WHERE e.status = 'active'
         AND (
@@ -158,7 +158,7 @@ class GuardAssignment {
     }
 
     // ── 9. Get performance ratings for all employees ──────────────────────
-    const ratings = query(`
+    const ratings = await query(`
       SELECT employee_id, AVG(rating) as avg_rating
       FROM guard_ratings
       GROUP BY employee_id
@@ -169,7 +169,7 @@ class GuardAssignment {
     }
 
     // ── 10. Get certifications for all employees ──────────────────────────
-    const certifications = query(`
+    const certifications = await query(`
       SELECT employee_id, cert_type
       FROM guard_certifications
       WHERE status = 'active'
@@ -183,7 +183,7 @@ class GuardAssignment {
 
     // ── 11. Get last shift end time for fatigue calculation ───────────────
     // Find the most recent shift end for each employee relative to the target shift
-    const lastShifts = query(`
+    const lastShifts = await query(`
       SELECT sa.employee_id, MAX(s.date || 'T' || s.end_time) as last_shift_end
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
@@ -204,7 +204,7 @@ class GuardAssignment {
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
       const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
 
-      const siteVeterans = query(`
+      const siteVeterans = await query(`
         SELECT DISTINCT sa.employee_id
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
@@ -217,7 +217,7 @@ class GuardAssignment {
     }
 
     // ── 13. Reliability: no-show ratio per employee ───────────────────────
-    const reliabilityData = query(`
+    const reliabilityData = await query(`
       SELECT employee_id,
              COUNT(*) as total_assignments,
              SUM(CASE WHEN status = 'no_show' THEN 1 ELSE 0 END) as no_shows

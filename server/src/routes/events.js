@@ -271,7 +271,7 @@ router.put('/:id', requireManager, async (req, res) => {
     if (status === 'completed') {
       try {
         const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-        const invoice = autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
+        const invoice = await autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
         if (invoice) {
           console.log(`Auto-generated invoice for event ${req.params.id}: ${invoice.id}`);
         }
@@ -371,7 +371,7 @@ router.post('/:id/complete', requireManager, async (req, res) => {
     // Auto-generate invoice for completed event
     try {
       const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-      const invoice = autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
+      const invoice = await autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
       if (invoice) {
         console.log(`Auto-generated invoice for event ${req.params.id}: ${invoice.id}`);
       }

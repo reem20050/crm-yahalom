@@ -40,7 +40,7 @@ router.post('/generate-shifts', requireManager, async (req, res) => {
     const { week_start } = req.body;
     const targetWeek = week_start || autoShiftGenerator.getNextSunday();
 
-    const results = autoShiftGenerator.generateWeekShifts(targetWeek, req.user.id);
+    const results = await autoShiftGenerator.generateWeekShifts(targetWeek, req.user.id);
 
     res.json({
       message: `נוצרו ${results.created} משמרות אוטומטית`,
@@ -66,7 +66,7 @@ router.post('/generate-from-template/:templateId', requireManager, async (req, r
       return res.status(404).json({ error: 'תבנית לא נמצאה' });
     }
 
-    const result = autoShiftGenerator.generateFromTemplate(
+    const result = await autoShiftGenerator.generateFromTemplate(
       template.rows[0],
       start_date,
       req.user.id
@@ -122,7 +122,7 @@ const scheduler = require('../services/scheduler');
 // GET /api/automation/jobs - List all jobs with status from automation_config
 router.get('/jobs', requireManager, async (req, res) => {
   try {
-    const jobs = scheduler.getAllJobStatuses();
+    const jobs = await scheduler.getAllJobStatuses();
     res.json({ jobs });
   } catch (error) {
     console.error('Get automation jobs error:', error);
@@ -138,20 +138,20 @@ router.patch('/jobs/:name', requireManager, async (req, res) => {
 
     if (is_enabled !== undefined) {
       if (is_enabled) {
-        scheduler.resumeJob(name);
+        await scheduler.resumeJob(name);
       } else {
-        scheduler.pauseJob(name);
+        await scheduler.pauseJob(name);
       }
     }
 
     if (cron_schedule) {
-      const result = scheduler.updateJobSchedule(name, cron_schedule);
+      const result = await scheduler.updateJobSchedule(name, cron_schedule);
       if (!result.success) {
         return res.status(400).json({ error: result.message });
       }
     }
 
-    const status = scheduler.getJobStatus(name);
+    const status = await scheduler.getJobStatus(name);
     if (!status) {
       return res.status(404).json({ error: 'משימה לא נמצאה' });
     }
@@ -349,7 +349,7 @@ router.get('/stats', requireManager, async (req, res) => {
 router.post('/invoices/preview', requireManager, async (req, res) => {
   try {
     const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-    const previews = autoInvoiceGenerator.previewMonthlyInvoices();
+    const previews = await autoInvoiceGenerator.previewMonthlyInvoices();
     res.json({ invoices: previews });
   } catch (error) {
     console.error('Invoice preview error:', error);
@@ -365,7 +365,7 @@ router.post('/invoices/generate-selected', requireManager, async (req, res) => {
       return res.status(400).json({ error: 'נדרשים מזהי חוזים' });
     }
     const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
-    const results = autoInvoiceGenerator.generateMonthlyInvoices(req.user.id, contract_ids);
+    const results = await autoInvoiceGenerator.generateMonthlyInvoices(req.user.id, contract_ids);
     res.json({
       message: `נוצרו ${results.created} חשבוניות טיוטה`,
       ...results
@@ -399,7 +399,7 @@ router.patch('/invoice-config', requireManager, async (req, res) => {
 
     for (const [key, value] of Object.entries(updates)) {
       if (typeof value === 'string' || typeof value === 'number') {
-        autoInvoiceGenerator.updateSystemConfig(key, String(value));
+        await autoInvoiceGenerator.updateSystemConfig(key, String(value));
       }
     }
 
@@ -416,7 +416,7 @@ router.patch('/invoice-config', requireManager, async (req, res) => {
 router.get('/calendar-exceptions/upcoming', requireManager, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
-    const exceptions = holidayService.getUpcoming(days);
+    const exceptions = await holidayService.getUpcoming(days);
     res.json({ exceptions });
   } catch (error) {
     console.error('Get upcoming exceptions error:', error);
@@ -428,7 +428,7 @@ router.get('/calendar-exceptions/upcoming', requireManager, async (req, res) => 
 router.get('/calendar-exceptions', requireManager, async (req, res) => {
   try {
     const year = req.query.year ? parseInt(req.query.year) : null;
-    const exceptions = holidayService.getAll(year);
+    const exceptions = await holidayService.getAll(year);
     res.json({ exceptions });
   } catch (error) {
     console.error('Get calendar exceptions error:', error);
@@ -443,7 +443,7 @@ router.post('/calendar-exceptions', requireManager, async (req, res) => {
     if (!date || !exception_type || !name) {
       return res.status(400).json({ error: 'נדרש תאריך, סוג וכותרת' });
     }
-    const exception = holidayService.create({
+    const exception = await holidayService.create({
       date, exception_type, name, affects, action, modifier, notes, recurring
     });
     res.status(201).json(exception);
@@ -460,7 +460,7 @@ router.put('/calendar-exceptions/:id', requireManager, async (req, res) => {
     if (!date || !exception_type || !name) {
       return res.status(400).json({ error: 'נדרש תאריך, סוג וכותרת' });
     }
-    const exception = holidayService.update(req.params.id, {
+    const exception = await holidayService.update(req.params.id, {
       date, exception_type, name, affects, action, modifier, notes, recurring
     });
     if (!exception) {
@@ -476,7 +476,7 @@ router.put('/calendar-exceptions/:id', requireManager, async (req, res) => {
 // Delete a calendar exception
 router.delete('/calendar-exceptions/:id', requireManager, async (req, res) => {
   try {
-    const deleted = holidayService.delete(req.params.id);
+    const deleted = await holidayService.delete(req.params.id);
     if (!deleted) {
       return res.status(404).json({ error: 'חריג לא נמצא' });
     }
@@ -645,7 +645,7 @@ router.get('/alerts/mutes', async (req, res) => {
 router.get('/alerts/escalations', requireManager, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
-    const escalations = alertEscalation.getRecentEscalations(limit);
+    const escalations = await alertEscalation.getRecentEscalations(limit);
     res.json({ escalations });
   } catch (error) {
     console.error('Get escalations error:', error);
@@ -660,7 +660,7 @@ const shiftIntelligence = require('../services/shiftIntelligence');
 // Get shortage patterns
 router.get('/intelligence/shortages', requireManager, async (req, res) => {
   try {
-    const patterns = shiftIntelligence.detectShortagePatterns();
+    const patterns = await shiftIntelligence.detectShortagePatterns();
     res.json({ shortages: patterns });
   } catch (error) {
     console.error('Intelligence shortages error:', error);
@@ -671,7 +671,7 @@ router.get('/intelligence/shortages', requireManager, async (req, res) => {
 // Get fatigue risk report
 router.get('/intelligence/fatigue', requireManager, async (req, res) => {
   try {
-    const risks = shiftIntelligence.analyzeFatigueRisk();
+    const risks = await shiftIntelligence.analyzeFatigueRisk();
     res.json({ fatigue: risks });
   } catch (error) {
     console.error('Intelligence fatigue error:', error);
@@ -683,7 +683,7 @@ router.get('/intelligence/fatigue', requireManager, async (req, res) => {
 router.get('/intelligence/staffing', requireManager, async (req, res) => {
   try {
     const siteId = req.query.site_id || null;
-    const suggestions = shiftIntelligence.suggestOptimalStaffing(siteId);
+    const suggestions = await shiftIntelligence.suggestOptimalStaffing(siteId);
     res.json({ staffing: suggestions });
   } catch (error) {
     console.error('Intelligence staffing error:', error);
@@ -694,7 +694,7 @@ router.get('/intelligence/staffing', requireManager, async (req, res) => {
 // Get latest weekly insights
 router.get('/intelligence/insights', requireManager, async (req, res) => {
   try {
-    const insights = shiftIntelligence.getLatestInsights();
+    const insights = await shiftIntelligence.getLatestInsights();
     res.json({ insights });
   } catch (error) {
     console.error('Intelligence insights error:', error);
@@ -705,7 +705,7 @@ router.get('/intelligence/insights', requireManager, async (req, res) => {
 // Manually trigger insight generation
 router.post('/intelligence/generate', requireManager, async (req, res) => {
   try {
-    const insights = shiftIntelligence.generateWeeklyInsights();
+    const insights = await shiftIntelligence.generateWeeklyInsights();
     res.json({
       message: 'ניתוח שבועי חולל בהצלחה',
       insights
@@ -719,7 +719,7 @@ router.post('/intelligence/generate', requireManager, async (req, res) => {
 // Get shortage heatmap data
 router.get('/intelligence/heatmap', requireManager, async (req, res) => {
   try {
-    const heatmap = shiftIntelligence.getShortageHeatmap();
+    const heatmap = await shiftIntelligence.getShortageHeatmap();
     res.json({ heatmap });
   } catch (error) {
     console.error('Intelligence heatmap error:', error);

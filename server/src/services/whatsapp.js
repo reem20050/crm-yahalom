@@ -16,10 +16,10 @@ class WhatsAppService {
   }
 
   // Load WAHA URL + API key from DB if set
-  _ensureConfig() {
+  async _ensureConfig() {
     try {
       const { query } = require('../config/database');
-      const result = query("SELECT whatsapp_phone_id, whatsapp_access_token, whatsapp_phone_display FROM integration_settings WHERE id = 'main'");
+      const result = await query("SELECT whatsapp_phone_id, whatsapp_access_token, whatsapp_phone_display FROM integration_settings WHERE id = 'main'");
       if (result.rows.length > 0 && result.rows[0].whatsapp_phone_id) {
         // whatsapp_phone_id stores "wahaUrl|apiKey", whatsapp_access_token stores session name
         const stored = result.rows[0].whatsapp_phone_id;
@@ -170,13 +170,13 @@ class WhatsAppService {
    * Log a WhatsApp message to the database
    * @param {object} opts - { phone, direction, message, context, entityType, entityId, wahaMessageId, status }
    */
-  logMessage({ phone, direction, message, context, entityType, entityId, wahaMessageId, status }) {
+  async logMessage({ phone, direction, message, context, entityType, entityId, wahaMessageId, status }) {
     try {
       const { query, generateUUID } = require('../config/database');
       const id = generateUUID();
       // Normalize phone - strip @c.us suffix and non-digits
       const cleanPhone = (phone || '').replace('@c.us', '').replace(/[^0-9]/g, '');
-      query(`
+      await query(`
         INSERT INTO whatsapp_messages (id, phone, direction, message, context, entity_type, entity_id, status, waha_message_id, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, datetime('now'))
       `, [id, cleanPhone, direction || 'outgoing', message || '', context || 'manual', entityType || null, entityId || null, status || 'sent', wahaMessageId || null]);
@@ -190,17 +190,17 @@ class WhatsAppService {
   /**
    * Find entity (employee or customer contact) by phone number
    */
-  findEntityByPhone(phone) {
+  async findEntityByPhone(phone) {
     try {
       const { query } = require('../config/database');
       const cleanPhone = (phone || '').replace('@c.us', '').replace(/[^0-9]/g, '');
       // Try to match employee
-      const emp = query(`SELECT id, first_name, last_name, phone FROM employees WHERE REPLACE(REPLACE(phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
+      const emp = await query(`SELECT id, first_name, last_name, phone FROM employees WHERE REPLACE(REPLACE(phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
       if (emp.rows.length > 0) {
         return { type: 'employee', id: emp.rows[0].id, name: emp.rows[0].first_name + ' ' + emp.rows[0].last_name };
       }
       // Try to match customer contact
-      const contact = query(`SELECT c.id as contact_id, c.customer_id, c.name, c.phone FROM contacts c WHERE REPLACE(REPLACE(c.phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR c.phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
+      const contact = await query(`SELECT c.id as contact_id, c.customer_id, c.name, c.phone FROM contacts c WHERE REPLACE(REPLACE(c.phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR c.phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
       if (contact.rows.length > 0) {
         return { type: 'customer', id: contact.rows[0].customer_id, name: contact.rows[0].name };
       }
@@ -228,7 +228,7 @@ class WhatsAppService {
 
   async sendMessage(to, message, opts = {}) {
     try {
-      if (!this._ensureConfig() && !this.wahaUrl) {
+      if (!await this._ensureConfig() && !this.wahaUrl) {
         return { success: false, error: 'WhatsApp לא מוגדר. הגדר את הפרטים בדף ההגדרות.' };
       }
 
@@ -245,7 +245,7 @@ class WhatsAppService {
       });
 
       // Log outgoing message
-      this.logMessage({
+      await this.logMessage({
         phone: to,
         direction: 'outgoing',
         message: message,
@@ -260,7 +260,7 @@ class WhatsAppService {
     } catch (error) {
       console.error('WhatsApp send error:', error.response?.data || error.message);
       // Log failed message too
-      this.logMessage({
+      await this.logMessage({
         phone: to,
         direction: 'outgoing',
         message: message,

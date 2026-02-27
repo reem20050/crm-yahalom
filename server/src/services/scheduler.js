@@ -21,9 +21,9 @@ class Scheduler {
   /**
    * Load job config from DB
    */
-  getJobConfig(jobName) {
+  async getJobConfig(jobName) {
     try {
-      const result = query('SELECT * FROM automation_config WHERE job_name = $1', [jobName]);
+      const result = await query('SELECT * FROM automation_config WHERE job_name = $1', [jobName]);
       return result.rows[0] || null;
     } catch (e) {
       console.error(`[Scheduler] Error loading config for ${jobName}:`, e.message);
@@ -34,9 +34,9 @@ class Scheduler {
   /**
    * Get all job configs from DB
    */
-  getAllJobConfigs() {
+  async getAllJobConfigs() {
     try {
-      const result = query('SELECT * FROM automation_config ORDER BY category, display_name');
+      const result = await query('SELECT * FROM automation_config ORDER BY category, display_name');
       return result.rows;
     } catch (e) {
       console.error('[Scheduler] Error loading all configs:', e.message);
@@ -47,7 +47,7 @@ class Scheduler {
   /**
    * Update job config fields in DB
    */
-  updateJobConfig(jobName, fields) {
+  async updateJobConfig(jobName, fields) {
     try {
       const sets = [];
       const params = [];
@@ -59,7 +59,7 @@ class Scheduler {
       }
       sets.push(`updated_at = datetime('now')`);
       params.push(jobName);
-      query(`UPDATE automation_config SET ${sets.join(', ')} WHERE job_name = $${i}`, params);
+      await query(`UPDATE automation_config SET ${sets.join(', ')} WHERE job_name = $${i}`, params);
     } catch (e) {
       console.error(`[Scheduler] Error updating config for ${jobName}:`, e.message);
     }
@@ -68,11 +68,11 @@ class Scheduler {
   /**
    * Create a run log entry (returns the log id)
    */
-  createRunLog(jobName) {
+  async createRunLog(jobName) {
     try {
       const id = generateUUID();
       const now = new Date().toISOString();
-      query(
+      await query(
         `INSERT INTO automation_run_log (id, job_name, started_at, status) VALUES ($1, $2, $3, 'running')`,
         [id, jobName, now]
       );
@@ -86,11 +86,11 @@ class Scheduler {
   /**
    * Complete a run log entry
    */
-  completeRunLog(logId, status, counts = {}, errorMessage = null, details = null) {
+  async completeRunLog(logId, status, counts = {}, errorMessage = null, details = null) {
     if (!logId) return;
     try {
       const now = new Date().toISOString();
-      query(
+      await query(
         `UPDATE automation_run_log SET completed_at = $1, status = $2, items_processed = $3, items_created = $4, items_skipped = $5, error_message = $6, details = $7 WHERE id = $8`,
         [now, status, counts.processed || 0, counts.created || 0, counts.skipped || 0, errorMessage, details, logId]
       );
@@ -167,8 +167,8 @@ class Scheduler {
   /**
    * Schedule a retry for a failed job
    */
-  scheduleRetry(jobName, handler) {
-    const config = this.getJobConfig(jobName);
+  async scheduleRetry(jobName, handler) {
+    const config = await this.getJobConfig(jobName);
     if (!config) return;
 
     const currentRetries = config.retry_count || 0;
@@ -176,7 +176,7 @@ class Scheduler {
 
     if (currentRetries >= maxRetries) {
       console.log(`[Scheduler] ${jobName}: max retries (${maxRetries}) reached, skipping retry`);
-      this.updateJobConfig(jobName, { last_run_status: 'failed_max_retries' });
+      await this.updateJobConfig(jobName, { last_run_status: 'failed_max_retries' });
       return;
     }
 
@@ -184,7 +184,7 @@ class Scheduler {
     const nextRetry = currentRetries + 1;
     console.log(`[Scheduler] ${jobName}: scheduling retry ${nextRetry}/${maxRetries} in ${delay / 1000}s`);
 
-    this.updateJobConfig(jobName, { retry_count: nextRetry });
+    await this.updateJobConfig(jobName, { retry_count: nextRetry });
 
     // Clear any existing retry timer
     if (this.retryTimers.has(jobName)) {
@@ -207,13 +207,13 @@ class Scheduler {
    */
   async executeJob(jobName, handler) {
     // Check if job is enabled in DB
-    const config = this.getJobConfig(jobName);
+    const config = await this.getJobConfig(jobName);
     if (config && config.is_enabled === 0) {
       console.log(`[CRON] Skipped (disabled): ${jobName}`);
       return;
     }
 
-    const logId = this.createRunLog(jobName);
+    const logId = await this.createRunLog(jobName);
     const startTime = Date.now();
 
     console.log(`[CRON] Running: ${jobName}`);
@@ -229,10 +229,10 @@ class Scheduler {
       };
       const details = result?.details || result?.message || null;
 
-      this.completeRunLog(logId, 'success', counts, null, details);
+      await this.completeRunLog(logId, 'success', counts, null, details);
 
       const nextRun = config ? this.calculateNextRun(config.cron_schedule) : null;
-      this.updateJobConfig(jobName, {
+      await this.updateJobConfig(jobName, {
         last_run_at: new Date().toISOString(),
         last_run_status: 'success',
         last_run_details: details,
@@ -245,10 +245,10 @@ class Scheduler {
       const duration = Date.now() - startTime;
       const errorMsg = error.message || String(error);
 
-      this.completeRunLog(logId, 'failed', {}, errorMsg, null);
+      await this.completeRunLog(logId, 'failed', {}, errorMsg, null);
 
       const nextRun = config ? this.calculateNextRun(config.cron_schedule) : null;
-      this.updateJobConfig(jobName, {
+      await this.updateJobConfig(jobName, {
         last_run_at: new Date().toISOString(),
         last_run_status: 'failed',
         last_run_details: errorMsg,
@@ -267,8 +267,8 @@ class Scheduler {
   /**
    * Pause a job (disable in DB, stop cron)
    */
-  pauseJob(name) {
-    this.updateJobConfig(name, { is_enabled: 0 });
+  async pauseJob(name) {
+    await this.updateJobConfig(name, { is_enabled: 0 });
     const jobEntry = this.jobs.get(name);
     if (jobEntry && jobEntry.cronJob) {
       jobEntry.cronJob.stop();
@@ -283,16 +283,16 @@ class Scheduler {
   /**
    * Resume a job (enable in DB, restart cron)
    */
-  resumeJob(name) {
-    this.updateJobConfig(name, { is_enabled: 1, retry_count: 0 });
+  async resumeJob(name) {
+    await this.updateJobConfig(name, { is_enabled: 1, retry_count: 0 });
     const jobEntry = this.jobs.get(name);
     if (jobEntry && jobEntry.cronJob) {
       jobEntry.cronJob.start();
     }
-    const config = this.getJobConfig(name);
+    const config = await this.getJobConfig(name);
     if (config) {
       const nextRun = this.calculateNextRun(config.cron_schedule);
-      this.updateJobConfig(name, { next_run_at: nextRun });
+      await this.updateJobConfig(name, { next_run_at: nextRun });
     }
     return { success: true, message: `Job ${name} resumed` };
   }
@@ -307,9 +307,9 @@ class Scheduler {
     }
 
     // Reset retry count before manual trigger
-    this.updateJobConfig(name, { retry_count: 0 });
+    await this.updateJobConfig(name, { retry_count: 0 });
 
-    const logId = this.createRunLog(name);
+    const logId = await this.createRunLog(name);
     const startTime = Date.now();
 
     try {
@@ -322,11 +322,11 @@ class Scheduler {
       };
       const details = result?.details || result?.message || null;
 
-      this.completeRunLog(logId, 'success', counts, null, details);
+      await this.completeRunLog(logId, 'success', counts, null, details);
 
-      const config = this.getJobConfig(name);
+      const config = await this.getJobConfig(name);
       const nextRun = config ? this.calculateNextRun(config.cron_schedule) : null;
-      this.updateJobConfig(name, {
+      await this.updateJobConfig(name, {
         last_run_at: new Date().toISOString(),
         last_run_status: 'success',
         last_run_details: details,
@@ -339,8 +339,8 @@ class Scheduler {
       const duration = Date.now() - startTime;
       const errorMsg = error.message || String(error);
 
-      this.completeRunLog(logId, 'failed', {}, errorMsg, null);
-      this.updateJobConfig(name, {
+      await this.completeRunLog(logId, 'failed', {}, errorMsg, null);
+      await this.updateJobConfig(name, {
         last_run_at: new Date().toISOString(),
         last_run_status: 'failed',
         last_run_details: errorMsg,
@@ -353,8 +353,8 @@ class Scheduler {
   /**
    * Get status of a specific job
    */
-  getJobStatus(name) {
-    const config = this.getJobConfig(name);
+  async getJobStatus(name) {
+    const config = await this.getJobConfig(name);
     if (!config) return null;
 
     const jobEntry = this.jobs.get(name);
@@ -368,8 +368,8 @@ class Scheduler {
   /**
    * Get status of all jobs
    */
-  getAllJobStatuses() {
-    const configs = this.getAllJobConfigs();
+  async getAllJobStatuses() {
+    const configs = await this.getAllJobConfigs();
     return configs.map(config => ({
       ...config,
       is_registered: this.jobs.has(config.job_name),
@@ -380,7 +380,7 @@ class Scheduler {
   /**
    * Update the cron schedule for a job
    */
-  updateJobSchedule(name, newSchedule) {
+  async updateJobSchedule(name, newSchedule) {
     if (!cron.validate(newSchedule)) {
       return { success: false, message: 'Invalid cron expression' };
     }
@@ -402,7 +402,7 @@ class Scheduler {
     jobEntry.schedule = newSchedule;
 
     const nextRun = this.calculateNextRun(newSchedule);
-    this.updateJobConfig(name, { cron_schedule: newSchedule, next_run_at: nextRun });
+    await this.updateJobConfig(name, { cron_schedule: newSchedule, next_run_at: nextRun });
 
     return { success: true, message: `Schedule updated to ${newSchedule}` };
   }
@@ -412,7 +412,7 @@ class Scheduler {
   /**
    * Add a cron job with DB-backed config and logging
    */
-  addJob(schedule, name, handler) {
+  async addJob(schedule, name, handler) {
     const cronJob = cron.schedule(schedule, async () => {
       await this.executeJob(name, handler);
     }, {
@@ -422,7 +422,7 @@ class Scheduler {
     this.jobs.set(name, { cronJob, schedule, handler });
 
     // Check if job is disabled in DB and stop cron if so
-    const config = this.getJobConfig(name);
+    const config = await this.getJobConfig(name);
     if (config && config.is_enabled === 0) {
       cronJob.stop();
     }
@@ -430,18 +430,18 @@ class Scheduler {
     // Update next_run_at
     const nextRun = this.calculateNextRun(schedule);
     if (config) {
-      this.updateJobConfig(name, { next_run_at: nextRun });
+      await this.updateJobConfig(name, { next_run_at: nextRun });
     }
   }
 
   /**
    * Seed a job config into DB if it doesn't exist yet
    */
-  seedJobConfig(jobName, displayName, description, cronSchedule, category) {
+  async seedJobConfig(jobName, displayName, description, cronSchedule, category) {
     try {
-      const existing = this.getJobConfig(jobName);
+      const existing = await this.getJobConfig(jobName);
       if (!existing) {
-        query(
+        await query(
           `INSERT OR IGNORE INTO automation_config (id, job_name, display_name, description, cron_schedule, category) VALUES ($1, $2, $3, $4, $5, $6)`,
           [generateUUID(), jobName, displayName, description, cronSchedule, category]
         );
@@ -454,95 +454,95 @@ class Scheduler {
   /**
    * Start all scheduled tasks
    */
-  start() {
+  async start() {
     console.log('Starting scheduled tasks...');
 
     // Seed any new jobs that may not be in DB yet (e.g. shift-intelligence-weekly added later)
-    this.seedJobConfig('shift-intelligence-weekly', 'ניתוח משמרות שבועי', 'ניתוח חכם של דפוסי משמרות, שעות עודפות ובעיות כיסוי', '0 6 * * 3', 'monitoring');
+    await this.seedJobConfig('shift-intelligence-weekly', 'ניתוח משמרות שבועי', 'ניתוח חכם של דפוסי משמרות, שעות עודפות ובעיות כיסוי', '0 6 * * 3', 'monitoring');
 
     // Every day at 07:00 - Send shift reminders for today
-    this.addJob('0 7 * * *', 'daily-shift-reminders', async () => {
+    await this.addJob('0 7 * * *', 'daily-shift-reminders', async () => {
       return await this.sendTodayShiftReminders();
     });
 
     // Every day at 07:15 - Predictive alerts
     const predictiveAlerts = require('./predictiveAlerts');
-    this.addJob('15 7 * * *', 'predictive-alerts', () => {
+    await this.addJob('15 7 * * *', 'predictive-alerts', async () => {
       console.log('[Scheduler] Running predictive alerts...');
-      const result = predictiveAlerts.runAll();
+      const result = await predictiveAlerts.runAll();
       return result || { processed: 0 };
     });
 
     // Every day at 20:00 - Send tomorrow shift reminders
-    this.addJob('0 20 * * *', 'tomorrow-shift-reminders', async () => {
+    await this.addJob('0 20 * * *', 'tomorrow-shift-reminders', async () => {
       return await this.sendTomorrowShiftReminders();
     });
 
     // Every day at 09:00 - Check overdue invoices (notify admins)
-    this.addJob('0 9 * * *', 'overdue-invoice-check', async () => {
+    await this.addJob('0 9 * * *', 'overdue-invoice-check', async () => {
       return await this.checkOverdueInvoices();
     });
 
     // Every day at 10:00 - Send invoice reminders to customers
-    this.addJob('0 10 * * *', 'customer-invoice-reminders', async () => {
+    await this.addJob('0 10 * * *', 'customer-invoice-reminders', async () => {
       return await this.sendCustomerInvoiceReminders();
     });
 
     // Every Monday at 08:00 - Weekly summary
-    this.addJob('0 8 * * 1', 'weekly-summary', async () => {
+    await this.addJob('0 8 * * 1', 'weekly-summary', async () => {
       return await this.sendWeeklySummary();
     });
 
     // Every day at 08:00 - Check expiring documents
-    this.addJob('0 8 * * *', 'document-expiry-check', async () => {
+    await this.addJob('0 8 * * *', 'document-expiry-check', async () => {
       return await this.checkExpiringDocuments();
     });
 
     // Every day at 08:30 - Check expiring contracts
-    this.addJob('30 8 * * *', 'contract-expiry-check', async () => {
+    await this.addJob('30 8 * * *', 'contract-expiry-check', async () => {
       return await this.checkExpiringContracts();
     });
 
     // Every day at 10:00 - Check unassigned upcoming events
-    this.addJob('0 10 * * *', 'unassigned-events-check', async () => {
+    await this.addJob('0 10 * * *', 'unassigned-events-check', async () => {
       return await this.checkUnassignedEvents();
     });
 
     // Every day at 07:30 - Check expiring guard certifications
-    this.addJob('30 7 * * *', 'certification-expiry-check', async () => {
+    await this.addJob('30 7 * * *', 'certification-expiry-check', async () => {
       return await this.checkExpiringCertifications();
     });
 
     // Every day at 11:00 - Check unresolved incidents (48+ hours)
-    this.addJob('0 11 * * *', 'unresolved-incidents-check', async () => {
+    await this.addJob('0 11 * * *', 'unresolved-incidents-check', async () => {
       return await this.checkUnresolvedIncidents();
     });
 
     // Every 15 minutes - Check for guard no-shows
-    this.addJob('*/15 * * * *', 'guard-no-show-check', async () => {
+    await this.addJob('*/15 * * * *', 'guard-no-show-check', async () => {
       return await this.checkGuardNoShows();
     });
 
     // Every day at 03:00 - Cleanup old guard location data
-    this.addJob('0 3 * * *', 'guard-location-cleanup', async () => {
+    await this.addJob('0 3 * * *', 'guard-location-cleanup', async () => {
       return await this.cleanupGuardLocations();
     });
 
     // Every Sunday at 06:00 - Auto-generate shifts for next week
-    this.addJob('0 6 * * 0', 'auto-generate-shifts', async () => {
+    await this.addJob('0 6 * * 0', 'auto-generate-shifts', async () => {
       return await this.autoGenerateShifts();
     });
 
     // 1st of every month at 08:00 - Auto-generate monthly contract invoices
-    this.addJob('0 8 1 * *', 'auto-generate-invoices', async () => {
+    await this.addJob('0 8 1 * *', 'auto-generate-invoices', async () => {
       return await this.autoGenerateInvoices();
     });
 
     // Every Wednesday at 06:00 - Shift Intelligence weekly report
     const shiftIntelligence = require('./shiftIntelligence');
-    this.addJob('0 6 * * 3', 'shift-intelligence-weekly', () => {
+    await this.addJob('0 6 * * 3', 'shift-intelligence-weekly', async () => {
       console.log('[Scheduler] Running shift intelligence weekly analysis...');
-      const result = shiftIntelligence.generateWeeklyInsights();
+      const result = await shiftIntelligence.generateWeeklyInsights();
       return result || { processed: 0 };
     });
 
@@ -562,7 +562,7 @@ class Scheduler {
 
     const whatsappService = require('./whatsapp');
 
-    const result = query(`
+    const result = await query(`
       SELECT sa.id, sa.shift_id, sa.employee_id,
              e.first_name, e.last_name, e.phone, e.id as emp_id,
              s.date, s.start_time, s.end_time,
@@ -611,7 +611,7 @@ class Scheduler {
 
     const whatsappService = require('./whatsapp');
 
-    const result = query(`
+    const result = await query(`
       SELECT sa.id, sa.employee_id,
              e.first_name, e.phone, e.id as emp_id,
              s.date, s.start_time, s.end_time,
@@ -658,7 +658,7 @@ class Scheduler {
   async checkOverdueInvoices() {
     if (!whatsappHelper.isConfigured()) return { processed: 0, details: 'WhatsApp not configured' };
 
-    const result = query(`
+    const result = await query(`
       SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
              c.company_name,
              CAST(julianday('now', 'localtime') - julianday(i.due_date) AS INTEGER) as days_overdue
@@ -673,7 +673,7 @@ class Scheduler {
 
     console.log(`[CRON] Found ${result.rows.length} overdue invoices`);
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -707,7 +707,7 @@ class Scheduler {
 
     const whatsappService = require('./whatsapp');
 
-    const result = query(`
+    const result = await query(`
       SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
              i.customer_id, c.company_name,
              ct.name as contact_name, ct.phone as contact_phone, ct.customer_id,
@@ -755,7 +755,7 @@ class Scheduler {
   async sendWeeklySummary() {
     if (!whatsappHelper.isConfigured()) return { processed: 0, details: 'WhatsApp not configured' };
 
-    const shiftsResult = query(`
+    const shiftsResult = await query(`
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
@@ -764,13 +764,13 @@ class Scheduler {
       WHERE date BETWEEN date('now', 'localtime', '-7 days') AND date('now', 'localtime')
     `);
 
-    const eventsResult = query(`
+    const eventsResult = await query(`
       SELECT COUNT(*) as total
       FROM events
       WHERE event_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')
     `);
 
-    const leadsResult = query(`
+    const leadsResult = await query(`
       SELECT
         COUNT(*) as new_leads,
         SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won
@@ -778,7 +778,7 @@ class Scheduler {
       WHERE created_at >= date('now', 'localtime', '-7 days')
     `);
 
-    const invoiceResult = query(`
+    const invoiceResult = await query(`
       SELECT
         COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as paid,
         COUNT(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime') THEN 1 END) as overdue_count
@@ -809,7 +809,7 @@ class Scheduler {
 שבוע טוב! 🌟
 צוות יהלום CRM`;
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -829,7 +829,7 @@ class Scheduler {
   async checkExpiringDocuments() {
     if (!whatsappHelper.isConfigured()) return { processed: 0, details: 'WhatsApp not configured' };
 
-    const result = query(`
+    const result = await query(`
       SELECT ed.id, ed.document_type, ed.expiry_date,
              e.first_name, e.last_name, e.phone,
              CAST(julianday(ed.expiry_date) - julianday('now', 'localtime') AS INTEGER) as days_until_expiry
@@ -844,7 +844,7 @@ class Scheduler {
 
     console.log(`[CRON] Found ${result.rows.length} expiring documents`);
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -884,7 +884,7 @@ class Scheduler {
   async checkExpiringContracts() {
     if (!whatsappHelper.isConfigured()) return { processed: 0, details: 'WhatsApp not configured' };
 
-    const result = query(`
+    const result = await query(`
       SELECT cc.id, cc.end_date, cc.monthly_value,
              c.company_name,
              CAST(julianday(cc.end_date) - julianday('now', 'localtime') AS INTEGER) as days_until_expiry
@@ -899,7 +899,7 @@ class Scheduler {
 
     console.log(`[CRON] Found ${result.rows.length} expiring contracts`);
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -927,7 +927,7 @@ class Scheduler {
   async checkUnassignedEvents() {
     if (!whatsappHelper.isConfigured()) return { processed: 0, details: 'WhatsApp not configured' };
 
-    const result = query(`
+    const result = await query(`
       SELECT e.id, e.event_name, e.event_date, e.start_time, e.location,
              e.required_guards,
              (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count,
@@ -944,7 +944,7 @@ class Scheduler {
 
     console.log(`[CRON] Found ${result.rows.length} understaffed upcoming events`);
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -974,7 +974,7 @@ class Scheduler {
   async checkExpiringCertifications() {
     if (!whatsappHelper.isConfigured()) return { processed: 0, details: 'WhatsApp not configured' };
 
-    const result = query(`
+    const result = await query(`
       SELECT gc.id, gc.cert_type, gc.cert_name, gc.expiry_date,
              e.first_name, e.last_name, e.phone,
              CAST(julianday(gc.expiry_date) - julianday('now', 'localtime') AS INTEGER) as days_until_expiry
@@ -990,7 +990,7 @@ class Scheduler {
 
     console.log(`[CRON] Found ${result.rows.length} expiring certifications`);
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -1026,7 +1026,7 @@ class Scheduler {
   async checkUnresolvedIncidents() {
     if (!whatsappHelper.isConfigured()) return { processed: 0, details: 'WhatsApp not configured' };
 
-    const result = query(`
+    const result = await query(`
       SELECT i.id, i.title, i.severity, i.incident_type, i.incident_date, i.status,
              c.company_name, s.name as site_name,
              CAST(julianday('now', 'localtime') - julianday(i.created_at) AS INTEGER) as days_open
@@ -1042,7 +1042,7 @@ class Scheduler {
 
     console.log(`[CRON] Found ${result.rows.length} unresolved incidents (48h+)`);
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -1069,7 +1069,7 @@ class Scheduler {
    * Check for guard no-shows (shift started 15+ min ago, no check-in)
    */
   async checkGuardNoShows() {
-    const result = query(`
+    const result = await query(`
       SELECT sa.id as assignment_id, sa.employee_id, sa.shift_id,
              e.first_name, e.last_name, e.phone,
              s.date, s.start_time, s.end_time,
@@ -1091,10 +1091,10 @@ class Scheduler {
     console.log(`[CRON] Found ${result.rows.length} guard no-shows`);
 
     for (const ns of result.rows) {
-      const admins = query(`SELECT id FROM users WHERE role IN ('admin', 'manager') AND is_active = 1`);
+      const admins = await query(`SELECT id FROM users WHERE role IN ('admin', 'manager') AND is_active = 1`);
       for (const admin of admins.rows) {
         const notifId = crypto.randomUUID();
-        query(`
+        await query(`
           INSERT INTO notifications (id, user_id, type, title, message, related_entity_type, related_entity_id)
           VALUES (?, ?, 'no_show', ?, ?, 'shift_assignment', ?)
         `, [notifId, admin.id,
@@ -1103,14 +1103,14 @@ class Scheduler {
             ns.assignment_id]);
       }
 
-      query(`UPDATE shift_assignments SET status = 'no_show' WHERE id = ?`, [ns.assignment_id]);
+      await query(`UPDATE shift_assignments SET status = 'no_show' WHERE id = ?`, [ns.assignment_id]);
     }
 
     if (!whatsappHelper.isConfigured()) {
       return { processed: result.rows.length, created: result.rows.length, details: `${result.rows.length} no-shows detected (WhatsApp not configured)` };
     }
 
-    const admins = query(`
+    const admins = await query(`
       SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
     `);
 
@@ -1135,7 +1135,7 @@ class Scheduler {
    * Cleanup old guard location data (older than 30 days)
    */
   async cleanupGuardLocations() {
-    const result = query(`
+    const result = await query(`
       DELETE FROM guard_locations
       WHERE recorded_at < datetime('now', '-30 days')
     `);
@@ -1152,12 +1152,12 @@ class Scheduler {
     const nextSunday = autoShiftGenerator.getNextSunday();
 
     console.log(`[CRON] Auto-generating shifts for week starting ${nextSunday}`);
-    const results = autoShiftGenerator.generateWeekShifts(nextSunday, null);
+    const results = await autoShiftGenerator.generateWeekShifts(nextSunday, null);
 
     console.log(`[CRON] Auto-shift results: created=${results.created}, skipped=${results.skipped}, errors=${results.errors.length}`);
 
     if (results.created > 0 && whatsappHelper.isConfigured()) {
-      const admins = query(`
+      const admins = await query(`
         SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
       `);
 
@@ -1184,12 +1184,12 @@ class Scheduler {
     const autoInvoiceGenerator = require('./autoInvoiceGenerator');
 
     console.log('[CRON] Auto-generating monthly invoices');
-    const results = autoInvoiceGenerator.generateMonthlyInvoices(null);
+    const results = await autoInvoiceGenerator.generateMonthlyInvoices(null);
 
     console.log(`[CRON] Auto-invoice results: created=${results.created}, skipped=${results.skipped}, errors=${results.errors.length}`);
 
     if (results.created > 0 && whatsappHelper.isConfigured()) {
-      const admins = query(`
+      const admins = await query(`
         SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
       `);
 

@@ -13,9 +13,9 @@ class ShiftIntelligence {
    * For each site + day_of_week, count shifts where assigned < required.
    * Flag patterns where understaffing rate > 30%.
    */
-  detectShortagePatterns() {
+  async detectShortagePatterns() {
     try {
-      const result = db.query(`
+      const result = await db.query(`
         SELECT
           s.site_id,
           si.name as site_name,
@@ -48,7 +48,7 @@ class ShiftIntelligence {
       const today = new Date().toISOString().split('T')[0];
       const flagged = patterns.filter(p => p.rate > 0.3);
       for (const p of flagged) {
-        db.query(`
+        await db.query(`
           INSERT INTO shift_analytics (id, analysis_date, analysis_type, site_id, details, severity)
           VALUES ($1, $2, 'shortage', $3, $4, $5)
         `, [
@@ -72,10 +72,10 @@ class ShiftIntelligence {
    * Checks: total shifts, consecutive shifts with <8h gap, total weekly hours.
    * Flags if: shifts > 5, rest gap < 8h, or weekly hours > 50.
    */
-  analyzeFatigueRisk() {
+  async analyzeFatigueRisk() {
     try {
       // Get all employees with shifts this week
-      const employees = db.query(`
+      const employees = await db.query(`
         SELECT
           e.id as employee_id,
           e.first_name || ' ' || e.last_name as employee_name,
@@ -100,7 +100,7 @@ class ShiftIntelligence {
 
       for (const emp of employees.rows) {
         // Find minimum rest gap between consecutive shifts
-        const shifts = db.query(`
+        const shifts = await db.query(`
           SELECT s.date, s.start_time, s.end_time
           FROM shift_assignments sa
           JOIN shifts s ON sa.shift_id = s.id
@@ -161,7 +161,7 @@ class ShiftIntelligence {
       // Save fatigue results
       const today = new Date().toISOString().split('T')[0];
       for (const f of fatigueResults.filter(f => f.risk_level === 'high')) {
-        db.query(`
+        await db.query(`
           INSERT INTO shift_analytics (id, analysis_date, analysis_type, employee_id, details, severity)
           VALUES ($1, $2, 'fatigue', $3, $4, $5)
         `, [
@@ -188,7 +188,7 @@ class ShiftIntelligence {
    * Based on historical data, suggest optimal guards per site per day.
    * Calculates average assigned, no-show rate, and optimal staffing.
    */
-  suggestOptimalStaffing(siteId = null) {
+  async suggestOptimalStaffing(siteId = null) {
     try {
       let whereClause = `s.date >= date('now', '-56 days') AND s.status != 'cancelled' AND s.site_id IS NOT NULL`;
       const params = [];
@@ -197,7 +197,7 @@ class ShiftIntelligence {
         params.push(siteId);
       }
 
-      const result = db.query(`
+      const result = await db.query(`
         SELECT
           s.site_id,
           si.name as site_name,
@@ -247,20 +247,20 @@ class ShiftIntelligence {
    * Includes shortages, fatigue, staffing, no-show rates,
    * declining ratings, cert gaps, and overtime analysis.
    */
-  generateWeeklyInsights() {
+  async generateWeeklyInsights() {
     const today = new Date().toISOString().split('T')[0];
 
     // Clean old analytics for today to avoid duplicates
-    db.query(`DELETE FROM shift_analytics WHERE analysis_date = $1 AND analysis_type IN ('shortage', 'fatigue', 'weekly_insights')`, [today]);
+    await db.query(`DELETE FROM shift_analytics WHERE analysis_date = $1 AND analysis_type IN ('shortage', 'fatigue', 'weekly_insights')`, [today]);
 
-    const shortages = this.detectShortagePatterns();
-    const fatigue = this.analyzeFatigueRisk();
-    const staffing = this.suggestOptimalStaffing();
+    const shortages = await this.detectShortagePatterns();
+    const fatigue = await this.analyzeFatigueRisk();
+    const staffing = await this.suggestOptimalStaffing();
 
     // Sites with >20% no-show rate this month
     let highNoShowSites = [];
     try {
-      const noShowResult = db.query(`
+      const noShowResult = await db.query(`
         SELECT
           s.site_id, si.name as site_name,
           COUNT(DISTINCT sa.id) as total_assignments,
@@ -287,7 +287,7 @@ class ShiftIntelligence {
     // Employees with declining ratings (compare last 30 vs previous 30 days)
     let decliningRatings = [];
     try {
-      const ratingsResult = db.query(`
+      const ratingsResult = await db.query(`
         SELECT
           e.id as employee_id,
           e.first_name || ' ' || e.last_name as employee_name,
@@ -314,7 +314,7 @@ class ShiftIntelligence {
     // Overtime employees (>5 shifts this week)
     let overtimeEmployees = [];
     try {
-      const overtimeResult = db.query(`
+      const overtimeResult = await db.query(`
         SELECT
           e.id as employee_id,
           e.first_name || ' ' || e.last_name as employee_name,
@@ -366,7 +366,7 @@ class ShiftIntelligence {
     };
 
     // Save summary to shift_analytics
-    db.query(`
+    await db.query(`
       INSERT INTO shift_analytics (id, analysis_date, analysis_type, details, severity)
       VALUES ($1, $2, 'weekly_insights', $3, $4)
     `, [
@@ -388,9 +388,9 @@ class ShiftIntelligence {
   /**
    * Get the most recent weekly insights from shift_analytics.
    */
-  getLatestInsights() {
+  async getLatestInsights() {
     try {
-      const result = db.query(`
+      const result = await db.query(`
         SELECT * FROM shift_analytics
         WHERE analysis_type = 'weekly_insights'
         ORDER BY created_at DESC
@@ -413,9 +413,9 @@ class ShiftIntelligence {
   /**
    * Get shortage heatmap data: matrix of site x day_of_week with understaffing rates.
    */
-  getShortageHeatmap() {
+  async getShortageHeatmap() {
     try {
-      const result = db.query(`
+      const result = await db.query(`
         SELECT
           s.site_id,
           si.name as site_name,

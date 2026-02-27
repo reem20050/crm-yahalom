@@ -66,8 +66,8 @@ router.post('/whatsapp/webhook', async (req, res) => {
       console.log('Incoming WhatsApp message from:', result.from);
 
       // Log to whatsapp_messages table with entity matching
-      const entity = whatsappService.findEntityByPhone(result.from);
-      whatsappService.logMessage({
+      const entity = await whatsappService.findEntityByPhone(result.from);
+      await whatsappService.logMessage({
         phone: result.from,
         direction: 'incoming',
         message: result.text || '',
