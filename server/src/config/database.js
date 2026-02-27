@@ -244,6 +244,12 @@ function convertSqliteToPostgres(sql) {
     (_, col) => `TO_CHAR((${col.trim()})::date, 'MM')`
   );
 
+  // ---- GROUP_CONCAT -> STRING_AGG (PostgreSQL) ----
+  out = out.replace(
+    /GROUP_CONCAT\(([^)]+)\)/gi,
+    (_, args) => `STRING_AGG((${args.trim()})::TEXT, ',')`
+  );
+
   // ---- LIKE -> ILIKE (case-insensitive in PG) ----
   out = out.replace(/\bLIKE\b/g, 'ILIKE');
 
@@ -1029,9 +1035,13 @@ const initializeDatabase = async () => {
       CREATE TABLE IF NOT EXISTS patrol_logs (
         id TEXT PRIMARY KEY,
         shift_id TEXT,
+        shift_assignment_id TEXT,
         employee_id TEXT REFERENCES employees(id),
         checkpoint_id TEXT REFERENCES site_checkpoints(id),
-        scanned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        site_id TEXT,
+        status TEXT DEFAULT 'ok',
+        observation TEXT,
+        checked_at TEXT DEFAULT CURRENT_TIMESTAMP,
         latitude REAL,
         longitude REAL,
         notes TEXT,
@@ -1056,12 +1066,35 @@ const initializeDatabase = async () => {
       CREATE TABLE IF NOT EXISTS guard_locations (
         id TEXT PRIMARY KEY,
         employee_id TEXT REFERENCES employees(id),
+        shift_assignment_id TEXT,
+        site_id TEXT,
         latitude REAL,
         longitude REAL,
         accuracy REAL,
         recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Migrate patrol_logs: add columns that routes expect
+    const patrolMigrations = [
+      `ALTER TABLE patrol_logs ADD COLUMN shift_assignment_id TEXT`,
+      `ALTER TABLE patrol_logs ADD COLUMN site_id TEXT`,
+      `ALTER TABLE patrol_logs ADD COLUMN status TEXT DEFAULT 'ok'`,
+      `ALTER TABLE patrol_logs ADD COLUMN observation TEXT`,
+      `ALTER TABLE patrol_logs ADD COLUMN checked_at TEXT DEFAULT CURRENT_TIMESTAMP`,
+    ];
+    for (const ddl of patrolMigrations) {
+      try { await execDDL(ddl); } catch (e) { /* column already exists */ }
+    }
+
+    // Migrate guard_locations: add columns that routes expect
+    const guardLocMigrations = [
+      `ALTER TABLE guard_locations ADD COLUMN shift_assignment_id TEXT`,
+      `ALTER TABLE guard_locations ADD COLUMN site_id TEXT`,
+    ];
+    for (const ddl of guardLocMigrations) {
+      try { await execDDL(ddl); } catch (e) { /* column already exists */ }
+    }
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS documents (

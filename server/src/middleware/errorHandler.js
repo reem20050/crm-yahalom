@@ -19,7 +19,6 @@ function errorHandler(err, req, res, _next) {
     success: false,
     error: 'שגיאת שרת',
     code: 'INTERNAL_ERROR',
-    debug: err.message,
   });
 }
 
