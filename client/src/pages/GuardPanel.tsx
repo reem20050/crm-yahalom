@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, LogIn, LogOut, MapPin, Clock, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import { shiftsApi } from '../services/api';
 import toast from 'react-hot-toast';
+import type { MutationError } from '../types';
 
 function getLocation(): Promise<{ latitude: number; longitude: number } | null> {
   if (!navigator.geolocation) return Promise.resolve(null);
@@ -77,7 +78,7 @@ export default function GuardPanel() {
         toast.success('צ\'ק-אין בוצע בהצלחה!');
       }
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err?.response?.data?.error || 'שגיאה בצ\'ק-אין');
     },
   });
@@ -91,7 +92,7 @@ export default function GuardPanel() {
       queryClient.invalidateQueries({ queryKey: ['my-active-assignment'] });
       toast.success('צ\'ק-אאוט בוצע בהצלחה!');
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err?.response?.data?.error || 'שגיאה בצ\'ק-אאוט');
     },
   });

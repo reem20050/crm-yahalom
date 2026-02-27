@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { leadsApi, shiftsApi, invoicesApi, incidentsApi, sitesGlobalApi, customersApi } from '../services/api';
+import type { Site, Customer } from '../types';
 
 /* ======== QuickLeadModal ======== */
 
@@ -143,7 +144,7 @@ export function QuickShiftModal({ isOpen, onClose }: { isOpen: boolean; onClose:
             <label className="label">אתר *</label>
             <select {...register('site_id')} className="input">
               <option value="">בחר אתר...</option>
-              {Array.isArray(sites) && sites.map((site: any) => (
+              {Array.isArray(sites) && sites.map((site: Site & { company_name?: string }) => (
                 <option key={site.id} value={site.id}>
                   {site.name} {site.company_name ? `(${site.company_name})` : ''}
                 </option>
@@ -246,7 +247,7 @@ export function QuickInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClos
             <label className="label">לקוח *</label>
             <select {...register('customer_id')} className="input">
               <option value="">בחר לקוח...</option>
-              {Array.isArray(customers) && customers.map((customer: any) => (
+              {Array.isArray(customers) && customers.map((customer: Customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.company_name}
                 </option>

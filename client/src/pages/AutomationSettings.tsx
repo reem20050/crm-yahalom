@@ -35,6 +35,7 @@ import {
 } from 'recharts';
 import { automationApi } from '../services/api';
 import { SkeletonPulse } from '../components/Skeleton';
+import type { MutationError } from '../types';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -228,7 +229,7 @@ export default function AutomationSettings() {
       queryClient.invalidateQueries({ queryKey: ['automation-runs'] });
       queryClient.invalidateQueries({ queryKey: ['automation-stats'] });
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err.response?.data?.error || 'שגיאה בהפעלת המשימה');
     },
   });

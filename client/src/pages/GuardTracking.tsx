@@ -4,6 +4,7 @@ import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { Navigation, User, Clock, MapPin, AlertCircle } from 'lucide-react';
 import GoogleMapProvider from '../components/GoogleMapProvider';
 import { shiftsApi, sitesGlobalApi } from '../services/api';
+import type { Site } from '../types';
 
 interface ActiveGuard {
   assignment_id: string;
@@ -130,7 +131,7 @@ function GuardTrackingContent() {
           }}
         >
           {/* Site markers (smaller, gray) */}
-          {sites.map((site: any) => (
+          {sites.map((site: Site & { latitude: number; longitude: number }) => (
             <Marker
               key={`site-${site.id}`}
               position={{ lat: site.latitude, lng: site.longitude }}

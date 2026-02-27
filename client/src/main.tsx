@@ -7,7 +7,7 @@ import * as Sentry from '@sentry/react';
 import App from './App';
 import './styles/index.css';
 
-// Initialize Sentry error tracking (only in production, gracefully skips if DSN not set)
+// Initialize Sentry error tracking (production only)
 if (import.meta.env.PROD) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN || '',

@@ -21,7 +21,7 @@ export default function LocationReporter() {
       for (const shift of shifts) {
         if (shift.assignments) {
           const myAssignment = shift.assignments.find(
-            (a: any) => a.status === 'checked_in' && a.employee_id === user?.employeeId
+            (a: { status: string; employee_id: string }) => a.status === 'checked_in' && a.employee_id === user?.employeeId
           );
           if (myAssignment) return myAssignment;
         }

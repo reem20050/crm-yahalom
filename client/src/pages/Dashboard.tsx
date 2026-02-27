@@ -25,6 +25,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import { dashboardApi, shiftsApi } from '../services/api';
+import type { Shift, Event, Equipment, Incident, Invoice, Site, Employee, Certification } from '../types';
 import { QuickLeadModal, QuickShiftModal, QuickInvoiceModal, QuickIncidentModal } from '../components/QuickActionModals';
 import { SkeletonPulse, SkeletonStatCard, SkeletonCard } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
@@ -41,6 +42,93 @@ import {
 } from 'recharts';
 
 type ViewMode = 'business' | 'operations';
+
+interface EmployeeShift extends Shift {
+  assignment_id?: string;
+  assignment_status?: string;
+  company_name?: string;
+}
+
+interface DashboardEmployeeData {
+  myShiftsToday: EmployeeShift[];
+  myUpcomingEvents: (Event & { event_name?: string; company_name?: string; role?: string })[];
+  myEquipment: Equipment[];
+  myRecentShifts: (Shift & { company_name?: string; date?: string })[];
+}
+
+interface GuardNotCheckedIn extends Employee {
+  site_name?: string;
+  company_name?: string;
+  start_time?: string;
+  end_time?: string;
+}
+
+interface ShiftChange extends Shift {
+  company_name?: string;
+  assigned_count?: number;
+  required_employees?: number;
+  change_type?: string;
+}
+
+interface ExpiringCert extends Certification {
+  employee_name: string;
+  cert_name?: string;
+  days_left: number;
+}
+
+interface DashboardIncident extends Incident {
+  site_name?: string;
+  company_name?: string;
+  incident_time?: string;
+}
+
+interface DashboardOpsData {
+  guards_on_duty?: number;
+  guards_expected_today?: number;
+  sites_with_coverage?: number;
+  open_incidents?: { count: number; critical: number };
+  guards_not_checked_in?: GuardNotCheckedIn[];
+  sites_without_coverage?: (Site & { company_name?: string; start_time?: string; end_time?: string })[];
+  upcoming_shift_changes?: ShiftChange[];
+  expiring_licenses?: ExpiringCert[];
+  today_incidents?: DashboardIncident[];
+}
+
+interface DashboardEvent extends Event {
+  event_name?: string;
+  company_name?: string;
+  assigned_count?: number;
+  required_guards?: number;
+}
+
+interface UnassignedShift extends Shift {
+  company_name?: string;
+}
+
+interface OverdueInvoice extends Invoice {
+  company_name?: string;
+  total_amount?: number;
+  days_overdue?: number;
+}
+
+interface ExpiringContract {
+  id: string;
+  customer_id?: string;
+  company_name: string;
+  end_date: string;
+  monthly_value?: number;
+}
+
+interface DashboardBusinessData {
+  leads?: { new_leads: number };
+  customers?: { active_customers: number };
+  shiftsToday?: { total: number };
+  upcomingEvents?: DashboardEvent[];
+  monthlyRevenue?: { month: string; revenue: number }[];
+  unassignedShifts?: UnassignedShift[];
+  overdueInvoices?: OverdueInvoice[];
+  contractsExpiring?: ExpiringContract[];
+}
 
 export default function Dashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>('operations');
@@ -215,7 +303,7 @@ function getLocation(): Promise<{ latitude: number; longitude: number } | null> 
   });
 }
 
-function EmployeeView({ data }: { data: any }) {
+function EmployeeView({ data }: { data: DashboardEmployeeData }) {
   const myShifts = data?.myShiftsToday || [];
   const myEvents = data?.myUpcomingEvents || [];
   const myRecent = data?.myRecentShifts || [];
@@ -321,7 +409,7 @@ function EmployeeView({ data }: { data: any }) {
           </div>
           {myShifts.length > 0 ? (
             <div className="space-y-2.5">
-              {myShifts.map((shift: any) => {
+              {myShifts.map((shift: EmployeeShift) => {
                 const isAssigned = shift.assignment_status === 'assigned';
                 const isCheckedIn = shift.assignment_status === 'checked_in';
                 const isCompleted = shift.assignment_status === 'completed';
@@ -363,7 +451,7 @@ function EmployeeView({ data }: { data: any }) {
                       <div className="mt-3 flex gap-2">
                         {isAssigned && (
                           <button
-                            onClick={() => checkInMutation.mutate(shift.assignment_id)}
+                            onClick={() => checkInMutation.mutate(shift.assignment_id!)}
                             disabled={isBusy}
                             className="flex-1 btn-success text-sm py-2 flex items-center justify-center gap-1.5"
                           >
@@ -377,7 +465,7 @@ function EmployeeView({ data }: { data: any }) {
                         )}
                         {isCheckedIn && !shift.check_out_time && (
                           <button
-                            onClick={() => checkOutMutation.mutate(shift.assignment_id)}
+                            onClick={() => checkOutMutation.mutate(shift.assignment_id!)}
                             disabled={isBusy}
                             className="flex-1 btn-danger text-sm py-2 flex items-center justify-center gap-1.5"
                           >
@@ -415,7 +503,7 @@ function EmployeeView({ data }: { data: any }) {
           </div>
           {myEvents.length > 0 ? (
             <div className="space-y-2.5">
-              {myEvents.map((event: any) => (
+              {myEvents.map((event: Event & { event_name?: string; company_name?: string; role?: string }) => (
                 <div
                   key={event.id}
                   className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
@@ -450,7 +538,7 @@ function EmployeeView({ data }: { data: any }) {
               <h3 className="section-header-title">הציוד שלי</h3>
             </div>
             <div className="space-y-1.5">
-              {myEquipment.map((item: any, index: number) => (
+              {myEquipment.map((item: Equipment, index: number) => (
                 <div key={index} className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg">
                   <div className="flex items-center gap-2.5">
                     <Package className="w-4 h-4 text-gray-400" />
@@ -476,7 +564,7 @@ function EmployeeView({ data }: { data: any }) {
           </div>
           {myRecent.length > 0 ? (
             <div className="space-y-1.5">
-              {myRecent.map((shift: any, index: number) => (
+              {myRecent.map((shift: Shift & { company_name?: string; date?: string }, index: number) => (
                 <div
                   key={index}
                   className="flex items-center justify-between p-2.5 bg-gray-50/60 rounded-lg text-sm"
@@ -507,7 +595,7 @@ function EmployeeView({ data }: { data: any }) {
 }
 
 /* ======== OPERATIONS VIEW ======== */
-function OperationsView({ data }: { data: any }) {
+function OperationsView({ data }: { data: DashboardOpsData }) {
   const stats = [
     {
       name: 'מאבטחים בשטח',
@@ -527,8 +615,8 @@ function OperationsView({ data }: { data: any }) {
       name: 'אירועי אבטחה פתוחים',
       value: data?.open_incidents?.count || 0,
       icon: AlertTriangle,
-      iconColor: data?.open_incidents?.critical > 0 ? 'text-red-600' : 'text-red-500',
-      bgColor: data?.open_incidents?.critical > 0 ? 'bg-gradient-to-br from-red-200 to-red-100' : 'bg-gradient-to-br from-red-100 to-red-50',
+      iconColor: (data?.open_incidents?.critical ?? 0) > 0 ? 'text-red-600' : 'text-red-500',
+      bgColor: (data?.open_incidents?.critical ?? 0) > 0 ? 'bg-gradient-to-br from-red-200 to-red-100' : 'bg-gradient-to-br from-red-100 to-red-50',
       urgent: (data?.open_incidents?.critical || 0) > 0,
       href: '/incidents',
     },
@@ -546,12 +634,12 @@ function OperationsView({ data }: { data: any }) {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {stats.map((stat) => {
-          const Wrapper = stat.href ? Link : 'div';
+          const Wrapper: React.ElementType = stat.href ? Link : 'div';
           const wrapperProps = stat.href ? { to: stat.href } : {};
           return (
             <Wrapper
               key={stat.name}
-              {...(wrapperProps as any)}
+              {...wrapperProps}
               className={`stat-card hover:shadow-elevated transition-all duration-200 ${
                 stat.urgent ? 'ring-2 ring-red-200 bg-red-50/30' : ''
               }`}
@@ -571,14 +659,14 @@ function OperationsView({ data }: { data: any }) {
       </div>
 
       {/* Critical alerts row */}
-      {data?.open_incidents?.critical > 0 && (
+      {(data?.open_incidents?.critical ?? 0) > 0 && (
         <div className="bg-gradient-to-r from-danger-50 to-danger-100/50 border border-danger-200 ring-1 ring-danger-200/50 rounded-xl p-4 flex items-center gap-3 animate-fade-in">
           <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
           <div>
             <p className="font-semibold text-red-800 text-sm">
-              {data.open_incidents.critical} אירועי אבטחה קריטיים פתוחים!
+              {data.open_incidents!.critical} אירועי אבטחה קריטיים פתוחים!
             </p>
             <Link to="/incidents?severity=critical" className="text-red-600 hover:text-red-700 text-sm font-medium hover:underline">
               צפה באירועים ←
@@ -596,9 +684,9 @@ function OperationsView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">מאבטחים שלא עשו צ'ק-אין</h3>
           </div>
-          {data?.guards_not_checked_in?.length > 0 ? (
+          {(data?.guards_not_checked_in?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
-              {data.guards_not_checked_in.map((guard: any) => (
+              {data.guards_not_checked_in!.map((guard: GuardNotCheckedIn) => (
                 <div
                   key={guard.id}
                   className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center justify-between"
@@ -641,9 +729,9 @@ function OperationsView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">אתרים ללא כיסוי</h3>
           </div>
-          {data?.sites_without_coverage?.length > 0 ? (
+          {(data?.sites_without_coverage?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
-              {data.sites_without_coverage.map((site: any) => (
+              {data.sites_without_coverage!.map((site: Site & { company_name?: string; start_time?: string; end_time?: string }) => (
                 <div
                   key={site.id}
                   className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
@@ -676,9 +764,9 @@ function OperationsView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">החלפות משמרות בשעתיים הקרובות</h3>
           </div>
-          {data?.upcoming_shift_changes?.length > 0 ? (
+          {(data?.upcoming_shift_changes?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
-              {data.upcoming_shift_changes.map((shift: any) => (
+              {data.upcoming_shift_changes!.map((shift: ShiftChange) => (
                 <div
                   key={shift.id}
                   className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center justify-between"
@@ -719,9 +807,9 @@ function OperationsView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">רישיונות והסמכות שפגים ב-7 ימים</h3>
           </div>
-          {data?.expiring_licenses?.length > 0 ? (
+          {(data?.expiring_licenses?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
-              {data.expiring_licenses.map((cert: any) => (
+              {data.expiring_licenses!.map((cert: ExpiringCert) => (
                 <div
                   key={cert.id}
                   className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
@@ -751,7 +839,7 @@ function OperationsView({ data }: { data: any }) {
         </div>
 
         {/* Today's Incidents */}
-        {data?.today_incidents?.length > 0 && (
+        {(data?.today_incidents?.length ?? 0) > 0 && (
           <div className="card lg:col-span-2">
             <div className="section-header">
               <div className="section-header-icon bg-gradient-to-br from-red-100 to-red-50">
@@ -760,7 +848,7 @@ function OperationsView({ data }: { data: any }) {
               <h3 className="section-header-title">אירועי אבטחה היום</h3>
             </div>
             <div className="space-y-2.5">
-              {data.today_incidents.map((inc: any) => {
+              {data.today_incidents!.map((inc: DashboardIncident) => {
                 const severityColors: Record<string, string> = {
                   critical: 'bg-red-50 text-red-700 border-red-200',
                   high: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -799,7 +887,7 @@ function OperationsView({ data }: { data: any }) {
 }
 
 /* ======== BUSINESS VIEW ======== */
-function BusinessView({ data }: { data: any }) {
+function BusinessView({ data }: { data: DashboardBusinessData }) {
   const stats = [
     {
       name: 'לידים חדשים',
@@ -915,9 +1003,9 @@ function BusinessView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">אירועים קרובים</h3>
           </div>
-          {data?.upcomingEvents?.length > 0 ? (
+          {(data?.upcomingEvents?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
-              {data.upcomingEvents.map((event: any) => (
+              {data.upcomingEvents!.map((event: DashboardEvent) => (
                 <Link
                   key={event.id}
                   to={`/events/${event.id}`}
@@ -932,7 +1020,7 @@ function BusinessView({ data }: { data: any }) {
                     </div>
                     <span
                       className={`badge ${
-                        event.assigned_count >= event.required_guards
+                        (event.assigned_count ?? 0) >= (event.required_guards ?? 0)
                           ? 'badge-success'
                           : 'badge-warning'
                       }`}
@@ -961,9 +1049,9 @@ function BusinessView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">משמרות לא מאוישות היום</h3>
           </div>
-          {data?.unassignedShifts?.length > 0 ? (
+          {(data?.unassignedShifts?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
-              {data.unassignedShifts.map((shift: any) => (
+              {data.unassignedShifts!.map((shift: UnassignedShift) => (
                 <div
                   key={shift.id}
                   className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
@@ -995,9 +1083,9 @@ function BusinessView({ data }: { data: any }) {
             </div>
             <h3 className="section-header-title">חשבוניות באיחור</h3>
           </div>
-          {data?.overdueInvoices?.length > 0 ? (
+          {(data?.overdueInvoices?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
-              {data.overdueInvoices.map((invoice: any) => (
+              {data.overdueInvoices!.map((invoice: OverdueInvoice) => (
                 <div
                   key={invoice.id}
                   className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
@@ -1034,7 +1122,7 @@ function BusinessView({ data }: { data: any }) {
         </div>
 
         {/* Contracts expiring */}
-        {data?.contractsExpiring?.length > 0 && (
+        {(data?.contractsExpiring?.length ?? 0) > 0 && (
           <div className="card lg:col-span-2">
             <div className="section-header">
               <div className="section-header-icon bg-gradient-to-br from-sky-100 to-sky-50">
@@ -1043,7 +1131,7 @@ function BusinessView({ data }: { data: any }) {
               <h3 className="section-header-title">חוזים לחידוש בקרוב</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              {data.contractsExpiring.map((contract: any) => (
+              {data.contractsExpiring!.map((contract: ExpiringContract) => (
                 <Link
                   key={contract.id}
                   to={`/customers/${contract.customer_id}`}

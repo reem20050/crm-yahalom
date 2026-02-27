@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, MapPin, Clock, Users, Loader2, CalendarX } from 'lucide-react';
 import { shiftsApi } from '../services/api';
 import toast from 'react-hot-toast';
+import type { MutationError } from '../types';
 
 interface OpenShift {
   shift_id: string;
@@ -65,7 +66,7 @@ export default function OpenShifts() {
       toast.success('נרשמת למשמרת בהצלחה!');
       setConfirmingShift(null);
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err?.response?.data?.error || 'שגיאה ברישום למשמרת');
       setConfirmingShift(null);
     },

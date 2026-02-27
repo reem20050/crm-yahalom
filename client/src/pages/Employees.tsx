@@ -10,6 +10,7 @@ import { employeesApi } from '../services/api';
 import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { WhatsAppIcon } from '../components/WhatsAppButton';
+import type { MutationError } from '../types';
 
 const employeeSchema = z.object({
   first_name: z.string().min(1, 'נדרש שם פרטי'),
@@ -55,7 +56,7 @@ export default function Employees() {
       setIsModalOpen(false);
       reset();
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err.response?.data?.error || 'שגיאה ביצירת עובד');
     },
   });

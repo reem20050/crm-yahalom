@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { incidentsApi, customersApi, sitesApi } from '../services/api';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
+import type { Incident, Customer, Site } from '../types';
 
 const incidentTypes: Record<string, string> = {
   theft: 'גניבה',
@@ -155,7 +156,7 @@ export default function Incidents() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData as any);
+    createMutation.mutate(formData as Record<string, unknown>);
   };
 
   const incidents = incidentsData?.incidents || [];
@@ -252,7 +253,7 @@ export default function Incidents() {
                 </tr>
               </thead>
               <tbody>
-                {incidents.map((inc: any) => {
+                {incidents.map((inc: Incident & { site_name?: string; company_name?: string; incident_time?: string }) => {
                   const severityRowClass = inc.severity === 'critical'
                     ? 'bg-danger-50 ring-1 ring-danger-200 border-r-4 border-r-danger-500'
                     : inc.severity === 'high'
@@ -323,14 +324,14 @@ export default function Incidents() {
                   <label className="label">לקוח</label>
                   <select value={formData.customer_id} onChange={e => setFormData({...formData, customer_id: e.target.value, site_id: ''})} className="input w-full">
                     <option value="">בחר לקוח</option>
-                    {(customersData?.customers || []).map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                    {(customersData?.customers || []).map((c: Customer) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="label">אתר</label>
                   <select value={formData.site_id} onChange={e => setFormData({...formData, site_id: e.target.value})} className="input w-full" disabled={!formData.customer_id}>
                     <option value="">בחר אתר</option>
-                    {(sitesData?.sites || []).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {(sitesData?.sites || []).map((s: Site) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -463,7 +464,7 @@ export default function Incidents() {
                 </h3>
                 {detailData.updates?.length > 0 ? (
                   <div className="space-y-3 border-r-2 border-gray-200 pr-4 mr-2">
-                    {detailData.updates.map((u: any) => (
+                    {detailData.updates.map((u: { id: string; update_text: string; created_at: string; user_name?: string }) => (
                       <div key={u.id} className="relative">
                         <div className="absolute -right-[21px] top-1 w-3 h-3 rounded-full bg-primary-500 border-2 border-white"></div>
                         <p className="text-sm">{u.update_text}</p>

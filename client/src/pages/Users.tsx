@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { usersApi } from '../services/api';
 import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X, Link2, Unlink, Loader2 } from 'lucide-react';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
+import type { MutationError } from '../types';
 
 interface User {
   id: string;
@@ -108,7 +109,7 @@ export default function Users() {
       toast.success('משתמש נוצר בהצלחה');
       closeModal();
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       setError(err.response?.data?.error || 'שגיאה ביצירת משתמש');
     },
   });
@@ -120,7 +121,7 @@ export default function Users() {
       toast.success('משתמש עודכן בהצלחה');
       closeModal();
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       setError(err.response?.data?.error || 'שגיאה בעדכון משתמש');
     },
   });
@@ -143,7 +144,7 @@ export default function Users() {
       setResetPasswordModal(null);
       setNewPassword('');
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       setError(err.response?.data?.error || 'שגיאה באיפוס סיסמה');
     },
   });
@@ -159,7 +160,7 @@ export default function Users() {
       setLinkModal(null);
       setSelectedEmployeeId('');
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err.response?.data?.error || 'שגיאה בשיוך עובד');
     },
   });

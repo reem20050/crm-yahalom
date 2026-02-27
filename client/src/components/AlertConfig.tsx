@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { alertsApi } from '../services/api';
 import { SkeletonPulse } from './Skeleton';
+import type { MutationError } from '../types';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -419,7 +420,7 @@ export default function AlertConfig() {
       toast.success('הגדרות התראה עודכנו');
       queryClient.invalidateQueries({ queryKey: ['alert-configs'] });
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err.response?.data?.error || 'שגיאה בעדכון הגדרות');
     },
   });
@@ -431,7 +432,7 @@ export default function AlertConfig() {
       toast.success('ביטול השתקה בוצע');
       queryClient.invalidateQueries({ queryKey: ['alert-mutes'] });
     },
-    onError: (err: any) => {
+    onError: (err: MutationError) => {
       toast.error(err.response?.data?.error || 'שגיאה בביטול השתקה');
     },
   });
