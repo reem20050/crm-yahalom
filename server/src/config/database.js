@@ -756,9 +756,17 @@ const initializeDatabase = async () => {
         planning_document_url TEXT,
         google_calendar_event_id TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT DEFAULT NULL
       )
     `);
+
+    // Add deleted_at column to existing events table (safe migration)
+    try {
+      await execDDL(`ALTER TABLE events ADD COLUMN deleted_at TEXT DEFAULT NULL`);
+    } catch (e) {
+      // Column already exists — ignore
+    }
 
     // Event assignments table
     await execDDL(`
