@@ -46,6 +46,13 @@ router.post('/login', [
       return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
     }
 
+    // Look up linked employee record
+    let employeeId = null;
+    try {
+      const empResult = await db.query('SELECT id FROM employees WHERE user_id = $1', [user.id]);
+      if (empResult.rows.length > 0) employeeId = empResult.rows[0].id;
+    } catch (e) { /* ignore */ }
+
     // Update last login
     await db.query(
       'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
@@ -54,7 +61,7 @@ router.post('/login', [
 
     // Generate token
     const token = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.id, role: user.role, employeeId },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -66,12 +73,15 @@ router.post('/login', [
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role
+        role: user.role,
+        employeeId
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'שגיאה בהתחברות' });
+    console.error('Login error:', error.message, error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'שגיאה בהתחברות' });
+    }
   }
 });
 
@@ -163,6 +173,13 @@ router.post('/google', async (req, res) => {
       return res.status(401).json({ error: 'משתמש לא פעיל' });
     }
 
+    // Look up linked employee record
+    let employeeId = null;
+    try {
+      const empResult = await db.query('SELECT id FROM employees WHERE user_id = $1', [user.id]);
+      if (empResult.rows.length > 0) employeeId = empResult.rows[0].id;
+    } catch (e) { /* ignore */ }
+
     // Update last login
     await db.query(
       'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
@@ -171,7 +188,7 @@ router.post('/google', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.id, role: user.role, employeeId },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -183,7 +200,8 @@ router.post('/google', async (req, res) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role
+        role: user.role,
+        employeeId
       }
     });
   } catch (error) {
@@ -195,6 +213,15 @@ router.post('/google', async (req, res) => {
 
     res.status(500).json({ error: 'שגיאה בהתחברות עם Google' });
   }
+});
+
+// Get Google Client ID (public endpoint for frontend)
+router.get('/google/client-id', (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    return res.status(404).json({ error: 'Google Login לא מוגדר' });
+  }
+  res.json({ clientId });
 });
 
 module.exports = router;

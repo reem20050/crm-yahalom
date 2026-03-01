@@ -4,7 +4,8 @@ const { query } = require('../config/database');
 // Verify JWT token middleware
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  // Support both Authorization header (Bearer TOKEN) and query param (?token=TOKEN) for SSE
+  const token = (authHeader && authHeader.split(' ')[1]) || req.query?.token;
 
   if (!token) {
     return res.status(401).json({ error: 'גישה נדחתה - נדרשת התחברות' });

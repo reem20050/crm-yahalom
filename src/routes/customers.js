@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -16,6 +16,9 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
+    // Always exclude soft-deleted
+    whereClause.push(`deleted_at IS NULL`);
+
     if (status) {
       paramCount++;
       whereClause.push(`status = $${paramCount}`);
@@ -28,7 +31,7 @@ router.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    const whereString = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClause.join(' AND ')}`;
 
     const countResult = await db.query(`SELECT COUNT(*) as count FROM customers ${whereString}`, params);
     const total = parseInt(countResult.rows[0].count || 0);
@@ -58,10 +61,23 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get deleted customers (trash) - MUST be before /:id
+router.get('/trash/list', requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT * FROM customers WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC
+    `);
+    res.json({ customers: result.rows });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פריטים מחוקים' });
+  }
+});
+
 // Get single customer with all related data
 router.get('/:id', async (req, res) => {
   try {
-    const customerResult = await db.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
+    const customerResult = await db.query('SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
 
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'לקוח לא נמצא' });
@@ -88,7 +104,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create customer
-router.post('/', [
+router.post('/', requireManager, [
   body('company_name').notEmpty().withMessage('נדרש שם חברה')
 ], async (req, res) => {
   try {
@@ -119,7 +135,7 @@ router.post('/', [
 });
 
 // Update customer
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireManager, async (req, res) => {
   try {
     const { company_name, business_id, address, city, service_type, status, payment_terms, notes } = req.body;
 
@@ -150,7 +166,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Add contact to customer
-router.post('/:id/contacts', [
+router.post('/:id/contacts', requireManager, [
   body('name').notEmpty().withMessage('נדרש שם')
 ], async (req, res) => {
   try {
@@ -189,7 +205,7 @@ router.get('/:id/sites', async (req, res) => {
 });
 
 // Add site to customer
-router.post('/:id/sites', [
+router.post('/:id/sites', requireManager, [
   body('name').notEmpty().withMessage('נדרש שם אתר'),
   body('address').notEmpty().withMessage('נדרשת כתובת')
 ], async (req, res) => {
@@ -199,14 +215,25 @@ router.post('/:id/sites', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, address, city, requirements, requires_weapon, notes } = req.body;
+    const { name, address, city, requirements, requires_weapon, notes, latitude, longitude } = req.body;
+
+    // Auto-geocode if no coordinates provided
+    let lat = latitude || null;
+    let lng = longitude || null;
+    if (!lat && address) {
+      try {
+        const { geocodeAddress } = require('../utils/geocoder');
+        const geo = await geocodeAddress(address, city);
+        if (geo) { lat = geo.latitude; lng = geo.longitude; }
+      } catch (e) { /* geocoding optional */ }
+    }
 
     const siteId = db.generateUUID();
     const result = await db.query(`
-      INSERT INTO sites (id, customer_id, name, address, city, requirements, requires_weapon, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO sites (id, customer_id, name, address, city, requirements, requires_weapon, notes, latitude, longitude)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
-    `, [siteId, req.params.id, name, address, city, requirements, requires_weapon ? 1 : 0, notes]);
+    `, [siteId, req.params.id, name, address, city, requirements, requires_weapon ? 1 : 0, notes, lat, lng]);
 
     res.status(201).json({ site: result.rows[0] });
   } catch (error) {
@@ -215,8 +242,75 @@ router.post('/:id/sites', [
   }
 });
 
+// Update site
+router.put('/:id/sites/:siteId', requireManager, async (req, res) => {
+  try {
+    const { name, address, city, requirements, requires_weapon, notes, latitude, longitude } = req.body;
+    const result = await db.query(`
+      UPDATE sites SET name = $1, address = $2, city = $3, requirements = $4,
+        requires_weapon = $5, notes = $6, latitude = $7, longitude = $8
+      WHERE id = $9 AND customer_id = $10
+      RETURNING *
+    `, [name, address, city, requirements, requires_weapon ? 1 : 0, notes, latitude || null, longitude || null, req.params.siteId, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+    res.json({ site: result.rows[0] });
+  } catch (error) {
+    console.error('Update site error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון אתר' });
+  }
+});
+
+// Delete site
+router.delete('/:id/sites/:siteId', requireManager, async (req, res) => {
+  try {
+    const result = await db.query(
+      'DELETE FROM sites WHERE id = $1 AND customer_id = $2 RETURNING id',
+      [req.params.siteId, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+    res.json({ message: 'אתר נמחק בהצלחה' });
+  } catch (error) {
+    console.error('Delete site error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת אתר' });
+  }
+});
+
+// Geocode a site's address
+router.post('/:id/sites/:siteId/geocode', requireManager, async (req, res) => {
+  try {
+    const site = await db.query('SELECT * FROM sites WHERE id = $1 AND customer_id = $2', [req.params.siteId, req.params.id]);
+    if (site.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+
+    const { geocodeAddress } = require('../utils/geocoder');
+    const geo = await geocodeAddress(site.rows[0].address, site.rows[0].city);
+    if (!geo) return res.status(400).json({ error: 'לא ניתן למצוא קואורדינטות לכתובת זו' });
+
+    await db.query('UPDATE sites SET latitude = $1, longitude = $2 WHERE id = $3', [geo.latitude, geo.longitude, req.params.siteId]);
+    res.json({ latitude: geo.latitude, longitude: geo.longitude, formatted_address: geo.formatted_address });
+  } catch (error) {
+    console.error('Geocode site error:', error);
+    res.status(500).json({ error: 'שגיאה ב-geocoding' });
+  }
+});
+
+// Manually set site coordinates (from map pin drag)
+router.patch('/:id/sites/:siteId/coordinates', requireManager, async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+    if (latitude == null || longitude == null) return res.status(400).json({ error: 'נדרשים latitude ו-longitude' });
+
+    const result = await db.query('UPDATE sites SET latitude = $1, longitude = $2 WHERE id = $3 AND customer_id = $4 RETURNING *',
+      [latitude, longitude, req.params.siteId, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
+    res.json({ site: result.rows[0] });
+  } catch (error) {
+    console.error('Set coordinates error:', error);
+    res.status(500).json({ error: 'שגיאה בעדכון קואורדינטות' });
+  }
+});
+
 // Add contract to customer
-router.post('/:id/contracts', [
+router.post('/:id/contracts', requireManager, [
   body('start_date').isDate().withMessage('נדרש תאריך התחלה')
 ], async (req, res) => {
   try {
@@ -227,7 +321,7 @@ router.post('/:id/contracts', [
       INSERT INTO contracts (id, customer_id, start_date, end_date, monthly_value, terms, document_url, auto_renewal, renewal_reminder_days)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [contractId, req.params.id, start_date, end_date, monthly_value, terms, document_url, auto_renewal ?? true, renewal_reminder_days || 30]);
+    `, [contractId, req.params.id, start_date, end_date, monthly_value || null, terms || null, document_url || null, auto_renewal !== false ? 1 : 0, renewal_reminder_days || 30]);
 
     res.status(201).json({ contract: result.rows[0] });
   } catch (error) {
@@ -236,16 +330,11 @@ router.post('/:id/contracts', [
   }
 });
 
-// Delete customer (admin/manager only)
+// Delete customer - soft delete (admin/manager only)
 router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   try {
-    // Delete related data first
-    await db.query('DELETE FROM contacts WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM sites WHERE customer_id = $1', [req.params.id]);
-    await db.query('DELETE FROM contracts WHERE customer_id = $1', [req.params.id]);
-
     const result = await db.query(
-      'DELETE FROM customers WHERE id = $1 RETURNING id',
+      `UPDATE customers SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]
     );
 
@@ -257,6 +346,84 @@ router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   } catch (error) {
     console.error('Delete customer error:', error);
     res.status(500).json({ error: 'שגיאה במחיקת לקוח' });
+  }
+});
+
+// Restore customer
+router.post('/:id/restore', requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE customers SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NOT NULL RETURNING *`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'לקוח לא נמצא בפח' });
+    }
+    res.json({ customer: result.rows[0], message: 'לקוח שוחזר בהצלחה' });
+  } catch (error) {
+    console.error('Restore customer error:', error);
+    res.status(500).json({ error: 'שגיאה בשחזור לקוח' });
+  }
+});
+
+// Permanently delete customer
+router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
+  try {
+    // Only allow permanent delete of already soft-deleted items
+    const check = await db.query('SELECT id FROM customers WHERE id = $1 AND deleted_at IS NOT NULL', [req.params.id]);
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'לקוח לא נמצא בפח (יש למחוק רגיל קודם)' });
+    }
+
+    // Delete related data then the customer
+    await db.query('DELETE FROM invoices WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM shift_assignments WHERE shift_id IN (SELECT id FROM shifts WHERE customer_id = $1)', [req.params.id]);
+    await db.query('DELETE FROM shifts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM event_assignments WHERE event_id IN (SELECT id FROM events WHERE customer_id = $1)', [req.params.id]);
+    await db.query('DELETE FROM events WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM incidents WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM contacts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM sites WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM contracts WHERE customer_id = $1', [req.params.id]);
+    await db.query('DELETE FROM customers WHERE id = $1', [req.params.id]);
+
+    res.json({ message: 'לקוח נמחק לצמיתות' });
+  } catch (error) {
+    console.error('Permanent delete customer error:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת לקוח לצמיתות' });
+  }
+});
+
+// Get activities for customer
+router.get('/:id/activities', async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT * FROM activity_logs WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT 50',
+      ['customer', req.params.id]
+    );
+    res.json({ activities: result.rows });
+  } catch (error) {
+    console.error('Get activities error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת פעולות' });
+  }
+});
+
+// Add activity to customer
+router.post('/:id/activities', async (req, res) => {
+  try {
+    const { action, description } = req.body;
+    if (!action) return res.status(400).json({ error: 'נדרש סוג פעולה' });
+
+    const activityId = db.generateUUID();
+    const result = await db.query(
+      `INSERT INTO activity_logs (id, entity_type, entity_id, action, description, user_id, user_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [activityId, 'customer', req.params.id, action, description || '', req.user?.id || '', ((req.user?.first_name || '') + ' ' + (req.user?.last_name || '')).trim() || 'מערכת']
+    );
+    res.status(201).json({ activity: result.rows[0] });
+  } catch (error) {
+    console.error('Add activity error:', error);
+    res.status(500).json({ error: 'שגיאה בהוספת פעולה' });
   }
 });
 

@@ -1,44 +1,279 @@
 const axios = require('axios');
 require('dotenv').config();
 
+// WAHA (WhatsApp HTTP API) - self-hosted WhatsApp Web API
+// Docs: https://waha.devlike.pro/
+const DEFAULT_WAHA_URL = process.env.WAHA_API_URL || 'http://localhost:3000';
+const DEFAULT_API_KEY = process.env.WAHA_API_KEY || '';
+const SESSION_NAME = 'default';
+
 class WhatsAppService {
   constructor() {
-    this.apiUrl = process.env.WHATSAPP_API_URL;
-    this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    this.wahaUrl = DEFAULT_WAHA_URL;
+    this.apiKey = DEFAULT_API_KEY;
+    this.sessionName = SESSION_NAME;
+    this.connected = false;
   }
 
-  async sendMessage(to, message) {
+  // Load WAHA URL + API key from DB if set
+  async _ensureConfig() {
     try {
-      // Format phone number (remove leading 0, add country code)
-      let formattedPhone = to.replace(/[^0-9]/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '972' + formattedPhone.slice(1);
-      }
-
-      const response = await axios.post(
-        `${this.apiUrl}/${this.phoneNumberId}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: formattedPhone,
-          type: 'text',
-          text: { body: message },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-          },
+      const { query } = require('../config/database');
+      const result = await query("SELECT whatsapp_phone_id, whatsapp_access_token, whatsapp_phone_display FROM integration_settings WHERE id = 'main'");
+      if (result.rows.length > 0 && result.rows[0].whatsapp_phone_id) {
+        // whatsapp_phone_id stores "wahaUrl|apiKey", whatsapp_access_token stores session name
+        const stored = result.rows[0].whatsapp_phone_id;
+        if (stored.includes('|')) {
+          const parts = stored.split('|');
+          this.wahaUrl = parts[0];
+          this.apiKey = parts[1] || '';
+        } else {
+          this.wahaUrl = stored;
         }
-      );
+        this.sessionName = result.rows[0].whatsapp_access_token || SESSION_NAME;
+        this.connected = true;
+        return true;
+      }
+    } catch (e) {
+      // DB not ready yet
+    }
+    return false;
+  }
 
-      return { success: true, messageId: response.data.messages?.[0]?.id };
+  // Get WAHA base URL
+  _getBaseUrl() {
+    return this.wahaUrl || DEFAULT_WAHA_URL;
+  }
+
+  // Get headers with API key if set
+  _getHeaders(extra = {}) {
+    const headers = { 'Content-Type': 'application/json', ...extra };
+    if (this.apiKey) {
+      headers['X-Api-Key'] = this.apiKey;
+    }
+    return headers;
+  }
+
+  // ========== Session Management ==========
+
+  // Get session status
+  async getSessionStatus() {
+    try {
+      const url = this._getBaseUrl();
+      const response = await axios.get(`${url}/api/sessions/${this.sessionName}`, {
+        headers: this._getHeaders(),
+        timeout: 5000
+      });
+      return { success: true, status: response.data.status, data: response.data };
     } catch (error) {
-      console.error('WhatsApp send error:', error.response?.data || error.message);
-      return { success: false, error: error.response?.data?.error?.message || error.message };
+      if (error.response?.status === 404) {
+        return { success: true, status: 'STOPPED', data: null };
+      }
+      return { success: false, error: error.message };
     }
   }
+
+  // Start session (creates if not exists)
+  async startSession() {
+    try {
+      const url = this._getBaseUrl();
+      // First try to create the session
+      try {
+        await axios.post(`${url}/api/sessions`, {
+          name: this.sessionName,
+          start: true,
+          config: {
+            proxy: null,
+            webhooks: [{
+              url: '',
+              events: ['message']
+            }]
+          }
+        }, { headers: this._getHeaders(), timeout: 10000 });
+      } catch (e) {
+        // Session might already exist, try to start it
+        if (e.response?.status === 422 || e.response?.status === 409) {
+          await axios.post(`${url}/api/sessions/${this.sessionName}/start`, {}, { headers: this._getHeaders(), timeout: 10000 });
+        } else {
+          throw e;
+        }
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('WAHA start session error:', error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  // Stop session
+  async stopSession() {
+    try {
+      const url = this._getBaseUrl();
+      await axios.post(`${url}/api/sessions/${this.sessionName}/stop`, {}, { headers: this._getHeaders(), timeout: 5000 });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Logout session (removes auth data)
+  async logoutSession() {
+    try {
+      const url = this._getBaseUrl();
+      await axios.post(`${url}/api/sessions/${this.sessionName}/logout`, {}, { headers: this._getHeaders(), timeout: 5000 });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get QR code for authentication
+  async getQR() {
+    try {
+      const url = this._getBaseUrl();
+      const response = await axios.get(`${url}/api/${this.sessionName}/auth/qr`, {
+        headers: this._getHeaders({ 'Accept': 'application/json' }),
+        timeout: 10000
+      });
+      // WAHA returns { mimetype: "image/png", data: "base64..." } or { value: "..." }
+      const d = response.data;
+      if (d.data && d.mimetype) {
+        return { success: true, qr: `data:${d.mimetype};base64,${d.data}` };
+      }
+      return { success: true, qr: d.value || d };
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return { success: false, error: 'Session not started. Start session first.' };
+      }
+      if (error.response?.status === 422) {
+        // Already authenticated
+        return { success: false, error: 'already_authenticated' };
+      }
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  // Get account info (who is logged in)
+  async getAccountInfo() {
+    try {
+      const url = this._getBaseUrl();
+      const response = await axios.get(`${url}/api/sessions/${this.sessionName}/me`, { headers: this._getHeaders(), timeout: 5000 });
+      return { success: true, account: response.data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ========== Message Logging ==========
+
+  /**
+   * Log a WhatsApp message to the database
+   * @param {object} opts - { phone, direction, message, context, entityType, entityId, wahaMessageId, status }
+   */
+  async logMessage({ phone, direction, message, context, entityType, entityId, wahaMessageId, status }) {
+    try {
+      const { query, generateUUID } = require('../config/database');
+      const id = generateUUID();
+      // Normalize phone - strip @c.us suffix and non-digits
+      const cleanPhone = (phone || '').replace('@c.us', '').replace(/[^0-9]/g, '');
+      await query(`
+        INSERT INTO whatsapp_messages (id, phone, direction, message, context, entity_type, entity_id, status, waha_message_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, datetime('now'))
+      `, [id, cleanPhone, direction || 'outgoing', message || '', context || 'manual', entityType || null, entityId || null, status || 'sent', wahaMessageId || null]);
+      return id;
+    } catch (e) {
+      console.error('logMessage error:', e.message);
+      return null;
+    }
+  }
+
+  /**
+   * Find entity (employee or customer contact) by phone number
+   */
+  async findEntityByPhone(phone) {
+    try {
+      const { query } = require('../config/database');
+      const cleanPhone = (phone || '').replace('@c.us', '').replace(/[^0-9]/g, '');
+      // Try to match employee
+      const emp = await query(`SELECT id, first_name, last_name, phone FROM employees WHERE REPLACE(REPLACE(phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
+      if (emp.rows.length > 0) {
+        return { type: 'employee', id: emp.rows[0].id, name: emp.rows[0].first_name + ' ' + emp.rows[0].last_name };
+      }
+      // Try to match customer contact
+      const contact = await query(`SELECT c.id as contact_id, c.customer_id, c.name, c.phone FROM contacts c WHERE REPLACE(REPLACE(c.phone, '-', ''), ' ', '') LIKE '%' || $1 || '%' OR c.phone LIKE '%' || $1 || '%'`, [cleanPhone.slice(-9)]);
+      if (contact.rows.length > 0) {
+        return { type: 'customer', id: contact.rows[0].customer_id, name: contact.rows[0].name };
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ========== Messaging ==========
+
+  // Format phone number for WAHA (needs @c.us suffix)
+  _formatPhone(phone) {
+    let formatted = phone.replace(/[^0-9]/g, '');
+    // Israeli number: remove leading 0, add 972
+    if (formatted.startsWith('0')) {
+      formatted = '972' + formatted.slice(1);
+    }
+    // If doesn't have country code (less than 11 digits), assume Israel
+    if (formatted.length <= 10) {
+      formatted = '972' + formatted;
+    }
+    return formatted + '@c.us';
+  }
+
+  async sendMessage(to, message, opts = {}) {
+    try {
+      if (!await this._ensureConfig() && !this.wahaUrl) {
+        return { success: false, error: 'WhatsApp לא מוגדר. הגדר את הפרטים בדף ההגדרות.' };
+      }
+
+      const chatId = this._formatPhone(to);
+      const url = this._getBaseUrl();
+
+      const response = await axios.post(`${url}/api/sendText`, {
+        session: this.sessionName,
+        chatId: chatId,
+        text: message
+      }, {
+        headers: this._getHeaders(),
+        timeout: 15000
+      });
+
+      // Log outgoing message
+      await this.logMessage({
+        phone: to,
+        direction: 'outgoing',
+        message: message,
+        context: opts.context || 'manual',
+        entityType: opts.entityType || null,
+        entityId: opts.entityId || null,
+        wahaMessageId: response.data.id,
+        status: 'sent'
+      });
+
+      return { success: true, messageId: response.data.id };
+    } catch (error) {
+      console.error('WhatsApp send error:', error.response?.data || error.message);
+      // Log failed message too
+      await this.logMessage({
+        phone: to,
+        direction: 'outgoing',
+        message: message,
+        context: opts.context || 'manual',
+        entityType: opts.entityType || null,
+        entityId: opts.entityId || null,
+        status: 'failed'
+      });
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  // ========== Business Message Templates ==========
 
   // Send shift reminder to employee
   async sendShiftReminder(employee, shift) {
@@ -50,7 +285,11 @@ class WhatsAppService {
 
 צוות יהלום`;
 
-    return await this.sendMessage(employee.phone, message);
+    return await this.sendMessage(employee.phone, message, {
+      context: 'shift_reminder',
+      entityType: 'employee',
+      entityId: employee.id || null
+    });
   }
 
   // Send assignment confirmation to employee
@@ -64,7 +303,11 @@ class WhatsAppService {
 נא לאשר קבלה.
 צוות יהלום`;
 
-    return await this.sendMessage(employee.phone, message);
+    return await this.sendMessage(employee.phone, message, {
+      context: 'assignment_confirmation',
+      entityType: 'employee',
+      entityId: employee.id || null
+    });
   }
 
   // Send booking confirmation to customer
@@ -78,7 +321,11 @@ class WhatsAppService {
 
 צוות יהלום`;
 
-    return await this.sendMessage(contact.phone, message);
+    return await this.sendMessage(contact.phone, message, {
+      context: 'booking_confirmation',
+      entityType: 'customer',
+      entityId: contact.customer_id || null
+    });
   }
 
   // Send invoice reminder to customer
@@ -91,7 +338,11 @@ class WhatsAppService {
 לפרטים נוספים ניתן לפנות אלינו.
 צוות יהלום`;
 
-    return await this.sendMessage(contact.phone, message);
+    return await this.sendMessage(contact.phone, message, {
+      context: 'invoice_reminder',
+      entityType: 'customer',
+      entityId: contact.customer_id || null
+    });
   }
 
   // Send guard arrival notification to customer
@@ -100,38 +351,48 @@ class WhatsAppService {
 המאבטח ${guardName} בדרך אליכם ל${siteName}.
 צוות יהלום`;
 
-    return await this.sendMessage(contact.phone, message);
+    return await this.sendMessage(contact.phone, message, {
+      context: 'guard_arrival',
+      entityType: 'customer',
+      entityId: contact.customer_id || null
+    });
   }
 
-  // Handle incoming webhook
+  // Handle incoming webhook from WAHA
   async handleWebhook(webhookData) {
     try {
+      // WAHA webhook format
+      if (webhookData.event === 'message') {
+        const msg = webhookData.payload;
+        return {
+          type: 'message',
+          from: msg.from?.replace('@c.us', ''),
+          text: msg.body || msg.text,
+          timestamp: new Date(msg.timestamp * 1000),
+        };
+      }
+
+      if (webhookData.event === 'message.ack') {
+        return {
+          type: 'status',
+          messageId: webhookData.payload?.id,
+          status: webhookData.payload?.ack,
+          timestamp: new Date(),
+        };
+      }
+
+      // Also support Meta-style format for backwards compatibility
       const entry = webhookData.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
 
       if (value?.messages) {
         const message = value.messages[0];
-        const from = message.from; // Phone number
-        const text = message.text?.body;
-        const timestamp = message.timestamp;
-
-        // Return parsed message for processing
         return {
           type: 'message',
-          from,
-          text,
-          timestamp: new Date(parseInt(timestamp) * 1000),
-        };
-      }
-
-      if (value?.statuses) {
-        const status = value.statuses[0];
-        return {
-          type: 'status',
-          messageId: status.id,
-          status: status.status, // sent, delivered, read
-          timestamp: new Date(parseInt(status.timestamp) * 1000),
+          from: message.from,
+          text: message.text?.body,
+          timestamp: new Date(parseInt(message.timestamp) * 1000),
         };
       }
 
