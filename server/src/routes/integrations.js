@@ -20,6 +20,16 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect('/settings?google=error&reason=no_code');
     }
 
+    // Ensure table exists before saving tokens
+    try {
+      await query(`CREATE TABLE IF NOT EXISTS integration_settings (
+        id TEXT PRIMARY KEY, google_tokens TEXT, google_email TEXT,
+        whatsapp_phone_id TEXT, whatsapp_access_token TEXT, whatsapp_phone_display TEXT,
+        green_invoice_api_key TEXT, green_invoice_api_secret TEXT, green_invoice_business_name TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`);
+    } catch (e) { /* table exists */ }
+
     const tokens = await googleService.getTokensFromCode(code);
 
     // Extract email from tokens if possible
@@ -105,9 +115,32 @@ router.get('/google-maps-key', (req, res) => {
 // INTEGRATION SETTINGS
 // ====================
 
+// Ensure integration_settings table exists (auto-create for PostgreSQL deployments)
+async function ensureIntegrationSettingsTable() {
+  try {
+    await query(`CREATE TABLE IF NOT EXISTS integration_settings (
+      id TEXT PRIMARY KEY,
+      google_tokens TEXT,
+      google_email TEXT,
+      whatsapp_phone_id TEXT,
+      whatsapp_access_token TEXT,
+      whatsapp_phone_display TEXT,
+      green_invoice_api_key TEXT,
+      green_invoice_api_secret TEXT,
+      green_invoice_business_name TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch (e) {
+    // Table likely already exists, ignore
+  }
+}
+
 // Get integration settings
 router.get('/settings', async (req, res) => {
   try {
+    // Ensure table exists before querying
+    await ensureIntegrationSettingsTable();
+
     // Check for existing integration settings
     const result = await query(`
       SELECT * FROM integration_settings WHERE id = 'main'
