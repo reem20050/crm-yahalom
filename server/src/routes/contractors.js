@@ -6,6 +6,18 @@ const { authenticateToken, requireManager } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticateToken);
 
+// SQLite helpers: undefined -> null, boolean -> 0/1
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
+// Add computed 'name' field for backwards compatibility
+const addWorkerName = (worker) => {
+  if (!worker) return worker;
+  const first = worker.first_name || '';
+  const last = worker.last_name || '';
+  return { ...worker, name: `${first} ${last}`.trim() };
+};
+
 // Get all contractors
 router.get('/', async (req, res) => {
   try {
@@ -70,7 +82,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({
       contractor: contractorResult.rows[0],
-      workers: workers.rows,
+      workers: workers.rows.map(addWorkerName),
       eventAssignments: eventAssignments.rows
     });
   } catch (error) {
@@ -104,9 +116,9 @@ router.post('/', [
         bank_name, bank_branch, bank_account, max_workers, notes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
-    `, [contractorId, company_name, contact_name, phone, email, address, city,
-        specialization, hourly_rate, daily_rate, payment_terms,
-        bank_name, bank_branch, bank_account, max_workers, notes]);
+    `, [contractorId, company_name, contact_name, toNull(phone), toNull(email), toNull(address), toNull(city),
+        toNull(specialization), toNull(hourly_rate), toNull(daily_rate), toNull(payment_terms),
+        toNull(bank_name), toNull(bank_branch), toNull(bank_account), toNull(max_workers), toNull(notes)]);
 
     await db.query(`
       INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
@@ -150,9 +162,9 @@ router.put('/:id', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $17
       RETURNING *
-    `, [company_name, contact_name, phone, email, address, city,
-        specialization, hourly_rate, daily_rate, payment_terms,
-        bank_name, bank_branch, bank_account, max_workers, status, notes, req.params.id]);
+    `, [toNull(company_name), toNull(contact_name), toNull(phone), toNull(email), toNull(address), toNull(city),
+        toNull(specialization), toNull(hourly_rate), toNull(daily_rate), toNull(payment_terms),
+        toNull(bank_name), toNull(bank_branch), toNull(bank_account), toNull(max_workers), toNull(status), toNull(notes), req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'קבלן לא נמצא' });
@@ -219,10 +231,10 @@ router.post('/:id/workers', [
         has_weapon_license, weapon_license_expiry, notes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [workerId, req.params.id, first_name, last_name, phone, id_number,
-        has_weapon_license ? 1 : 0, weapon_license_expiry, notes]);
+    `, [workerId, req.params.id, first_name, toNull(last_name), toNull(phone), toNull(id_number),
+        toBool(has_weapon_license), toNull(weapon_license_expiry), toNull(notes)]);
 
-    res.status(201).json({ worker: result.rows[0] });
+    res.status(201).json({ worker: addWorkerName(result.rows[0]) });
   } catch (error) {
     console.error('Add worker error:', error);
     res.status(500).json({ error: 'שגיאה בהוספת עובד קבלן' });
@@ -247,15 +259,15 @@ router.put('/:id/workers/:workerId', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $9 AND contractor_id = $10
       RETURNING *
-    `, [first_name, last_name, phone, id_number,
-        has_weapon_license !== undefined ? (has_weapon_license ? 1 : 0) : undefined,
-        weapon_license_expiry, status, notes, req.params.workerId, req.params.id]);
+    `, [toNull(first_name), toNull(last_name), toNull(phone), toNull(id_number),
+        toBool(has_weapon_license),
+        toNull(weapon_license_expiry), toNull(status), toNull(notes), req.params.workerId, req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'עובד קבלן לא נמצא' });
     }
 
-    res.json({ worker: result.rows[0] });
+    res.json({ worker: addWorkerName(result.rows[0]) });
   } catch (error) {
     console.error('Update worker error:', error);
     res.status(500).json({ error: 'שגיאה בעדכון עובד קבלן' });

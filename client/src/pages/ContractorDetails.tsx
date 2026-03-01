@@ -27,7 +27,9 @@ import { usePermissions } from '../hooks/usePermissions';
 
 interface ContractorWorker {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
+  name?: string;
   phone: string;
   id_number: string;
   has_weapon_license: boolean;
@@ -303,28 +305,54 @@ export default function ContractorDetails() {
     setIsEditing(false);
   };
 
+  // Helper to split a single name string into first_name and last_name
+  const splitName = (fullName: string) => {
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) {
+      return { first_name: parts[0], last_name: parts[0] };
+    }
+    return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
+  };
+
   const handleAddWorker = (e: React.FormEvent) => {
     e.preventDefault();
     if (!workerForm.name.trim()) {
       toast.error('נדרש שם עובד');
       return;
     }
-    addWorkerMutation.mutate(workerForm as unknown as Record<string, unknown>);
+    const { first_name, last_name } = splitName(workerForm.name);
+    addWorkerMutation.mutate({
+      first_name,
+      last_name,
+      phone: workerForm.phone,
+      id_number: workerForm.id_number,
+      has_weapon_license: workerForm.has_weapon_license,
+    } as unknown as Record<string, unknown>);
   };
 
   const handleUpdateWorker = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingWorkerId || !workerForm.name.trim()) return;
+    const { first_name, last_name } = splitName(workerForm.name);
     updateWorkerMutation.mutate({
       workerId: editingWorkerId,
-      workerData: workerForm as unknown as Record<string, unknown>,
+      workerData: {
+        first_name,
+        last_name,
+        phone: workerForm.phone,
+        id_number: workerForm.id_number,
+        has_weapon_license: workerForm.has_weapon_license,
+      } as unknown as Record<string, unknown>,
     });
   };
 
   const startEditWorker = (worker: ContractorWorker) => {
     setEditingWorkerId(worker.id);
+    const displayName = worker.first_name
+      ? `${worker.first_name} ${worker.last_name || ''}`.trim()
+      : (worker.name || '');
     setWorkerForm({
-      name: worker.name || '',
+      name: displayName,
       phone: worker.phone || '',
       id_number: worker.id_number || '',
       has_weapon_license: worker.has_weapon_license || false,
@@ -863,7 +891,7 @@ export default function ContractorDetails() {
                   <tbody className="divide-y divide-gray-50">
                     {workers.map((worker) => (
                       <tr key={worker.id} className="hover:bg-gray-50/50">
-                        <td className="py-3 px-4 font-medium">{worker.name}</td>
+                        <td className="py-3 px-4 font-medium">{worker.first_name ? `${worker.first_name} ${worker.last_name || ''}`.trim() : worker.name}</td>
                         <td className="py-3 px-4" dir="ltr">
                           {worker.phone ? (
                             <a href={`tel:${worker.phone}`} className="text-primary-600 flex items-center gap-1">
