@@ -9,11 +9,11 @@ databases:
 services:
   - type: web
     name: crm-yahalom
-    env: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    env: node
     plan: free
     region: frankfurt
+    buildCommand: npm run build
+    startCommand: cd server && node src/index.js
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL

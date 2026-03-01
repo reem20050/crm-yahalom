@@ -1,0 +1,14 @@
+{
+  "name": "crm-yahalom",
+  "version": "1.0.0",
+  "description": "CRM system for Tzevet Yahalom",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "postinstall": "cd server && npm install --production",
+    "build": "cd client && npm install && npm run build && mkdir -p ../server/public && cp -r dist/* ../server/public/",
+    "start": "cd server && node src/index.js"
+  }
+}
