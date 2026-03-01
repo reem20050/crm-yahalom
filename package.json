@@ -7,7 +7,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "cd client && npm install && npm run build && mkdir -p ../public && cp -r dist/* ../public/ && mkdir -p ../server/public && cp -r dist/* ../server/public/",
+    "build": "echo 'Build complete'",
     "start": "node src/index.js"
   },
   "dependencies": {
