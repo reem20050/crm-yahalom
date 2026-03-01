@@ -5,7 +5,15 @@ class GoogleService {
   constructor() {
     this.clientId = process.env.GOOGLE_CLIENT_ID;
     this.clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    this.redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+    // Build redirect URI with fallback for production (Render / Railway)
+    this.redirectUri = process.env.GOOGLE_REDIRECT_URI
+      || process.env.GOOGLE_INTEGRATION_REDIRECT_URI
+      || (process.env.RENDER_EXTERNAL_URL
+          ? `${process.env.RENDER_EXTERNAL_URL}/api/integrations/google/callback`
+          : (process.env.RAILWAY_PUBLIC_DOMAIN
+              ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/integrations/google/callback`
+              : 'http://localhost:5000/api/integrations/google/callback'));
 
     this.oauth2Client = new google.auth.OAuth2(
       this.clientId,
