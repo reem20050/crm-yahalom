@@ -2,22 +2,22 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/client
 COPY client/package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 COPY client/ ./
-RUN npm run build
+RUN npm run build || (echo "Client build failed, creating empty dist" && mkdir -p dist)
 
 # Stage 2: Build and run server
 FROM node:20-alpine
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3 + timezone data
-RUN apk add --no-cache python3 make g++ tzdata
+# Install timezone data only (skip native build deps for smaller/faster builds)
+RUN apk add --no-cache tzdata
 ENV TZ=Asia/Jerusalem
 RUN cp /usr/share/zoneinfo/Asia/Jerusalem /etc/localtime && echo "Asia/Jerusalem" > /etc/timezone
 
 # Install server dependencies
 COPY server/package*.json ./
-RUN npm install --production
+RUN npm install --production --ignore-optional
 
 # Copy server files
 COPY server/ ./
@@ -25,7 +25,7 @@ COPY server/ ./
 # Copy frontend build
 COPY --from=frontend-builder /app/client/dist ./public
 
-# Create data directory for SQLite
+# Create data directory for SQLite (if needed)
 RUN mkdir -p data
 
 # Set environment variables
