@@ -5,6 +5,9 @@ const { authenticateToken, requireManager } = require('../middleware/auth');
 const whatsappHelper = require('../utils/whatsappHelper');
 const googleHelper = require('../utils/googleHelper');
 
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -135,7 +138,7 @@ router.get('/:id', async (req, res) => {
     }
 
     const [assignmentsResult, contractorAssignmentsResult] = await Promise.all([
-      await db.query(`
+      db.query(`
         SELECT ea.*,
                emp.first_name || ' ' || emp.last_name as employee_name,
                emp.phone as employee_phone,
@@ -144,7 +147,7 @@ router.get('/:id', async (req, res) => {
         JOIN employees emp ON ea.employee_id = emp.id
         WHERE ea.event_id = $1
       `, [req.params.id]),
-      await db.query(`
+      db.query(`
         SELECT eca.*, con.company_name, con.contact_name, con.phone as contractor_phone
         FROM event_contractor_assignments eca
         JOIN contractors con ON con.id = eca.contractor_id
@@ -194,10 +197,10 @@ router.post('/', requireManager, [
         special_equipment, notes, price
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
-    `, [eventId, customer_id, lead_id, event_name, event_type, event_date,
-        start_time, end_time, location, address, expected_attendance,
-        required_guards, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0,
-        special_equipment, notes, price]);
+    `, [eventId, toNull(customer_id), toNull(lead_id), event_name, toNull(event_type), event_date,
+        start_time, end_time, location, toNull(address), toNull(expected_attendance),
+        required_guards, toBool(requires_weapon), toBool(requires_vehicle),
+        toNull(special_equipment), toNull(notes), toNull(price)]);
 
     await db.query(`
       INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
@@ -251,10 +254,10 @@ router.put('/:id', requireManager, async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $17
       RETURNING *
-    `, [event_name, event_type, event_date, start_time, end_time,
-        location, address, expected_attendance, required_guards,
-        requires_weapon, requires_vehicle, special_equipment,
-        notes, price, status, planning_document_url, req.params.id]);
+    `, [toNull(event_name), toNull(event_type), toNull(event_date), toNull(start_time), toNull(end_time),
+        toNull(location), toNull(address), toNull(expected_attendance), toNull(required_guards),
+        toBool(requires_weapon), toBool(requires_vehicle), toNull(special_equipment),
+        toNull(notes), toNull(price), toNull(status), toNull(planning_document_url), req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'אירוע לא נמצא' });

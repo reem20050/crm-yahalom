@@ -15,7 +15,7 @@ router.get('/sales', async (req, res) => {
 
     const [leadsBySource, conversionRate, monthlyLeads, topSales] = await Promise.all([
       // Leads by source
-      await db.query(`
+      db.query(`
         SELECT source, COUNT(*) as count
         FROM leads
         WHERE created_at BETWEEN $1 AND $2
@@ -24,7 +24,7 @@ router.get('/sales', async (req, res) => {
       `, [startDateParam, endDateParam]),
 
       // Conversion rate
-      await db.query(`
+      db.query(`
         SELECT
           COUNT(*) as total_leads,
           SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
@@ -35,7 +35,7 @@ router.get('/sales', async (req, res) => {
       `, [startDateParam, endDateParam]),
 
       // Monthly leads
-      await db.query(`
+      db.query(`
         SELECT
           strftime('%Y-%m', created_at) as month,
           COUNT(*) as total,
@@ -47,7 +47,7 @@ router.get('/sales', async (req, res) => {
       `, [startDateParam, endDateParam]),
 
       // Top sales people
-      await db.query(`
+      db.query(`
         SELECT
           u.first_name || ' ' || u.last_name as name,
           SUM(CASE WHEN l.status = 'won' THEN 1 ELSE 0 END) as deals_won,
@@ -78,7 +78,7 @@ router.get('/customers', async (req, res) => {
   try {
     const [revenueByCustomer, customersByType, churnRisk] = await Promise.all([
       // Revenue by customer (top 10)
-      await db.query(`
+      db.query(`
         SELECT c.id, c.company_name,
                COALESCE(SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END), 0) as total_revenue,
                COUNT(DISTINCT i.id) as invoice_count
@@ -91,7 +91,7 @@ router.get('/customers', async (req, res) => {
       `),
 
       // Customers by service type
-      await db.query(`
+      db.query(`
         SELECT service_type, COUNT(*) as count
         FROM customers
         WHERE status = 'active'
@@ -99,7 +99,7 @@ router.get('/customers', async (req, res) => {
       `),
 
       // Churn risk (no activity in 90 days)
-      await db.query(`
+      db.query(`
         SELECT c.id, c.company_name, c.created_at,
                MAX(s.date) as last_shift_date,
                MAX(e.event_date) as last_event_date
@@ -135,7 +135,7 @@ router.get('/employees', async (req, res) => {
 
     const [hoursBreakdown, attendanceIssues, topPerformers] = await Promise.all([
       // Hours breakdown by employee
-      await db.query(`
+      db.query(`
         SELECT
           e.id,
           e.first_name || ' ' || e.last_name as name,
@@ -153,7 +153,7 @@ router.get('/employees', async (req, res) => {
       `, [String(targetYear), monthStr]),
 
       // Attendance issues (no-shows)
-      await db.query(`
+      db.query(`
         SELECT
           e.first_name || ' ' || e.last_name as name,
           SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) as no_shows
@@ -169,7 +169,7 @@ router.get('/employees', async (req, res) => {
       `, [String(targetYear), monthStr]),
 
       // Top performers (most hours, no issues)
-      await db.query(`
+      db.query(`
         SELECT
           e.first_name || ' ' || e.last_name as name,
           COALESCE(SUM(sa.actual_hours), 0) as total_hours,
@@ -206,7 +206,7 @@ router.get('/events', async (req, res) => {
 
     const [eventsByType, monthlyEvents, revenueByType] = await Promise.all([
       // Events by type
-      await db.query(`
+      db.query(`
         SELECT event_type, COUNT(*) as count
         FROM events
         WHERE strftime('%Y', event_date) = $1
@@ -215,7 +215,7 @@ router.get('/events', async (req, res) => {
       `, [String(targetYear)]),
 
       // Monthly events
-      await db.query(`
+      db.query(`
         SELECT
           strftime('%Y-%m', event_date) as month,
           COUNT(*) as total,
@@ -228,7 +228,7 @@ router.get('/events', async (req, res) => {
       `, [String(targetYear)]),
 
       // Revenue by event type
-      await db.query(`
+      db.query(`
         SELECT event_type,
                COUNT(*) as count,
                SUM(price) as total_revenue,
@@ -260,7 +260,7 @@ router.get('/financial', async (req, res) => {
 
     const [monthlyRevenue, outstandingPayments, revenueByCustomer] = await Promise.all([
       // Monthly revenue
-      await db.query(`
+      db.query(`
         SELECT
           strftime('%Y-%m', issue_date) as month,
           SUM(total_amount) as invoiced,
@@ -272,7 +272,7 @@ router.get('/financial', async (req, res) => {
       `, [String(targetYear)]),
 
       // Outstanding payments
-      await db.query(`
+      db.query(`
         SELECT
           COALESCE(SUM(CASE WHEN status = 'sent' AND due_date >= date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as pending,
           COALESCE(SUM(CASE WHEN status = 'sent' AND due_date < date('now', 'localtime') THEN total_amount ELSE 0 END), 0) as overdue,
@@ -283,7 +283,7 @@ router.get('/financial', async (req, res) => {
       `),
 
       // Revenue by customer (this year)
-      await db.query(`
+      db.query(`
         SELECT c.company_name,
                COALESCE(SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END), 0) as paid,
                COALESCE(SUM(CASE WHEN i.status = 'sent' THEN i.total_amount ELSE 0 END), 0) as pending
@@ -317,7 +317,7 @@ router.get('/profit-loss', async (req, res) => {
 
     const [monthlyRevenue, monthlyLaborCost, revenueByCustomer, costByCustomer] = await Promise.all([
       // Monthly revenue from invoices (paid)
-      await db.query(`
+      db.query(`
         SELECT
           strftime('%Y-%m', issue_date) as month,
           COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END), 0) as revenue,
@@ -329,7 +329,7 @@ router.get('/profit-loss', async (req, res) => {
       `, [String(targetYear)]),
 
       // Monthly labor costs (employee hours * hourly_rate)
-      await db.query(`
+      db.query(`
         SELECT
           strftime('%Y-%m', s.date) as month,
           COALESCE(SUM(
@@ -351,7 +351,7 @@ router.get('/profit-loss', async (req, res) => {
       `, [String(targetYear)]),
 
       // Revenue by customer (for per-customer profitability)
-      await db.query(`
+      db.query(`
         SELECT
           c.id as customer_id,
           c.company_name,
@@ -366,7 +366,7 @@ router.get('/profit-loss', async (req, res) => {
       `, [String(targetYear)]),
 
       // Labor cost by customer
-      await db.query(`
+      db.query(`
         SELECT
           s.customer_id,
           COALESCE(SUM(

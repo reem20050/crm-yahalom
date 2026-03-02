@@ -5,6 +5,9 @@ const { authenticateToken, requireManager } = require('../middleware/auth');
 const greenInvoiceService = require('../services/greenInvoice');
 const { query: dbQuery } = require('../config/database');
 
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -340,14 +343,14 @@ router.post('/', requireManager, [
                            amount, vat_amount, total_amount, description)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [invoiceId, customer_id, event_id, issue_date, due_date,
-        baseAmount, vatCalc, totalCalc, description]);
+    `, [invoiceId, customer_id, toNull(event_id), issue_date, due_date,
+        baseAmount, vatCalc, totalCalc, toNull(description)]);
 
     const invoice = result.rows[0];
 
     // Try to create on Green Invoice if configured (non-blocking)
     try {
-      const settings = dbQuery(`SELECT green_invoice_api_key FROM integration_settings WHERE id = 'main'`);
+      const settings = await dbQuery(`SELECT green_invoice_api_key FROM integration_settings WHERE id = 'main'`);
       if (settings.rows.length > 0 && settings.rows[0].green_invoice_api_key) {
         const customerResult = await db.query(`
           SELECT c.*, ct.name as contact_name, ct.email as contact_email

@@ -18,6 +18,12 @@ if (isPostgres) {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+  pool.on('error', (err) => {
+    console.error('Unexpected PG pool error:', err.message);
   });
   console.log('🐘 Using PostgreSQL (DATABASE_URL detected)');
 } else {
@@ -502,12 +508,27 @@ function querySqlite(sql, params = []) {
         return { rows: [], rowCount: result.changes };
       } else if (cleanSql.toUpperCase().startsWith('UPDATE')) {
         const tableName = cleanSql.match(/UPDATE (\w+)/i)?.[1];
-        const whereMatch = cleanSql.match(/WHERE\s+(.+)$/i);
         db.prepare(cleanSql).run(...params);
-        if (tableName && whereMatch) {
-          const lastParam = params[params.length - 1];
-          const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(lastParam);
-          return { rows: row ? [row] : [] };
+        if (tableName) {
+          // Extract WHERE clause and rebuild with the same params
+          const whereMatch = cleanSql.match(/WHERE\s+(.+?)(?:\s+RETURNING|\s*$)/i);
+          if (whereMatch) {
+            const whereClause = whereMatch[1].replace(/\$(\d+)/g, '?');
+            // Find which params are used in WHERE clause
+            const whereParamIndices = [];
+            whereMatch[1].replace(/\$(\d+)/g, (_, num) => {
+              whereParamIndices.push(parseInt(num) - 1);
+            });
+            const whereParams = whereParamIndices.map(i => params[i]);
+            try {
+              const row = db.prepare(`SELECT * FROM ${tableName} WHERE ${whereClause}`).get(...whereParams);
+              return { rows: row ? [row] : [] };
+            } catch (e) {
+              // Fallback: try with last param as id
+              const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(params[params.length - 1]);
+              return { rows: row ? [row] : [] };
+            }
+          }
         }
         return { rows: [] };
       } else if (cleanSql.toUpperCase().startsWith('DELETE')) {

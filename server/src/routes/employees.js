@@ -4,6 +4,9 @@ const bcrypt = require('bcryptjs');
 const db = require('../config/database');
 const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -128,7 +131,7 @@ router.get('/:id', async (req, res) => {
     const [documents, availability, recentShifts] = await Promise.all([
       db.query('SELECT * FROM employee_documents WHERE employee_id = $1 ORDER BY uploaded_at DESC', [req.params.id]),
       db.query('SELECT * FROM employee_availability WHERE employee_id = $1 ORDER BY day_of_week', [req.params.id]),
-      await db.query(`
+      db.query(`
         SELECT sa.*, s.date, s.start_time, s.end_time, c.company_name, si.name as site_name
         FROM shift_assignments sa
         JOIN shifts s ON sa.shift_id = s.id
@@ -258,10 +261,10 @@ router.put('/:id', requireManager, async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $18
       RETURNING *
-    `, [first_name, last_name, phone, email, address, city,
-        employment_type, hourly_rate, monthly_salary, status,
-        has_weapon_license, weapon_license_expiry, has_driving_license, driving_license_type,
-        emergency_contact_name, emergency_contact_phone, notes, req.params.id]);
+    `, [toNull(first_name), toNull(last_name), toNull(phone), toNull(email), toNull(address), toNull(city),
+        toNull(employment_type), toNull(hourly_rate), toNull(monthly_salary), toNull(status),
+        toBool(has_weapon_license), toNull(weapon_license_expiry), toBool(has_driving_license), toNull(driving_license_type),
+        toNull(emergency_contact_name), toNull(emergency_contact_phone), toNull(notes), req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'עובד לא נמצא' });
@@ -319,7 +322,7 @@ router.post('/:id/availability', requireManager, async (req, res) => {
       await db.query(`
         INSERT INTO employee_availability (id, employee_id, day_of_week, start_time, end_time, is_available)
         VALUES ($1, $2, $3, $4, $5, $6)
-      `, [db.generateUUID(), req.params.id, av.day_of_week, av.start_time, av.end_time, av.is_available ?? true]);
+      `, [db.generateUUID(), req.params.id, av.day_of_week, av.start_time, av.end_time, toBool(av.is_available ?? true)]);
     }
 
     const result = await db.query(

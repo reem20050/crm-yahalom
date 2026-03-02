@@ -54,17 +54,29 @@ router.post('/login', [
     } catch (e) { /* ignore */ }
 
     // Update last login
-    await db.query(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
-      [user.id]
-    );
+    try {
+      await db.query(
+        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+        [user.id]
+      );
+    } catch (updateErr) {
+      console.error('Failed to update last_login:', updateErr.message);
+    }
 
     // Generate token
-    const token = jwt.sign(
-      { userId: user.id, role: user.role, employeeId },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const secret = process.env.JWT_SECRET || 'fallback-dev-secret';
+    const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+    let token;
+    try {
+      token = jwt.sign(
+        { userId: user.id, role: user.role, employeeId },
+        secret,
+        { expiresIn }
+      );
+    } catch (jwtError) {
+      console.error('JWT sign error:', jwtError.message, 'secret length:', secret.length, 'expiresIn:', expiresIn);
+      return res.status(500).json({ error: 'שגיאה ביצירת token' });
+    }
 
     res.json({
       token,

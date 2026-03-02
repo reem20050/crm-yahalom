@@ -4,6 +4,9 @@ const db = require('../config/database');
 const { authenticateToken, requireManager } = require('../middleware/auth');
 const whatsappHelper = require('../utils/whatsappHelper');
 
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -739,7 +742,7 @@ router.post('/', requireManager, [
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `, [shiftId, site_id, customer_id, date, start_time, end_time,
-        required_employees || 1, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, notes]);
+        required_employees || 1, toBool(requires_weapon), toBool(requires_vehicle), toNull(notes)]);
 
     res.status(201).json({ shift: result.rows[0] });
   } catch (error) {
@@ -764,7 +767,7 @@ router.patch('/:id', requireManager, async (req, res) => {
         let val = req.body[field];
         // Convert booleans to integers for SQLite
         if (field === 'requires_weapon' || field === 'requires_vehicle') {
-          val = val ? 1 : 0;
+          val = toBool(val);
         }
         params.push(val);
       }
@@ -824,7 +827,7 @@ router.post('/recurring', requireManager, [
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING *
         `, [recurringShiftId, site_id, customer_id, dateStr, start_time, end_time,
-            required_employees || 1, requires_weapon ? 1 : 0, requires_vehicle ? 1 : 0, notes]);
+            required_employees || 1, toBool(requires_weapon), toBool(requires_vehicle), toNull(notes)]);
 
         createdShifts.push(result.rows[0]);
       }
@@ -1181,7 +1184,7 @@ router.post('/location-report', async (req, res) => {
       FROM shift_assignments sa
       JOIN shifts s ON sa.shift_id = s.id
       JOIN employees e ON sa.employee_id = e.id
-      JOIN users u ON u.employee_id = e.id
+      JOIN users u ON e.user_id = u.id
       WHERE sa.id = $1 AND u.id = $2 AND sa.status = 'checked_in'
     `, [assignment_id, req.user.id]);
 
