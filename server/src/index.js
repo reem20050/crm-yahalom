@@ -185,7 +185,7 @@ app.get('/api/health', async (req, res) => {
   } catch (e) {
     dbStatus = `ERROR: ${e.message}`;
   }
-  res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', db: dbStatus });
+  res.json({ status: 'OK', message: 'Tzevet Yahalom CRM Server is running', db: dbStatus, version: '2026-03-02-bugfix' });
 });
 
 // Serve static files in production
