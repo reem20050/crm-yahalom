@@ -18,6 +18,12 @@ if (isPostgres) {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+  pool.on('error', (err) => {
+    console.error('Unexpected PG pool error:', err.message);
   });
   console.log('🐘 Using PostgreSQL (DATABASE_URL detected)');
 } else {
@@ -113,15 +119,15 @@ function convertSqliteToPostgres(sql) {
     (_, offset, unit) => {
       const n = parseInt(offset, 10);
       const u = unit.replace(/s$/, '') + 's';
-      if (n >= 0) return `(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '${Math.abs(n)} ${u}')`;
-      return `(DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '${Math.abs(n)} ${u}')`;
+      if (n >= 0) return `(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '${Math.abs(n)} ${u}')::date::text`;
+      return `(DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '${Math.abs(n)} ${u}')::date::text`;
     }
   );
 
   // ---- date('now', 'localtime', 'start of month') / date('now', 'start of month') ----
   out = out.replace(
     /date\(\s*'now'\s*(?:,\s*'localtime'\s*)?(?:,\s*'start\s+of\s+month'\s*)\)/gi,
-    "DATE_TRUNC('month', CURRENT_DATE)"
+    "DATE_TRUNC('month', CURRENT_DATE)::date::text"
   );
 
   // ---- date('now', [localtime,] 'weekday N', '+/-M days') ----
@@ -130,15 +136,15 @@ function convertSqliteToPostgres(sql) {
     (_, wd, offset, unit) => {
       const n = parseInt(offset, 10);
       const weekdayExpr = `(CURRENT_DATE + ((${wd} - EXTRACT(DOW FROM CURRENT_DATE)::int + 7) % 7))`;
-      if (n >= 0) return `(${weekdayExpr} + INTERVAL '${Math.abs(n)} days')::date`;
-      return `(${weekdayExpr} - INTERVAL '${Math.abs(n)} days')::date`;
+      if (n >= 0) return `(${weekdayExpr} + INTERVAL '${Math.abs(n)} days')::date::text`;
+      return `(${weekdayExpr} - INTERVAL '${Math.abs(n)} days')::date::text`;
     }
   );
 
   // ---- date('now', [localtime,] 'weekday N') ----
   out = out.replace(
     /date\(\s*'now'\s*(?:,\s*'localtime'\s*)?,\s*'weekday\s+(\d)'\s*\)/gi,
-    (_, wd) => `(CURRENT_DATE + ((${wd} - EXTRACT(DOW FROM CURRENT_DATE)::int + 7) % 7))`
+    (_, wd) => `(CURRENT_DATE + ((${wd} - EXTRACT(DOW FROM CURRENT_DATE)::int + 7) % 7))::date::text`
   );
 
   // ---- date('now', [localtime,] '+/-N unit') with three args (localtime + offset) ----
@@ -147,8 +153,8 @@ function convertSqliteToPostgres(sql) {
     (_, offset, unit) => {
       const n = parseInt(offset, 10);
       const u = unit.replace(/s$/, '') + 's';
-      if (n >= 0) return `(CURRENT_DATE + INTERVAL '${Math.abs(n)} ${u}')`;
-      return `(CURRENT_DATE - INTERVAL '${Math.abs(n)} ${u}')`;
+      if (n >= 0) return `(CURRENT_DATE + INTERVAL '${Math.abs(n)} ${u}')::date::text`;
+      return `(CURRENT_DATE - INTERVAL '${Math.abs(n)} ${u}')::date::text`;
     }
   );
 
@@ -158,25 +164,25 @@ function convertSqliteToPostgres(sql) {
     (_, offset, unit) => {
       const n = parseInt(offset, 10);
       const u = unit.replace(/s$/, '') + 's';
-      if (n >= 0) return `(CURRENT_DATE + INTERVAL '${Math.abs(n)} ${u}')`;
-      return `(CURRENT_DATE - INTERVAL '${Math.abs(n)} ${u}')`;
+      if (n >= 0) return `(CURRENT_DATE + INTERVAL '${Math.abs(n)} ${u}')::date::text`;
+      return `(CURRENT_DATE - INTERVAL '${Math.abs(n)} ${u}')::date::text`;
     }
   );
 
   // ---- date('now') / date('now', 'localtime') ----
   out = out.replace(
     /date\(\s*'now'\s*(?:,\s*'localtime'\s*)?\)/gi,
-    'CURRENT_DATE'
+    'CURRENT_DATE::text'
   );
 
-  // ---- date(?, '+N days') -> (?::date + INTERVAL 'N days') ----
+  // ---- date(?, '+N days') -> (?::date + INTERVAL 'N days')::date::text ----
   out = out.replace(
     /date\(\s*(\?|\$\d+)\s*,\s*'([+-]?\d+)\s+(days?|months?|years?)'\s*\)/gi,
     (_, param, offset, unit) => {
       const n = parseInt(offset, 10);
       const u = unit.replace(/s$/, '') + 's';
-      if (n >= 0) return `(${param}::date + INTERVAL '${Math.abs(n)} ${u}')`;
-      return `(${param}::date - INTERVAL '${Math.abs(n)} ${u}')`;
+      if (n >= 0) return `(${param}::date + INTERVAL '${Math.abs(n)} ${u}')::date::text`;
+      return `(${param}::date - INTERVAL '${Math.abs(n)} ${u}')::date::text`;
     }
   );
 
@@ -188,7 +194,7 @@ function convertSqliteToPostgres(sql) {
     (match, col) => {
       // Skip if it looks like already-converted PG syntax
       if (col.toLowerCase() === 'now' || col.startsWith("'")) return match;
-      return `(${col})::date`;
+      return `(${col})::date::text`;
     }
   );
 
@@ -252,6 +258,39 @@ function convertSqliteToPostgres(sql) {
 
   // ---- LIKE -> ILIKE (case-insensitive in PG) ----
   out = out.replace(/\bLIKE\b/g, 'ILIKE');
+
+  // ---- INSERT OR IGNORE -> INSERT ... ON CONFLICT DO NOTHING ----
+  out = out.replace(/\bINSERT\s+OR\s+IGNORE\s+INTO\b/gi, 'INSERT INTO');
+  // Add ON CONFLICT DO NOTHING before VALUES clause ends
+  if (/INSERT INTO.*ON CONFLICT/i.test(out) === false && sql.match(/INSERT\s+OR\s+IGNORE/i)) {
+    out = out.replace(/(\)\s*)$/, ') ON CONFLICT DO NOTHING');
+  }
+
+  // ---- time('now', 'localtime') -> LOCALTIME::text ----
+  out = out.replace(
+    /time\(\s*'now'\s*(?:,\s*'localtime'\s*)?\)/gi,
+    'LOCALTIME::text'
+  );
+
+  // ---- time(column, '+N minutes') -> (column::time + INTERVAL 'N minutes')::text ----
+  out = out.replace(
+    /time\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*,\s*'([+-]?\d+)\s+(minutes?|hours?)'\s*\)/gi,
+    (_, col, offset, unit) => {
+      const n = parseInt(offset, 10);
+      const u = unit.replace(/s$/, '') + 's';
+      if (n >= 0) return `(${col}::time + INTERVAL '${Math.abs(n)} ${u}')::text`;
+      return `(${col}::time - INTERVAL '${Math.abs(n)} ${u}')::text`;
+    }
+  );
+
+  // ---- time(column) -> (column)::time::text ----
+  out = out.replace(
+    /\btime\(([a-zA-Z_][a-zA-Z0-9_.]*)\)/gi,
+    (match, col) => {
+      if (col.toLowerCase() === 'now') return match;
+      return `(${col})::time::text`;
+    }
+  );
 
   // ---- INTEGER DEFAULT 0/1 for booleans -> keep as-is (PG handles it) ----
   // No conversion needed for queries; schema handled separately.
@@ -469,12 +508,27 @@ function querySqlite(sql, params = []) {
         return { rows: [], rowCount: result.changes };
       } else if (cleanSql.toUpperCase().startsWith('UPDATE')) {
         const tableName = cleanSql.match(/UPDATE (\w+)/i)?.[1];
-        const whereMatch = cleanSql.match(/WHERE\s+(.+)$/i);
         db.prepare(cleanSql).run(...params);
-        if (tableName && whereMatch) {
-          const lastParam = params[params.length - 1];
-          const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(lastParam);
-          return { rows: row ? [row] : [] };
+        if (tableName) {
+          // Extract WHERE clause and rebuild with the same params
+          const whereMatch = cleanSql.match(/WHERE\s+(.+?)(?:\s+RETURNING|\s*$)/i);
+          if (whereMatch) {
+            const whereClause = whereMatch[1].replace(/\$(\d+)/g, '?');
+            // Find which params are used in WHERE clause
+            const whereParamIndices = [];
+            whereMatch[1].replace(/\$(\d+)/g, (_, num) => {
+              whereParamIndices.push(parseInt(num) - 1);
+            });
+            const whereParams = whereParamIndices.map(i => params[i]);
+            try {
+              const row = db.prepare(`SELECT * FROM ${tableName} WHERE ${whereClause}`).get(...whereParams);
+              return { rows: row ? [row] : [] };
+            } catch (e) {
+              // Fallback: try with last param as id
+              const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(params[params.length - 1]);
+              return { rows: row ? [row] : [] };
+            }
+          }
         }
         return { rows: [] };
       } else if (cleanSql.toUpperCase().startsWith('DELETE')) {
@@ -767,11 +821,14 @@ const initializeDatabase = async () => {
       )
     `);
 
-    // Add deleted_at column to existing events table (safe migration)
-    try {
-      await execDDL(`ALTER TABLE events ADD COLUMN deleted_at TEXT DEFAULT NULL`);
-    } catch (e) {
-      // Column already exists — ignore
+    // Add deleted_at column to tables that use soft-delete (safe migration)
+    const softDeleteTables = ['events', 'customers', 'employees', 'leads', 'invoices'];
+    for (const tbl of softDeleteTables) {
+      try {
+        await execDDL(`ALTER TABLE ${tbl} ADD COLUMN deleted_at TEXT DEFAULT NULL`);
+      } catch (e) {
+        // Column already exists — ignore
+      }
     }
 
     // Event assignments table

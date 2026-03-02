@@ -4,6 +4,9 @@ const { authenticateToken, requireManager } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 const crypto = require('crypto');
 
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -153,11 +156,11 @@ router.post('/', incidentValidation, async (req, res) => {
         incident_date, incident_time, police_called, police_report_number,
         ambulance_called, injuries_reported, property_damage, witnesses, actions_taken)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, site_id || null, customer_id || null, shift_id || null, reported_by || null,
-        incident_type, severity || 'low', title, description, location_details || null,
-        incident_date, incident_time, police_called ? 1 : 0, police_report_number || null,
-        ambulance_called ? 1 : 0, injuries_reported ? 1 : 0, property_damage ? 1 : 0,
-        witnesses || null, actions_taken || null]);
+    `, [id, toNull(site_id), toNull(customer_id), toNull(shift_id), toNull(reported_by),
+        incident_type, severity || 'low', title, description, toNull(location_details),
+        toNull(incident_date), toNull(incident_time), toBool(police_called), toNull(police_report_number),
+        toBool(ambulance_called), toBool(injuries_reported), toBool(property_damage),
+        toNull(witnesses), toNull(actions_taken)]);
 
     const result = await db.query('SELECT * FROM incidents WHERE id = ?', [id]);
     const incident = result.rows[0];
@@ -205,10 +208,10 @@ router.put('/:id', requireManager, async (req, res) => {
         actions_taken = ?, status = ?, updated_at = datetime('now')
       WHERE id = ?
     `, [incident_type, severity, title, description,
-        location_details, incident_date, incident_time,
-        police_called ? 1 : 0, police_report_number, ambulance_called ? 1 : 0,
-        injuries_reported ? 1 : 0, property_damage ? 1 : 0, witnesses,
-        actions_taken, status, req.params.id]);
+        toNull(location_details), toNull(incident_date), toNull(incident_time),
+        toBool(police_called), toNull(police_report_number), toBool(ambulance_called),
+        toBool(injuries_reported), toBool(property_damage), toNull(witnesses),
+        toNull(actions_taken), status, req.params.id]);
 
     const result = await db.query('SELECT * FROM incidents WHERE id = ?', [req.params.id]);
     res.json({ incident: result.rows[0] });
@@ -227,7 +230,7 @@ router.post('/:id/updates', async (req, res) => {
     await db.query(`
       INSERT INTO incident_updates (id, incident_id, user_id, update_text)
       VALUES (?, ?, ?, ?)
-    `, [id, req.params.id, req.user.id, update_text]);
+    `, [id, req.params.id, req.user.id, toNull(update_text)]);
 
     await db.query(`UPDATE incidents SET updated_at = datetime('now') WHERE id = ?`, [req.params.id]);
 

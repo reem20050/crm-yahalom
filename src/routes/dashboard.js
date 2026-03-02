@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
       unassignedShifts
     ] = await Promise.all([
       // Leads statistics
-      await db.query(`
+      db.query(`
         SELECT
           SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_leads,
           SUM(CASE WHEN status IN ('contacted', 'meeting_scheduled', 'proposal_sent', 'negotiation') THEN 1 ELSE 0 END) as active_leads,
@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Customers statistics
-      await db.query(`
+      db.query(`
         SELECT
           SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_customers,
           SUM(CASE WHEN created_at >= date('now', 'start of month') THEN 1 ELSE 0 END) as new_this_month
@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Today's shifts
-      await db.query(`
+      db.query(`
         SELECT
           COUNT(*) as total,
           SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Upcoming events (next 7 days)
-      await db.query(`
+      db.query(`
         SELECT e.id, e.event_name, e.event_date, e.start_time, e.location,
                e.required_guards, e.status,
                c.company_name,
@@ -63,7 +63,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Overdue invoices
-      await db.query(`
+      db.query(`
         SELECT i.id, i.invoice_number, i.total_amount, i.due_date,
                c.company_name,
                CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
@@ -75,7 +75,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Monthly revenue (last 6 months)
-      await db.query(`
+      db.query(`
         SELECT
           strftime('%Y-%m', issue_date) as month,
           SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END) as revenue,
@@ -87,7 +87,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Recent activity
-      await db.query(`
+      db.query(`
         SELECT al.*, u.first_name || ' ' || u.last_name as user_name
         FROM activity_log al
         LEFT JOIN users u ON al.user_id = u.id
@@ -96,7 +96,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Contracts expiring soon (next 30 days)
-      await db.query(`
+      db.query(`
         SELECT ct.id, ct.end_date, ct.monthly_value,
                c.company_name, c.id as customer_id
         FROM contracts ct
@@ -108,7 +108,7 @@ router.get('/', async (req, res) => {
       `),
 
       // Unassigned shifts today
-      await db.query(`
+      db.query(`
         SELECT s.*, c.company_name, si.name as site_name
         FROM shifts s
         LEFT JOIN customers c ON s.customer_id = c.id

@@ -4,6 +4,9 @@ const db = require('../config/database');
 const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 const whatsappHelper = require('../utils/whatsappHelper');
 
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
 const router = express.Router();
 
 // Apply auth middleware to all routes
@@ -152,7 +155,7 @@ router.post('/bulk-delete', requireManager, async (req, res) => {
       return res.status(400).json({ error: 'נדרשים מזהי לידים' });
     }
     const placeholders = lead_ids.map(() => '?').join(',');
-    await db.query(`DELETE FROM activity_logs WHERE entity_type = 'lead' AND entity_id IN (${placeholders})`, lead_ids);
+    await db.query(`DELETE FROM activity_log WHERE entity_type = 'lead' AND entity_id IN (${placeholders})`, lead_ids);
     await db.query(`DELETE FROM leads WHERE id IN (${placeholders})`, lead_ids);
     res.json({ message: `${lead_ids.length} לידים נמחקו`, count: lead_ids.length });
   } catch (error) {
@@ -218,8 +221,8 @@ router.post('/', requireManager, [
                         service_type, location, description, assigned_to, expected_value)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [leadId, company_name, contact_name, phone, email, source,
-        service_type, location, description, assigned_to, expected_value]);
+    `, [leadId, company_name, contact_name, phone, toNull(email), toNull(source),
+        toNull(service_type), toNull(location), toNull(description), toNull(assigned_to), toNull(expected_value)]);
 
     // Log activity
     await db.query(`
@@ -265,9 +268,9 @@ router.put('/:id', requireManager, async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $13
       RETURNING *
-    `, [company_name, contact_name, phone, email, source,
-        service_type, location, description, status,
-        assigned_to, expected_value, lost_reason, req.params.id]);
+    `, [toNull(company_name), toNull(contact_name), toNull(phone), toNull(email), toNull(source),
+        toNull(service_type), toNull(location), toNull(description), toNull(status),
+        toNull(assigned_to), toNull(expected_value), toNull(lost_reason), req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'ליד לא נמצא' });
@@ -457,7 +460,7 @@ router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
 router.get('/:id/activities', async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT * FROM activity_logs WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT 50',
+      'SELECT * FROM activity_log WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT 50',
       ['lead', req.params.id]
     );
     res.json({ activities: result.rows });
@@ -475,7 +478,7 @@ router.post('/:id/activities', async (req, res) => {
 
     const activityId = db.generateUUID();
     const result = await db.query(
-      `INSERT INTO activity_logs (id, entity_type, entity_id, action, description, user_id, user_name)
+      `INSERT INTO activity_log (id, entity_type, entity_id, action, description, user_id, user_name)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [activityId, 'lead', req.params.id, action, description || '', req.user?.id || '', ((req.user?.first_name || '') + ' ' + (req.user?.last_name || '')).trim() || 'מערכת']
     );

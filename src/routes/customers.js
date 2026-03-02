@@ -3,6 +3,9 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireRole, requireManager } = require('../middleware/auth');
 
+const toNull = (v) => v === undefined ? null : v;
+const toBool = (v) => v === undefined ? null : (v ? 1 : 0);
+
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -120,7 +123,7 @@ router.post('/', requireManager, [
       INSERT INTO customers (id, company_name, business_id, address, city, service_type, payment_terms, notes)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [customerId, company_name, business_id, address, city, service_type, payment_terms, notes]);
+    `, [customerId, company_name, toNull(business_id), toNull(address), toNull(city), toNull(service_type), toNull(payment_terms), toNull(notes)]);
 
     await db.query(`
       INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)
@@ -152,7 +155,7 @@ router.put('/:id', requireManager, async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $9
       RETURNING *
-    `, [company_name, business_id, address, city, service_type, status, payment_terms, notes, req.params.id]);
+    `, [toNull(company_name), toNull(business_id), toNull(address), toNull(city), toNull(service_type), toNull(status), toNull(payment_terms), toNull(notes), req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'לקוח לא נמצא' });
@@ -398,7 +401,7 @@ router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
 router.get('/:id/activities', async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT * FROM activity_logs WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT 50',
+      'SELECT * FROM activity_log WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC LIMIT 50',
       ['customer', req.params.id]
     );
     res.json({ activities: result.rows });
@@ -416,7 +419,7 @@ router.post('/:id/activities', async (req, res) => {
 
     const activityId = db.generateUUID();
     const result = await db.query(
-      `INSERT INTO activity_logs (id, entity_type, entity_id, action, description, user_id, user_name)
+      `INSERT INTO activity_log (id, entity_type, entity_id, action, description, user_id, user_name)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [activityId, 'customer', req.params.id, action, description || '', req.user?.id || '', ((req.user?.first_name || '') + ' ' + (req.user?.last_name || '')).trim() || 'מערכת']
     );
