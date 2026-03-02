@@ -1096,6 +1096,20 @@ const initializeDatabase = async () => {
       try { await execDDL(ddl); } catch (e) { /* column already exists */ }
     }
 
+    // Migrate sites: add latitude/longitude for Google Maps
+    const sitesMigrations = [
+      `ALTER TABLE sites ADD COLUMN latitude REAL`,
+      `ALTER TABLE sites ADD COLUMN longitude REAL`,
+    ];
+    for (const ddl of sitesMigrations) {
+      try { await execDDL(ddl); } catch (e) { /* column already exists */ }
+    }
+
+    // Migrate integration_settings: add google_maps_api_key
+    try {
+      await execDDL(`ALTER TABLE integration_settings ADD COLUMN google_maps_api_key TEXT`);
+    } catch (e) { /* column already exists */ }
+
     await execDDL(`
       CREATE TABLE IF NOT EXISTS documents (
         id TEXT PRIMARY KEY,
