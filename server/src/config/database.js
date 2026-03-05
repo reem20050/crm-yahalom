@@ -20,7 +20,7 @@ if (isPostgres) {
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 30000,
   });
   pool.on('error', (err) => {
     console.error('Unexpected PG pool error:', err.message);
@@ -1397,11 +1397,28 @@ const initializeDatabase = async () => {
   }
 };
 
-// Initialize on load
-initializeDatabase().catch(err => {
-  console.error('Fatal: could not initialize database', err);
-  process.exit(1);
-});
+// Initialize on load with retry for Render free-tier PostgreSQL cold starts
+const initWithRetry = async (maxRetries = 5, baseDelay = 3000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await initializeDatabase();
+      console.log(`✅ Database initialized successfully (attempt ${attempt}/${maxRetries})`);
+      return;
+    } catch (err) {
+      const isTimeout = err.message && err.message.includes('timeout');
+      const isConnectionError = err.message && (err.message.includes('Connection terminated') || err.message.includes('ECONNREFUSED'));
+      if ((isTimeout || isConnectionError) && attempt < maxRetries) {
+        const delay = baseDelay * attempt; // linear backoff: 3s, 6s, 9s, 12s, 15s
+        console.warn(`⏳ DB connection attempt ${attempt}/${maxRetries} failed (${err.message}). Retrying in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        console.error('Fatal: could not initialize database', err);
+        process.exit(1);
+      }
+    }
+  }
+};
+initWithRetry();
 
 module.exports = {
   query,
