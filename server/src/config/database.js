@@ -1193,12 +1193,29 @@ const initializeDatabase = async () => {
         category TEXT,
         is_enabled INTEGER DEFAULT 1,
         last_run TEXT,
+        last_run_at TEXT,
+        last_run_status TEXT,
+        last_run_details TEXT,
         next_run TEXT,
+        next_run_at TEXT,
+        retry_count INTEGER DEFAULT 0,
         config_json TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Add missing columns to automation_config for existing production tables
+    const automationAlterColumns = [
+      `ALTER TABLE automation_config ADD COLUMN last_run_at TEXT`,
+      `ALTER TABLE automation_config ADD COLUMN last_run_status TEXT`,
+      `ALTER TABLE automation_config ADD COLUMN last_run_details TEXT`,
+      `ALTER TABLE automation_config ADD COLUMN next_run_at TEXT`,
+      `ALTER TABLE automation_config ADD COLUMN retry_count INTEGER DEFAULT 0`,
+    ];
+    for (const alterSql of automationAlterColumns) {
+      try { await execDDL(alterSql); } catch (e) { /* column already exists */ }
+    }
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS automation_run_log (
