@@ -335,34 +335,36 @@ router.get('/whatsapp/qr', async (req, res) => {
     const axios = require('axios');
     const headers = config.apiKey ? { 'X-Api-Key': config.apiKey } : {};
 
-    const response = await axios.get(
-      `${config.wahaUrl}/api/screenshot?session=default`,
-      { headers, timeout: 10000, responseType: 'arraybuffer' }
+    // First check session status - only fetch QR if in SCAN_QR_CODE state
+    const statusRes = await axios.get(
+      `${config.wahaUrl}/api/sessions/default`,
+      { headers, timeout: 10000 }
     ).catch(() => null);
 
-    // Try QR endpoint
+    const sessionStatus = statusRes?.data?.status;
+
+    // If session is FAILED or STOPPED, try to restart it
+    if (sessionStatus === 'FAILED' || sessionStatus === 'STOPPED') {
+      await axios.post(`${config.wahaUrl}/api/sessions/default/stop`, {}, { headers, timeout: 10000 }).catch(() => null);
+      await axios.post(`${config.wahaUrl}/api/sessions/default/start`, {}, { headers, timeout: 10000 }).catch(() => null);
+      // Wait a moment for session to initialize
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+
+    // WAHA returns QR as PNG image from /api/{session}/auth/qr
     const qrResponse = await axios.get(
-      `${config.wahaUrl}/api/sessions/default/auth/qr`,
-      { headers, timeout: 10000 }
-    ).catch(() => null);
-
-    if (qrResponse?.data) {
-      const qrData = typeof qrResponse.data === 'string' ? qrResponse.data : qrResponse.data.data;
-      return res.json({ qr: qrData });
-    }
-
-    // Fallback: try /api/{session}/auth/qr format (older WAHA versions)
-    const qrFallback = await axios.get(
       `${config.wahaUrl}/api/default/auth/qr`,
-      { headers, timeout: 10000 }
+      { headers, timeout: 15000, responseType: 'arraybuffer' }
     ).catch(() => null);
 
-    if (qrFallback?.data) {
-      const qrData = typeof qrFallback.data === 'string' ? qrFallback.data : qrFallback.data.data;
-      return res.json({ qr: qrData });
+    if (qrResponse?.data && qrResponse.status === 200) {
+      // Convert binary PNG to data URI for frontend display
+      const base64 = Buffer.from(qrResponse.data).toString('base64');
+      const contentType = qrResponse.headers['content-type'] || 'image/png';
+      return res.json({ qr: `data:${contentType};base64,${base64}` });
     }
 
-    res.json({ qr: null, message: 'לא נמצא QR - ייתכן שכבר מחובר' });
+    res.json({ qr: null, message: 'לא נמצא QR - ייתכן שכבר מחובר או שהסשן לא פעיל' });
   } catch (error) {
     console.error('WhatsApp QR error:', error.message);
     res.status(500).json({ message: 'שגיאה בקבלת QR' });
