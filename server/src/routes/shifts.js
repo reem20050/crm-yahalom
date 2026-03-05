@@ -849,6 +849,18 @@ router.post('/:id/assign', requireManager, [
   try {
     const { employee_id, role } = req.body;
 
+    // Validate employee exists and is active
+    const empCheck = await db.query(
+      `SELECT id, status FROM employees WHERE id = $1 AND deleted_at IS NULL`,
+      [employee_id]
+    );
+    if (empCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'העובד לא נמצא' });
+    }
+    if (empCheck.rows[0].status !== 'active') {
+      return res.status(400).json({ error: 'העובד אינו פעיל' });
+    }
+
     // Check if already assigned
     const existingResult = await db.query(
       'SELECT id FROM shift_assignments WHERE shift_id = $1 AND employee_id = $2',

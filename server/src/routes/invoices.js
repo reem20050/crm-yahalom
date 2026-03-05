@@ -334,6 +334,20 @@ router.post('/', requireManager, [
       return res.status(400).json({ error: 'נדרש סכום תקין' });
     }
 
+    // Validate event is not cancelled (if event_id provided)
+    if (event_id) {
+      const eventCheck = await db.query(
+        `SELECT status FROM events WHERE id = $1 AND deleted_at IS NULL`,
+        [event_id]
+      );
+      if (eventCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'האירוע לא נמצא' });
+      }
+      if (eventCheck.rows[0].status === 'cancelled') {
+        return res.status(400).json({ error: 'לא ניתן ליצור חשבונית לאירוע שבוטל' });
+      }
+    }
+
     const vatCalc = vat_amount || (amount ? amount * 0.17 : 0);
     const totalCalc = total_amount || (amount ? amount + vatCalc : baseAmount);
 

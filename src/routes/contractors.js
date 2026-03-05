@@ -185,6 +185,25 @@ router.put('/:id', async (req, res) => {
 // Delete contractor
 router.delete('/:id', requireManager, async (req, res) => {
   try {
+    // Safety check: warn if contractor has upcoming event assignments
+    const upcomingEvents = await db.query(`
+      SELECT COUNT(*) as count FROM event_contractor_assignments eca
+      JOIN events e ON eca.event_id = e.id
+      WHERE eca.contractor_id = $1
+      AND e.event_date >= date('now', 'localtime')
+      AND e.status NOT IN ('completed', 'cancelled')
+      AND e.deleted_at IS NULL
+    `, [req.params.id]);
+
+    const eventCount = parseInt(upcomingEvents.rows[0]?.count || 0);
+    if (eventCount > 0 && !req.query.force) {
+      return res.status(409).json({
+        error: `לקבלן יש ${eventCount} אירועים עתידיים. האם למחוק בכל זאת?`,
+        hasUpcoming: true,
+        upcomingEvents: eventCount
+      });
+    }
+
     // Delete related workers first (cascade)
     await db.query('DELETE FROM contractor_workers WHERE contractor_id = $1', [req.params.id]);
     // Delete event assignments
