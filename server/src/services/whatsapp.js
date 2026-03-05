@@ -21,16 +21,19 @@ class WhatsAppService {
       const { query } = require('../config/database');
       const result = await query("SELECT whatsapp_phone_id, whatsapp_access_token, whatsapp_phone_display FROM integration_settings WHERE id = 'main'");
       if (result.rows.length > 0 && result.rows[0].whatsapp_phone_id) {
-        // whatsapp_phone_id stores "wahaUrl|apiKey", whatsapp_access_token stores session name
+        // whatsapp_phone_id stores WAHA URL (or legacy "wahaUrl|apiKey")
+        // whatsapp_access_token stores WAHA API key
         const stored = result.rows[0].whatsapp_phone_id;
         if (stored.includes('|')) {
+          // Legacy format: "url|key" in one field
           const parts = stored.split('|');
           this.wahaUrl = parts[0];
           this.apiKey = parts[1] || '';
         } else {
           this.wahaUrl = stored;
+          this.apiKey = result.rows[0].whatsapp_access_token || '';
         }
-        this.sessionName = result.rows[0].whatsapp_access_token || SESSION_NAME;
+        this.sessionName = SESSION_NAME;
         this.connected = true;
         return true;
       }

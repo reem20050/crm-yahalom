@@ -343,11 +343,24 @@ router.get('/whatsapp/qr', async (req, res) => {
 
     const sessionStatus = statusRes?.data?.status;
 
-    // If session is FAILED or STOPPED, try to restart it
-    if (sessionStatus === 'FAILED' || sessionStatus === 'STOPPED') {
+    // If session doesn't exist, is FAILED, or STOPPED — create/restart it
+    if (!sessionStatus || sessionStatus === 'FAILED' || sessionStatus === 'STOPPED') {
+      // Cleanup any stuck session
       await axios.post(`${config.wahaUrl}/api/sessions/default/stop`, {}, { headers, timeout: 10000 }).catch(() => null);
-      await axios.post(`${config.wahaUrl}/api/sessions/default/start`, {}, { headers, timeout: 10000 }).catch(() => null);
-      // Wait a moment for session to initialize
+      // Create new session (handles post-logout when session was deleted)
+      try {
+        await axios.post(`${config.wahaUrl}/api/sessions`, {
+          name: 'default',
+          start: true,
+          config: { proxy: null, webhooks: process.env.WAHA_WEBHOOK_URL ? [{ url: process.env.WAHA_WEBHOOK_URL, events: ['message', 'message.ack'] }] : [] }
+        }, { headers, timeout: 10000 });
+      } catch (e) {
+        // Session exists (422/409) — just start it
+        if (e.response?.status === 422 || e.response?.status === 409) {
+          await axios.post(`${config.wahaUrl}/api/sessions/default/start`, {}, { headers, timeout: 10000 }).catch(() => null);
+        }
+      }
+      // Wait for session to initialize and generate QR
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
@@ -415,25 +428,28 @@ router.get('/whatsapp/status', async (req, res) => {
   }
 });
 
-// Disconnect WhatsApp (stop WAHA session + clear DB)
+// Disconnect WhatsApp (logout + stop WAHA session, keep server config for easy reconnect)
 router.post('/whatsapp/disconnect', async (req, res) => {
   try {
     const config = await getWahaConfig();
 
-    // Try to stop WAHA session
     if (config) {
       const axios = require('axios');
       const headers = config.apiKey ? { 'X-Api-Key': config.apiKey } : {};
+      // Logout first — clears WhatsApp authentication (requires new QR scan)
       try {
-        await axios.post(`${config.wahaUrl}/api/sessions/stop`, { name: 'default' }, { headers, timeout: 5000 });
-      } catch (e) {
-        // OK if session doesn't exist
-      }
+        await axios.post(`${config.wahaUrl}/api/sessions/default/logout`, {}, { headers, timeout: 5000 });
+      } catch (e) { /* OK if fails */ }
+      // Then stop the session
+      try {
+        await axios.post(`${config.wahaUrl}/api/sessions/default/stop`, {}, { headers, timeout: 5000 });
+      } catch (e) { /* OK if fails */ }
     }
 
+    // Only clear phone display — keep WAHA URL and API key for easy reconnect
     await query(`
       UPDATE integration_settings
-      SET whatsapp_phone_id = NULL, whatsapp_access_token = NULL, whatsapp_phone_display = NULL, updated_at = datetime('now')
+      SET whatsapp_phone_display = NULL, updated_at = datetime('now')
       WHERE id = 'main'
     `);
 
