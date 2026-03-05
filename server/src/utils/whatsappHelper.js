@@ -9,9 +9,9 @@ class WhatsAppHelper {
   /**
    * Check if WhatsApp is configured
    */
-  isConfigured() {
+  async isConfigured() {
     try {
-      const settings = query(`SELECT whatsapp_phone_id, whatsapp_access_token FROM integration_settings WHERE id = 'main'`);
+      const settings = await query(`SELECT whatsapp_phone_id, whatsapp_access_token FROM integration_settings WHERE id = 'main'`);
       if (settings.rows.length === 0) return false;
       const s = settings.rows[0];
       return !!(s.whatsapp_phone_id && s.whatsapp_access_token);
@@ -23,9 +23,9 @@ class WhatsAppHelper {
   /**
    * Load WhatsApp credentials from DB and update service
    */
-  loadCredentials() {
+  async loadCredentials() {
     try {
-      const settings = query(`SELECT * FROM integration_settings WHERE id = 'main'`);
+      const settings = await query(`SELECT * FROM integration_settings WHERE id = 'main'`);
       if (settings.rows.length > 0) {
         const s = settings.rows[0];
         if (s.whatsapp_phone_id) {
@@ -46,7 +46,8 @@ class WhatsAppHelper {
    */
   async safeSend(to, message) {
     try {
-      if (!this.loadCredentials()) return null;
+      if (!to) return null;
+      if (!await this.loadCredentials()) return null;
       const result = await whatsappService.sendMessage(to, message);
       if (result.success) {
         console.log(`WhatsApp sent to ${to}`);
@@ -65,10 +66,10 @@ class WhatsAppHelper {
    */
   async notifyNewLead(lead) {
     try {
-      if (!this.isConfigured()) return;
+      if (!await this.isConfigured()) return;
 
       // Get admin users with phone numbers
-      const admins = query(`
+      const admins = await query(`
         SELECT phone FROM users WHERE role IN ('admin', 'manager') AND phone IS NOT NULL AND is_active = 1
       `);
 
@@ -94,7 +95,7 @@ class WhatsAppHelper {
    */
   async notifyLeadStatusChange(lead, newStatus, assignedToPhone) {
     try {
-      if (!this.isConfigured() || !assignedToPhone) return;
+      if (!await this.isConfigured() || !assignedToPhone) return;
 
       const statusMap = {
         'new': 'חדש',
@@ -123,7 +124,7 @@ ${lead.contact_name} (${lead.company_name || '-'})
    */
   async sendShiftReminder(employee, shift) {
     try {
-      if (!this.isConfigured()) return;
+      if (!await this.isConfigured()) return;
       await whatsappService.sendShiftReminder(employee, shift);
     } catch (error) {
       console.error('WhatsApp sendShiftReminder error:', error.message);
@@ -135,11 +136,11 @@ ${lead.contact_name} (${lead.company_name || '-'})
    */
   async sendAssignmentConfirmation(employeeId, shiftId) {
     try {
-      if (!this.isConfigured()) return;
-      if (!this.loadCredentials()) return;
+      if (!await this.isConfigured()) return;
+      if (!await this.loadCredentials()) return;
 
-      const empResult = query(`SELECT first_name, phone FROM employees WHERE id = ?`, [employeeId]);
-      const shiftResult = query(`
+      const empResult = await query(`SELECT first_name, phone FROM employees WHERE id = ?`, [employeeId]);
+      const shiftResult = await query(`
         SELECT s.date, s.start_time, s.end_time, c.company_name, si.name as site_name
         FROM shifts s
         LEFT JOIN customers c ON s.customer_id = c.id
@@ -162,11 +163,11 @@ ${lead.contact_name} (${lead.company_name || '-'})
    */
   async notifyEventAssignment(employeeId, eventId) {
     try {
-      if (!this.isConfigured()) return;
-      if (!this.loadCredentials()) return;
+      if (!await this.isConfigured()) return;
+      if (!await this.loadCredentials()) return;
 
-      const empResult = query(`SELECT first_name, phone FROM employees WHERE id = ?`, [employeeId]);
-      const eventResult = query(`SELECT event_name, event_date, start_time, end_time, location FROM events WHERE id = ?`, [eventId]);
+      const empResult = await query(`SELECT first_name, phone FROM employees WHERE id = ?`, [employeeId]);
+      const eventResult = await query(`SELECT event_name, event_date, start_time, end_time, location FROM events WHERE id = ?`, [eventId]);
 
       if (empResult.rows.length > 0 && eventResult.rows.length > 0) {
         const emp = empResult.rows[0];
@@ -196,13 +197,13 @@ ${lead.contact_name} (${lead.company_name || '-'})
     try {
       // Log the incoming message
       const id = generateUUID();
-      query(`
+      await query(`
         INSERT INTO activity_log (id, entity_type, action, changes, created_at)
         VALUES (?, 'whatsapp', 'incoming_message', ?, datetime('now'))
       `, [id, JSON.stringify({ from, text, timestamp })]);
 
       // Auto-reply
-      if (this.loadCredentials()) {
+      if (await this.loadCredentials()) {
         const autoReply = `שלום! 👋
 תודה על פנייתכם לצוות יהלום.
 הודעתכם התקבלה ונציג יחזור אליכם בהקדם.

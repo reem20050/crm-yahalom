@@ -282,12 +282,16 @@ router.post('/whatsapp/settings', async (req, res) => {
     }
 
     // Try to start/ensure a default session
+    // Webhook URL configured via WAHA_WEBHOOK_URL env variable
     try {
       await axios.post(`${baseUrl}/api/sessions/start`, {
         name: 'default',
         config: {
           proxy: null,
-          webhooks: []
+          webhooks: process.env.WAHA_WEBHOOK_URL ? [{
+            url: process.env.WAHA_WEBHOOK_URL,
+            events: ['message', 'message.ack']
+          }] : []
         }
       }, { headers, timeout: 10000 });
     } catch (e) {
@@ -471,6 +475,29 @@ router.post('/whatsapp/send', async (req, res) => {
   } catch (error) {
     console.error('WhatsApp send error:', error.response?.data || error.message);
     res.status(500).json({ message: 'שגיאה בשליחת הודעה' });
+  }
+});
+
+// Send WhatsApp test message
+router.post('/whatsapp/test', async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) {
+      return res.status(400).json({ message: 'נדרש מספר טלפון' });
+    }
+
+    const result = await whatsappService.sendMessage(to, '🔔 הודעת בדיקה מצוות יהלום CRM', {
+      context: 'test'
+    });
+
+    if (result.success) {
+      res.json({ message: 'הודעת בדיקה נשלחה בהצלחה', messageId: result.messageId });
+    } else {
+      res.status(400).json({ message: result.error || 'שגיאה בשליחת הודעת בדיקה' });
+    }
+  } catch (error) {
+    console.error('WhatsApp test error:', error);
+    res.status(500).json({ message: 'שגיאה בשליחת הודעת בדיקה' });
   }
 });
 

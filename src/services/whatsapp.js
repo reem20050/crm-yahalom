@@ -79,15 +79,17 @@ class WhatsAppService {
       const url = this._getBaseUrl();
       // First try to create the session
       try {
+        // Webhook URL must be configured via WAHA_WEBHOOK_URL env variable
+        // pointing to <your-server>/api/integrations/whatsapp/webhook
         await axios.post(`${url}/api/sessions`, {
           name: this.sessionName,
           start: true,
           config: {
             proxy: null,
-            webhooks: [{
-              url: '',
-              events: ['message']
-            }]
+            webhooks: process.env.WAHA_WEBHOOK_URL ? [{
+              url: process.env.WAHA_WEBHOOK_URL,
+              events: ['message', 'message.ack']
+            }] : []
           }
         }, { headers: this._getHeaders(), timeout: 10000 });
       } catch (e) {
@@ -177,7 +179,7 @@ class WhatsAppService {
       // Normalize phone - strip @c.us suffix and non-digits
       const cleanPhone = (phone || '').replace('@c.us', '').replace(/[^0-9]/g, '');
       await query(`
-        INSERT INTO whatsapp_messages (id, phone, direction, message, context, entity_type, entity_id, status, waha_message_id, created_at)
+        INSERT INTO whatsapp_messages (id, phone, direction, content, template_name, entity_type, entity_id, status, whatsapp_message_id, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, datetime('now'))
       `, [id, cleanPhone, direction || 'outgoing', message || '', context || 'manual', entityType || null, entityId || null, status || 'sent', wahaMessageId || null]);
       return id;
@@ -214,6 +216,7 @@ class WhatsAppService {
 
   // Format phone number for WAHA (needs @c.us suffix)
   _formatPhone(phone) {
+    if (!phone) return '';
     let formatted = phone.replace(/[^0-9]/g, '');
     // Israeli number: remove leading 0, add 972
     if (formatted.startsWith('0')) {
