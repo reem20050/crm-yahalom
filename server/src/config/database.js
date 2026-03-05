@@ -1370,6 +1370,26 @@ const initializeDatabase = async () => {
       console.log('Reem user created: yahalomreem@gmail.com');
     }
 
+    // Migrate whatsapp_messages column names (old→new schema)
+    // Old: message, context, waha_message_id → New: content, template_name, whatsapp_message_id
+    const waColumnRenames = [
+      ['message', 'content'],
+      ['context', 'template_name'],
+      ['waha_message_id', 'whatsapp_message_id']
+    ];
+    for (const [oldCol, newCol] of waColumnRenames) {
+      try {
+        if (isPostgres) {
+          await pool.query(`ALTER TABLE whatsapp_messages RENAME COLUMN ${oldCol} TO ${newCol}`);
+        } else {
+          db.exec(`ALTER TABLE whatsapp_messages RENAME COLUMN ${oldCol} TO ${newCol}`);
+        }
+        console.log(`Migrated whatsapp_messages: ${oldCol} → ${newCol}`);
+      } catch (e) {
+        // Column already renamed or doesn't exist — ignore
+      }
+    }
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Database initialization error:', error);
