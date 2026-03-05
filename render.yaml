@@ -7,13 +7,14 @@ databases:
     region: frankfurt
 
 services:
+  # Main CRM application (frontend + backend)
   - type: web
     name: crm-yahalom
-    env: node
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     plan: free
     region: frankfurt
-    buildCommand: npm run build
-    startCommand: cd server && node src/index.js
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
@@ -28,3 +29,23 @@ services:
         value: 7d
       - key: TZ
         value: Asia/Jerusalem
+      - key: WAHA_API_URL
+        value: https://crm-yahalom-waha.onrender.com
+      - key: WAHA_WEBHOOK_URL
+        value: https://crm-yahalom.onrender.com/api/integrations/whatsapp/webhook
+
+  # WAHA - WhatsApp HTTP API (self-hosted WhatsApp bridge)
+  - type: web
+    name: crm-yahalom-waha
+    env: docker
+    dockerfilePath: ./Dockerfile.waha
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: WHATSAPP_DEFAULT_ENGINE
+        value: NOWEB
+      - key: WHATSAPP_RESTART_ALL_SESSIONS
+        value: "true"
+      - key: WAHA_WORKER_THREADS
+        value: "1"

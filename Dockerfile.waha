@@ -1,0 +1,6 @@
+# WAHA (WhatsApp HTTP API) - self-hosted WhatsApp bridge
+# Docs: https://waha.devlike.pro/
+FROM devlikeapro/waha:latest
+
+# WAHA listens on port 3000 by default
+EXPOSE 3000
