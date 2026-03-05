@@ -116,7 +116,8 @@ router.post('/', requireManager, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { company_name, business_id, address, city, service_type, payment_terms, notes } = req.body;
+    const { company_name, business_id, address, city, service_type, payment_terms, notes,
+            contact_name, contact_role, contact_phone, contact_email } = req.body;
 
     const customerId = db.generateUUID();
     const result = await db.query(`
@@ -124,6 +125,14 @@ router.post('/', requireManager, [
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `, [customerId, company_name, toNull(business_id), toNull(address), toNull(city), toNull(service_type), toNull(payment_terms), toNull(notes)]);
+
+    // Auto-create primary contact if contact info was provided
+    if (contact_name) {
+      await db.query(`
+        INSERT INTO contacts (id, customer_id, name, role, phone, email, is_primary)
+        VALUES ($1, $2, $3, $4, $5, $6, 1)
+      `, [db.generateUUID(), customerId, contact_name, toNull(contact_role), toNull(contact_phone), toNull(contact_email)]);
+    }
 
     await db.query(`
       INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes)

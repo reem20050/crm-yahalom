@@ -315,7 +315,7 @@ router.get('/profit-loss', async (req, res) => {
     const { year } = req.query;
     const targetYear = year || new Date().getFullYear();
 
-    const [monthlyRevenue, monthlyLaborCost, revenueByCustomer, costByCustomer] = await Promise.all([
+    const [monthlyRevenue, monthlyLaborCost, monthlyContractorCost, revenueByCustomer, costByCustomer] = await Promise.all([
       // Monthly revenue from invoices (paid)
       db.query(`
         SELECT
@@ -347,6 +347,21 @@ router.get('/profit-loss', async (req, res) => {
         WHERE strftime('%Y', s.date) = $1
           AND sa.status IN ('checked_out', 'checked_in')
         GROUP BY strftime('%Y-%m', s.date)
+        ORDER BY month
+      `, [String(targetYear)]),
+
+      // Monthly contractor costs from event assignments
+      db.query(`
+        SELECT
+          strftime('%Y-%m', ev.event_date) as month,
+          COALESCE(SUM(eca.workers_count * eca.hourly_rate), 0) as contractor_cost,
+          COUNT(DISTINCT eca.contractor_id) as unique_contractors
+        FROM event_contractor_assignments eca
+        JOIN events ev ON eca.event_id = ev.id
+        WHERE strftime('%Y', ev.event_date) = $1
+          AND ev.status NOT IN ('cancelled')
+          AND ev.deleted_at IS NULL
+        GROUP BY strftime('%Y-%m', ev.event_date)
         ORDER BY month
       `, [String(targetYear)]),
 
@@ -390,19 +405,26 @@ router.get('/profit-loss', async (req, res) => {
     // Merge monthly data
     const monthsMap = {};
     for (const row of monthlyRevenue.rows) {
-      monthsMap[row.month] = { month: row.month, revenue: row.revenue, invoiced: row.invoiced, labor_cost: 0, total_hours: 0, unique_employees: 0 };
+      monthsMap[row.month] = { month: row.month, revenue: row.revenue, invoiced: row.invoiced, labor_cost: 0, contractor_cost: 0, total_hours: 0, unique_employees: 0 };
     }
     for (const row of monthlyLaborCost.rows) {
       if (!monthsMap[row.month]) {
-        monthsMap[row.month] = { month: row.month, revenue: 0, invoiced: 0, labor_cost: 0, total_hours: 0, unique_employees: 0 };
+        monthsMap[row.month] = { month: row.month, revenue: 0, invoiced: 0, labor_cost: 0, contractor_cost: 0, total_hours: 0, unique_employees: 0 };
       }
       monthsMap[row.month].labor_cost = row.labor_cost;
       monthsMap[row.month].total_hours = row.total_hours;
       monthsMap[row.month].unique_employees = row.unique_employees;
     }
+    for (const row of monthlyContractorCost.rows) {
+      if (!monthsMap[row.month]) {
+        monthsMap[row.month] = { month: row.month, revenue: 0, invoiced: 0, labor_cost: 0, contractor_cost: 0, total_hours: 0, unique_employees: 0 };
+      }
+      monthsMap[row.month].contractor_cost = parseFloat(row.contractor_cost) || 0;
+    }
     const monthlyPL = Object.values(monthsMap).sort((a, b) => a.month.localeCompare(b.month));
     for (const m of monthlyPL) {
-      m.profit = m.revenue - m.labor_cost;
+      m.total_cost = m.labor_cost + m.contractor_cost;
+      m.profit = m.revenue - m.total_cost;
       m.margin = m.revenue > 0 ? Math.round((m.profit / m.revenue) * 100) : 0;
     }
 
@@ -428,7 +450,9 @@ router.get('/profit-loss', async (req, res) => {
     // Totals
     const totalRevenue = monthlyPL.reduce((sum, m) => sum + m.revenue, 0);
     const totalLaborCost = monthlyPL.reduce((sum, m) => sum + m.labor_cost, 0);
-    const totalProfit = totalRevenue - totalLaborCost;
+    const totalContractorCost = monthlyPL.reduce((sum, m) => sum + m.contractor_cost, 0);
+    const totalCost = totalLaborCost + totalContractorCost;
+    const totalProfit = totalRevenue - totalCost;
     const totalMargin = totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0;
 
     res.json({
@@ -437,6 +461,8 @@ router.get('/profit-loss', async (req, res) => {
       totals: {
         revenue: totalRevenue,
         labor_cost: totalLaborCost,
+        contractor_cost: totalContractorCost,
+        total_cost: totalCost,
         profit: totalProfit,
         margin: totalMargin
       }

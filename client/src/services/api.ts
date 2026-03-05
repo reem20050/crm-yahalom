@@ -200,6 +200,10 @@ export const eventsApi = {
     api.post(`/events/${eventId}/assign`, data),
   unassign: (eventId: string, assignmentId: string) =>
     api.delete(`/events/${eventId}/assign/${assignmentId}`),
+  assignContractor: (eventId: string, data: Record<string, unknown>) =>
+    api.post(`/events/${eventId}/contractors`, data),
+  unassignContractor: (eventId: string, assignmentId: string) =>
+    api.delete(`/events/${eventId}/contractors/${assignmentId}`),
   complete: (id: string, data?: Record<string, unknown>) =>
     api.post(`/events/${id}/complete`, data),
   getUpcoming: () => api.get('/events/upcoming/week'),

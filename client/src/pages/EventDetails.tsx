@@ -18,8 +18,9 @@ import {
   CheckCircle,
   UserPlus,
   Phone,
+  Building2,
 } from 'lucide-react';
-import { eventsApi, employeesApi } from '../services/api';
+import { eventsApi, employeesApi, contractorsApi } from '../services/api';
 
 const statusOptions = [
   { value: 'quote', label: 'הצעת מחיר' },
@@ -46,6 +47,25 @@ interface Assignment {
   status: string;
 }
 
+interface ContractorAssignment {
+  id: string;
+  contractor_id: string;
+  company_name: string;
+  contact_name: string;
+  contractor_phone: string;
+  workers_count: number;
+  hourly_rate: number;
+  notes: string;
+}
+
+interface Contractor {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  status: string;
+}
+
 interface Employee {
   id: string;
   first_name: string;
@@ -63,6 +83,7 @@ export default function EventDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, unknown>>({});
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const [showContractorDropdown, setShowContractorDropdown] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // ---------- Queries ----------
@@ -77,6 +98,12 @@ export default function EventDetails() {
     queryKey: ['employees', 'active'],
     queryFn: () => employeesApi.getAll({ status: 'active' }).then((res) => res.data),
     enabled: showAssignDropdown,
+  });
+
+  const { data: contractorsData } = useQuery({
+    queryKey: ['contractors', 'active'],
+    queryFn: () => contractorsApi.getAll({ status: 'active' }).then((res) => res.data),
+    enabled: showContractorDropdown,
   });
 
   const event = data?.event;
@@ -178,6 +205,29 @@ export default function EventDetails() {
     },
   });
 
+  const assignContractorMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => eventsApi.assignContractor(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', id] });
+      toast.success('קבלן שובץ בהצלחה');
+      setShowContractorDropdown(false);
+    },
+    onError: () => {
+      toast.error('שגיאה בשיבוץ קבלן');
+    },
+  });
+
+  const unassignContractorMutation = useMutation({
+    mutationFn: (assignmentId: string) => eventsApi.unassignContractor(id!, assignmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', id] });
+      toast.success('שיבוץ קבלן הוסר');
+    },
+    onError: () => {
+      toast.error('שגיאה בהסרת שיבוץ קבלן');
+    },
+  });
+
   // ---------- Handlers ----------
 
   const handleSaveEdit = () => {
@@ -205,10 +255,25 @@ export default function EventDetails() {
     setShowDeleteConfirm(false);
   };
 
+  const handleAssignContractor = (contractor: Contractor) => {
+    assignContractorMutation.mutate({
+      contractor_id: contractor.id,
+      workers_count: 1,
+    });
+  };
+
   // Filter out already-assigned employees
   const assignedIds = (data?.assignments || []).map((a: Assignment) => a.employee_id);
   const availableEmployees = (employeesData?.employees || []).filter(
     (emp: Employee) => !assignedIds.includes(emp.id)
+  );
+
+  // Filter out already-assigned contractors
+  const assignedContractorIds = (data?.contractorAssignments || []).map(
+    (a: ContractorAssignment) => a.contractor_id
+  );
+  const availableContractors = (contractorsData?.contractors || []).filter(
+    (c: Contractor) => !assignedContractorIds.includes(c.id)
   );
 
   // ---------- Loading ----------
@@ -529,22 +594,27 @@ export default function EventDetails() {
             )}
           </div>
 
-          {/* Assigned employees */}
+          {/* Assigned team — employees + contractors */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold font-heading">צוות משובץ</h2>
               {event?.status !== 'completed' && event?.status !== 'cancelled' && (
-                <button
-                  onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-                  className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5"
-                >
-                  {showAssignDropdown ? (
-                    <X className="w-4 h-4" />
-                  ) : (
-                    <UserPlus className="w-4 h-4" />
-                  )}
-                  {showAssignDropdown ? 'ביטול' : 'שבץ עובד'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowAssignDropdown(!showAssignDropdown); setShowContractorDropdown(false); }}
+                    className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5"
+                  >
+                    {showAssignDropdown ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                    {showAssignDropdown ? 'ביטול' : 'שבץ עובד'}
+                  </button>
+                  <button
+                    onClick={() => { setShowContractorDropdown(!showContractorDropdown); setShowAssignDropdown(false); }}
+                    className="btn-secondary text-sm flex items-center gap-1 px-3 py-1.5"
+                  >
+                    {showContractorDropdown ? <X className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
+                    {showContractorDropdown ? 'ביטול' : 'שבץ קבלן'}
+                  </button>
+                </div>
               )}
             </div>
 
@@ -562,42 +632,58 @@ export default function EventDetails() {
                         className="w-full flex items-center justify-between p-3 bg-white rounded-lg hover:bg-gray-50 transition-colors text-right"
                       >
                         <div>
-                          <p className="font-medium">
-                            {emp.first_name} {emp.last_name}
-                          </p>
+                          <p className="font-medium">{emp.first_name} {emp.last_name}</p>
                           <p className="text-sm text-gray-500">{emp.role || 'מאבטח'}</p>
                         </div>
-                        <span className="text-sm text-gray-500" dir="ltr">
-                          {emp.phone}
-                        </span>
+                        <span className="text-sm text-gray-500" dir="ltr">{emp.phone}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-sm text-center py-2">
-                    אין עובדים זמינים לשיבוץ
-                  </p>
+                  <p className="text-gray-500 text-sm text-center py-2">אין עובדים זמינים לשיבוץ</p>
                 )}
               </div>
             )}
 
-            {/* Assignment list */}
-            {data?.assignments?.length > 0 ? (
-              <div className="space-y-3">
+            {/* Assign contractor dropdown */}
+            {showContractorDropdown && (
+              <div className="mb-4 p-4 bg-orange-50 rounded-lg">
+                <p className="text-sm font-medium mb-2">בחר קבלן לשיבוץ:</p>
+                {availableContractors.length > 0 ? (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {availableContractors.map((contractor: Contractor) => (
+                      <button
+                        key={contractor.id}
+                        onClick={() => handleAssignContractor(contractor)}
+                        disabled={assignContractorMutation.isPending}
+                        className="w-full flex items-center justify-between p-3 bg-white rounded-lg hover:bg-gray-50 transition-colors text-right"
+                      >
+                        <div>
+                          <p className="font-medium">{contractor.company_name}</p>
+                          <p className="text-sm text-gray-500">{contractor.contact_name}</p>
+                        </div>
+                        <span className="text-sm text-gray-500" dir="ltr">{contractor.phone}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm text-center py-2">אין קבלנים זמינים לשיבוץ</p>
+                )}
+              </div>
+            )}
+
+            {/* Employee assignments */}
+            {data?.assignments?.length > 0 && (
+              <div className="space-y-3 mb-4">
+                <p className="text-sm text-gray-500 font-medium">עובדים</p>
                 {data.assignments.map((assignment: Assignment) => (
-                  <div
-                    key={assignment.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
+                  <div key={assignment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium">{assignment.employee_name}</p>
                       <p className="text-sm text-gray-500">{assignment.role || 'מאבטח'}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <a
-                        href={`tel:${assignment.employee_phone}`}
-                        className="flex items-center gap-1 text-primary-600 text-sm"
-                      >
+                      <a href={`tel:${assignment.employee_phone}`} className="flex items-center gap-1 text-primary-600 text-sm">
                         <Phone className="w-4 h-4" />
                         {assignment.employee_phone}
                       </a>
@@ -614,8 +700,50 @@ export default function EventDetails() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">אין עובדים משובצים</p>
+            )}
+
+            {/* Contractor assignments */}
+            {data?.contractorAssignments?.length > 0 && (
+              <div className="space-y-3 mb-4">
+                <p className="text-sm text-gray-500 font-medium">קבלנים</p>
+                {data.contractorAssignments.map((ca: ContractorAssignment) => (
+                  <div key={ca.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-orange-500" />
+                      <div>
+                        <p className="font-medium">{ca.company_name}</p>
+                        <p className="text-sm text-gray-500">
+                          {ca.contact_name}
+                          {ca.workers_count > 0 && ` · ${ca.workers_count} עובדים`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {ca.contractor_phone && (
+                        <a href={`tel:${ca.contractor_phone}`} className="flex items-center gap-1 text-primary-600 text-sm">
+                          <Phone className="w-4 h-4" />
+                          {ca.contractor_phone}
+                        </a>
+                      )}
+                      {event?.status !== 'completed' && event?.status !== 'cancelled' && (
+                        <button
+                          onClick={() => unassignContractorMutation.mutate(ca.id)}
+                          disabled={unassignContractorMutation.isPending}
+                          className="text-red-500 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                        >
+                          הסר
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {(!data?.assignments || data.assignments.length === 0) &&
+             (!data?.contractorAssignments || data.contractorAssignments.length === 0) && (
+              <p className="text-gray-500 text-center py-4">אין עובדים או קבלנים משובצים</p>
             )}
           </div>
 
@@ -678,9 +806,15 @@ export default function EventDetails() {
               <span className="font-medium">{event?.required_guards || 0}</span>
             </div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-500">משובצים</span>
+              <span className="text-sm text-gray-500">עובדים משובצים</span>
               <span className="font-medium">{data?.assignments?.length || 0}</span>
             </div>
+            {(data?.contractorAssignments?.length || 0) > 0 && (
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500">קבלנים משובצים</span>
+                <span className="font-medium">{data.contractorAssignments.length}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">חסרים</span>
               <span

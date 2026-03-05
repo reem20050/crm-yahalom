@@ -385,6 +385,36 @@ router.get('/:id/hours/:year/:month', async (req, res) => {
 // Delete employee - soft delete (admin/manager only)
 router.delete('/:id', requireManager, async (req, res) => {
   try {
+    // Check for upcoming shift assignments
+    const upcomingShifts = await db.query(`
+      SELECT COUNT(*) as count FROM shift_assignments sa
+      JOIN shifts s ON sa.shift_id = s.id
+      WHERE sa.employee_id = $1 AND s.date >= date('now', 'localtime')
+    `, [req.params.id]);
+
+    // Check for upcoming event assignments
+    const upcomingEvents = await db.query(`
+      SELECT COUNT(*) as count FROM event_assignments ea
+      JOIN events e ON ea.event_id = e.id
+      WHERE ea.employee_id = $1 AND e.event_date >= date('now', 'localtime')
+      AND e.status NOT IN ('completed', 'cancelled') AND e.deleted_at IS NULL
+    `, [req.params.id]);
+
+    const shiftCount = parseInt(upcomingShifts.rows[0].count || 0);
+    const eventCount = parseInt(upcomingEvents.rows[0].count || 0);
+
+    if ((shiftCount > 0 || eventCount > 0) && !req.query.force) {
+      const warnings = [];
+      if (shiftCount > 0) warnings.push(`${shiftCount} משמרות עתידיות`);
+      if (eventCount > 0) warnings.push(`${eventCount} אירועים עתידיים`);
+      return res.status(409).json({
+        error: `לעובד יש ${warnings.join(' ו-')}. האם למחוק בכל זאת?`,
+        hasUpcoming: true,
+        upcomingShifts: shiftCount,
+        upcomingEvents: eventCount
+      });
+    }
+
     const result = await db.query(
       `UPDATE employees SET deleted_at = datetime('now'), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
       [req.params.id]

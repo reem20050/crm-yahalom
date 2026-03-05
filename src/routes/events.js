@@ -68,7 +68,8 @@ router.get('/', async (req, res) => {
     const result = await db.query(`
       SELECT e.*,
              c.company_name,
-             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
+             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count,
+             (SELECT COUNT(*) FROM event_contractor_assignments WHERE event_id = e.id) as contractor_count
       FROM events e
       LEFT JOIN customers c ON e.customer_id = c.id
       ${whereString}
@@ -92,7 +93,8 @@ router.get('/upcoming/week', async (req, res) => {
     const result = await db.query(`
       SELECT e.*,
              c.company_name,
-             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count
+             (SELECT COUNT(*) FROM event_assignments WHERE event_id = e.id) as assigned_count,
+             (SELECT COUNT(*) FROM event_contractor_assignments WHERE event_id = e.id) as contractor_count
       FROM events e
       LEFT JOIN customers c ON e.customer_id = c.id
       WHERE e.event_date BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')

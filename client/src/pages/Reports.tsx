@@ -502,10 +502,15 @@ export default function Reports() {
               </p>
             </div>
             <div className="card text-center">
-              <p className="text-sm text-gray-500">עלות עבודה</p>
+              <p className="text-sm text-gray-500">עלות עבודה (עובדים)</p>
               <p className="text-2xl font-bold text-red-600 font-heading">
                 ₪{(profitLossData.totals?.labor_cost || 0).toLocaleString()}
               </p>
+              {(profitLossData.totals?.contractor_cost || 0) > 0 && (
+                <p className="text-sm text-orange-600 mt-1">
+                  + ₪{profitLossData.totals.contractor_cost.toLocaleString()} קבלנים
+                </p>
+              )}
             </div>
             <div className="card text-center">
               <p className="text-sm text-gray-500">רווח נקי</p>
@@ -533,7 +538,8 @@ export default function Reports() {
                   <Tooltip formatter={(value: number) => `₪${value?.toLocaleString()}`} />
                   <Legend />
                   <Bar dataKey="revenue" fill="#22c55e" name="הכנסות" />
-                  <Bar dataKey="labor_cost" fill="#ef4444" name="עלות עבודה" />
+                  <Bar dataKey="labor_cost" fill="#ef4444" name="עלות עובדים" />
+                  <Bar dataKey="contractor_cost" fill="#f97316" name="עלות קבלנים" />
                   <Bar dataKey="profit" fill="#3b82f6" name="רווח" />
                 </BarChart>
               </ResponsiveContainer>
@@ -565,7 +571,8 @@ export default function Reports() {
                   <tr>
                     <th>חודש</th>
                     <th>הכנסות</th>
-                    <th>עלות עבודה</th>
+                    <th>עלות עובדים</th>
+                    <th>עלות קבלנים</th>
                     <th>רווח</th>
                     <th>מרווח</th>
                     <th>שעות</th>
@@ -574,13 +581,14 @@ export default function Reports() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {(profitLossData.monthly || []).map((m: {
-                    month: string; revenue: number; labor_cost: number;
+                    month: string; revenue: number; labor_cost: number; contractor_cost: number;
                     profit: number; margin: number; total_hours: number; unique_employees: number;
                   }) => (
                     <tr key={m.month}>
                       <td className="font-medium">{m.month}</td>
                       <td className="text-green-600">₪{(m.revenue || 0).toLocaleString()}</td>
                       <td className="text-red-600">₪{(m.labor_cost || 0).toLocaleString()}</td>
+                      <td className="text-orange-600">₪{(m.contractor_cost || 0).toLocaleString()}</td>
                       <td className={m.profit >= 0 ? 'text-green-700 font-bold' : 'text-red-700 font-bold'}>
                         ₪{(m.profit || 0).toLocaleString()}
                       </td>
@@ -599,6 +607,7 @@ export default function Reports() {
                       <td>סה"כ</td>
                       <td className="text-green-600">₪{(profitLossData.totals?.revenue || 0).toLocaleString()}</td>
                       <td className="text-red-600">₪{(profitLossData.totals?.labor_cost || 0).toLocaleString()}</td>
+                      <td className="text-orange-600">₪{(profitLossData.totals?.contractor_cost || 0).toLocaleString()}</td>
                       <td className={profitLossData.totals?.profit >= 0 ? 'text-green-700' : 'text-red-700'}>
                         ₪{(profitLossData.totals?.profit || 0).toLocaleString()}
                       </td>

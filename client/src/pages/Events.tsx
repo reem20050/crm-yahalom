@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Search, PartyPopper, Calendar, MapPin, Users, Plus, X, Shield, Car } from 'lucide-react';
+import { Search, PartyPopper, Calendar, MapPin, Users, Plus, X, Shield, Car, Building2 } from 'lucide-react';
 import { eventsApi, customersApi, leadsApi } from '../services/api';
 import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
@@ -189,6 +189,12 @@ export default function Events() {
                       <Users className="w-4 h-4" />
                       {event.assigned_count}/{event.required_guards} מאבטחים
                     </span>
+                    {Number(event.contractor_count) > 0 && (
+                      <span className="flex items-center gap-1 text-sm text-orange-600">
+                        <Building2 className="w-4 h-4" />
+                        {event.contractor_count} קבלנים
+                      </span>
+                    )}
                     {event.price && (
                       <span className="font-medium text-gray-900">
                         ₪{event.price.toLocaleString()}
