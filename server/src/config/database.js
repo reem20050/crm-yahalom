@@ -1226,9 +1226,21 @@ const initializeDatabase = async () => {
         completed_at TEXT,
         result_summary TEXT,
         error_message TEXT,
-        items_processed INTEGER DEFAULT 0
+        items_processed INTEGER DEFAULT 0,
+        items_created INTEGER DEFAULT 0,
+        items_skipped INTEGER DEFAULT 0,
+        details TEXT
       )
     `);
+    // ALTER fallbacks for existing production table
+    const runLogAlters = [
+      `ALTER TABLE automation_run_log ADD COLUMN items_created INTEGER DEFAULT 0`,
+      `ALTER TABLE automation_run_log ADD COLUMN items_skipped INTEGER DEFAULT 0`,
+      `ALTER TABLE automation_run_log ADD COLUMN details TEXT`,
+    ];
+    for (const sql of runLogAlters) {
+      try { await execDDL(sql); } catch (e) { /* column already exists */ }
+    }
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS auto_generation_log (
@@ -1236,6 +1248,32 @@ const initializeDatabase = async () => {
         type TEXT NOT NULL,
         entity_id TEXT,
         details TEXT,
+        generated_count INTEGER DEFAULT 0,
+        created_by TEXT,
+        source_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // ALTER fallbacks for existing production table
+    const genLogAlters = [
+      `ALTER TABLE auto_generation_log ADD COLUMN generated_count INTEGER DEFAULT 0`,
+      `ALTER TABLE auto_generation_log ADD COLUMN created_by TEXT`,
+      `ALTER TABLE auto_generation_log ADD COLUMN source_id TEXT`,
+    ];
+    for (const sql of genLogAlters) {
+      try { await execDDL(sql); } catch (e) { /* column already exists */ }
+    }
+
+    // Shift Intelligence Analytics
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS shift_analytics (
+        id TEXT PRIMARY KEY,
+        analysis_date TEXT,
+        analysis_type TEXT,
+        site_id TEXT,
+        employee_id TEXT,
+        details TEXT,
+        severity TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);

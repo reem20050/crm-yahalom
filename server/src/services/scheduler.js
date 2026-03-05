@@ -546,7 +546,32 @@ class Scheduler {
       return result || { processed: 0 };
     });
 
+    // Every day at 02:00 - Clean up old automation logs (keep 30 days)
+    await this.addJob('0 2 * * *', 'log-cleanup', async () => {
+      const result = await query(`DELETE FROM automation_run_log WHERE started_at < datetime('now', '-30 days')`);
+      const result2 = await query(`DELETE FROM auto_generation_log WHERE created_at < datetime('now', '-30 days')`);
+      const deleted = (result.rowCount || 0) + (result2.rowCount || 0);
+      return { processed: deleted, details: `Deleted ${deleted} old log entries` };
+    });
+    await this.seedJobConfig('log-cleanup', 'ניקוי לוגים', 'מחיקת לוגי אוטומציה ישנים (30+ ימים)', '0 2 * * *', 'maintenance');
+
     console.log(`${this.jobs.size} scheduled tasks registered`);
+
+    // Catch up missed jobs after server sleep (Render free tier)
+    for (const [name, entry] of this.jobs) {
+      try {
+        const config = await this.getJobConfig(name);
+        if (config && config.is_enabled && config.next_run_at) {
+          const nextRun = new Date(config.next_run_at);
+          if (nextRun < new Date()) {
+            console.log(`[Scheduler] Catching up missed job: ${name}`);
+            setTimeout(() => this.executeJob(name, entry.handler), Math.random() * 60000);
+          }
+        }
+      } catch (e) {
+        // Skip if config not yet seeded
+      }
+    }
   }
 
   // ── Job Handlers (original logic preserved) ───────────────────────────

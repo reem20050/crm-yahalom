@@ -31,7 +31,7 @@ class ShiftIntelligence {
         AND s.status != 'cancelled'
         AND s.site_id IS NOT NULL
         GROUP BY s.site_id, CAST(strftime('%w', s.date) AS INTEGER)
-        HAVING total_shifts >= 2
+        HAVING COUNT(*) >= 2
         ORDER BY si.name, day_of_week
       `);
 
@@ -217,7 +217,7 @@ class ShiftIntelligence {
         JOIN sites si ON s.site_id = si.id
         WHERE ${whereClause}
         GROUP BY s.site_id, CAST(strftime('%w', s.date) AS INTEGER), s.required_employees
-        HAVING shift_count >= 2
+        HAVING COUNT(DISTINCT s.id) >= 2
         ORDER BY si.name, day_of_week
       `, params);
 
@@ -271,7 +271,7 @@ class ShiftIntelligence {
         WHERE s.date >= date('now', '-30 days')
         AND s.site_id IS NOT NULL
         GROUP BY s.site_id
-        HAVING total_assignments > 0 AND CAST(no_shows AS REAL) / total_assignments > 0.2
+        HAVING COUNT(DISTINCT sa.id) > 0 AND CAST(SUM(CASE WHEN sa.status = 'no_show' THEN 1 ELSE 0 END) AS REAL) / COUNT(DISTINCT sa.id) > 0.2
       `);
       highNoShowSites = noShowResult.rows.map(r => ({
         site_id: r.site_id,
@@ -298,7 +298,9 @@ class ShiftIntelligence {
         WHERE gr.created_at >= date('now', '-60 days')
         AND e.status = 'active'
         GROUP BY e.id
-        HAVING recent_avg > 0 AND previous_avg > 0 AND recent_avg < previous_avg - 0.5
+        HAVING COALESCE(AVG(CASE WHEN gr.created_at >= date('now', '-30 days') THEN gr.rating END), 0) > 0
+          AND COALESCE(AVG(CASE WHEN gr.created_at >= date('now', '-60 days') AND gr.created_at < date('now', '-30 days') THEN gr.rating END), 0) > 0
+          AND COALESCE(AVG(CASE WHEN gr.created_at >= date('now', '-30 days') THEN gr.rating END), 0) < COALESCE(AVG(CASE WHEN gr.created_at >= date('now', '-60 days') AND gr.created_at < date('now', '-30 days') THEN gr.rating END), 0) - 0.5
       `);
       decliningRatings = ratingsResult.rows.map(r => ({
         employee_id: r.employee_id,
@@ -333,7 +335,7 @@ class ShiftIntelligence {
         AND sa.status NOT IN ('cancelled', 'no_show')
         AND e.status = 'active'
         GROUP BY e.id
-        HAVING shift_count > 5
+        HAVING COUNT(DISTINCT sa.shift_id) > 5
         ORDER BY total_hours DESC
       `);
       overtimeEmployees = overtimeResult.rows.map(r => ({
