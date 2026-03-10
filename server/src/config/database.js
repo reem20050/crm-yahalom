@@ -592,6 +592,18 @@ const initializeDatabase = async () => {
     }
   };
 
+  // Safe migration helper — suppresses "already exists" errors, logs real ones
+  const safeMigrate = async (ddl) => {
+    try {
+      await execDDL(ddl);
+    } catch (e) {
+      const msg = (e.message || '').toLowerCase();
+      if (!msg.includes('already exists') && !msg.includes('duplicate column')) {
+        console.warn('[DB Migration] Unexpected error:', e.message, '| DDL:', ddl.trim().substring(0, 80));
+      }
+    }
+  };
+
   // In PostgreSQL we use BOOLEAN/TIMESTAMP/SERIAL differently, but since all
   // our columns are TEXT and INTEGER with TEXT dates, the schemas are compatible.
   // We keep INTEGER for booleans (0/1) - PG handles this fine.
@@ -824,11 +836,7 @@ const initializeDatabase = async () => {
     // Add deleted_at column to tables that use soft-delete (safe migration)
     const softDeleteTables = ['events', 'customers', 'employees', 'leads', 'invoices'];
     for (const tbl of softDeleteTables) {
-      try {
-        await execDDL(`ALTER TABLE ${tbl} ADD COLUMN deleted_at TEXT DEFAULT NULL`);
-      } catch (e) {
-        // Column already exists — ignore
-      }
+      await safeMigrate(`ALTER TABLE ${tbl} ADD COLUMN deleted_at TEXT DEFAULT NULL`);
     }
 
     // Event assignments table
@@ -912,30 +920,9 @@ const initializeDatabase = async () => {
       )
     `);
 
-    // Add google_calendar_event_id column to events if not exists (SQLite migration)
-    if (!isPostgres) {
-      try {
-        db.exec(`ALTER TABLE events ADD COLUMN google_calendar_event_id TEXT`);
-      } catch (e) {
-        // Column already exists, ignore
-      }
-    }
-
-    // Add google_calendar_event_id column to shifts if not exists
-    if (isPostgres) {
-      await pool.query(`
-        DO $$ BEGIN
-          ALTER TABLE shifts ADD COLUMN google_calendar_event_id TEXT;
-        EXCEPTION WHEN duplicate_column THEN NULL;
-        END $$;
-      `);
-    } else {
-      try {
-        db.exec(`ALTER TABLE shifts ADD COLUMN google_calendar_event_id TEXT`);
-      } catch (e) {
-        // Column already exists, ignore
-      }
-    }
+    // Add google_calendar_event_id column to events/shifts if not exists
+    await safeMigrate(`ALTER TABLE events ADD COLUMN google_calendar_event_id TEXT`);
+    await safeMigrate(`ALTER TABLE shifts ADD COLUMN google_calendar_event_id TEXT`);
 
     // --------------------------------------------------
     // Contractor tables (new)
@@ -1141,7 +1128,7 @@ const initializeDatabase = async () => {
       `ALTER TABLE patrol_logs ADD COLUMN checked_at TEXT DEFAULT CURRENT_TIMESTAMP`,
     ];
     for (const ddl of patrolMigrations) {
-      try { await execDDL(ddl); } catch (e) { /* column already exists */ }
+      await safeMigrate(ddl);
     }
 
     // Migrate guard_locations: add columns that routes expect
@@ -1150,7 +1137,7 @@ const initializeDatabase = async () => {
       `ALTER TABLE guard_locations ADD COLUMN site_id TEXT`,
     ];
     for (const ddl of guardLocMigrations) {
-      try { await execDDL(ddl); } catch (e) { /* column already exists */ }
+      await safeMigrate(ddl);
     }
 
     // Migrate sites: add latitude/longitude for Google Maps
@@ -1159,13 +1146,11 @@ const initializeDatabase = async () => {
       `ALTER TABLE sites ADD COLUMN longitude REAL`,
     ];
     for (const ddl of sitesMigrations) {
-      try { await execDDL(ddl); } catch (e) { /* column already exists */ }
+      await safeMigrate(ddl);
     }
 
     // Migrate integration_settings: add google_maps_api_key
-    try {
-      await execDDL(`ALTER TABLE integration_settings ADD COLUMN google_maps_api_key TEXT`);
-    } catch (e) { /* column already exists */ }
+    await safeMigrate(`ALTER TABLE integration_settings ADD COLUMN google_maps_api_key TEXT`);
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS documents (
@@ -1214,7 +1199,7 @@ const initializeDatabase = async () => {
       `ALTER TABLE automation_config ADD COLUMN retry_count INTEGER DEFAULT 0`,
     ];
     for (const alterSql of automationAlterColumns) {
-      try { await execDDL(alterSql); } catch (e) { /* column already exists */ }
+      await safeMigrate(alterSql);
     }
 
     await execDDL(`
@@ -1226,9 +1211,21 @@ const initializeDatabase = async () => {
         completed_at TEXT,
         result_summary TEXT,
         error_message TEXT,
-        items_processed INTEGER DEFAULT 0
+        items_processed INTEGER DEFAULT 0,
+        items_created INTEGER DEFAULT 0,
+        items_skipped INTEGER DEFAULT 0,
+        details TEXT
       )
     `);
+    // ALTER fallbacks for existing production table
+    const runLogAlters = [
+      `ALTER TABLE automation_run_log ADD COLUMN items_created INTEGER DEFAULT 0`,
+      `ALTER TABLE automation_run_log ADD COLUMN items_skipped INTEGER DEFAULT 0`,
+      `ALTER TABLE automation_run_log ADD COLUMN details TEXT`,
+    ];
+    for (const sql of runLogAlters) {
+      await safeMigrate(sql);
+    }
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS auto_generation_log (
@@ -1236,6 +1233,32 @@ const initializeDatabase = async () => {
         type TEXT NOT NULL,
         entity_id TEXT,
         details TEXT,
+        generated_count INTEGER DEFAULT 0,
+        created_by TEXT,
+        source_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // ALTER fallbacks for existing production table
+    const genLogAlters = [
+      `ALTER TABLE auto_generation_log ADD COLUMN generated_count INTEGER DEFAULT 0`,
+      `ALTER TABLE auto_generation_log ADD COLUMN created_by TEXT`,
+      `ALTER TABLE auto_generation_log ADD COLUMN source_id TEXT`,
+    ];
+    for (const sql of genLogAlters) {
+      await safeMigrate(sql);
+    }
+
+    // Shift Intelligence Analytics
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS shift_analytics (
+        id TEXT PRIMARY KEY,
+        analysis_date TEXT,
+        analysis_type TEXT,
+        site_id TEXT,
+        employee_id TEXT,
+        details TEXT,
+        severity TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -1403,7 +1426,10 @@ const initializeDatabase = async () => {
         }
         console.log(`Migrated whatsapp_messages: ${oldCol} → ${newCol}`);
       } catch (e) {
-        // Column already renamed or doesn't exist — ignore
+        const msg = (e.message || '').toLowerCase();
+        if (!msg.includes('no such column') && !msg.includes('does not exist') && !msg.includes('already exists') && !msg.includes('duplicate column')) {
+          console.warn(`[DB Migration] whatsapp_messages rename ${oldCol}→${newCol} error:`, e.message);
+        }
       }
     }
 

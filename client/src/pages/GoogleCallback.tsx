@@ -13,13 +13,8 @@ export default function GoogleCallback() {
   useEffect(() => {
     const processCallback = async () => {
       try {
-        // Get the full URL to debug
-        const fullUrl = window.location.href;
-        console.log('Google callback URL:', fullUrl);
-
         // Get the ID token from URL hash
         const hash = window.location.hash;
-        console.log('Hash:', hash);
 
         if (!hash || hash.length < 2) {
           setError('לא התקבל טוקן מ-Google');
@@ -31,10 +26,6 @@ export default function GoogleCallback() {
         const idToken = params.get('id_token');
         const errorParam = params.get('error');
         const state = params.get('state');
-
-        console.log('ID Token exists:', !!idToken);
-        console.log('Error param:', errorParam);
-        console.log('State:', state);
 
         // Verify state if we saved it
         const savedState = localStorage.getItem('google_oauth_state');
@@ -62,7 +53,6 @@ export default function GoogleCallback() {
         }
 
         // Send token to our backend for verification
-        console.log('Sending token to backend...');
         const result = await authApi.loginWithGoogle(idToken);
 
         // Login successful - store token and user
@@ -73,7 +63,7 @@ export default function GoogleCallback() {
         navigate('/', { replace: true });
 
       } catch (err: unknown) {
-        console.error('Error processing callback:', err);
+        if (import.meta.env.DEV) console.error('Error processing callback:', err);
         const error = err as { response?: { data?: { error?: string; message?: string } } };
         const errorMessage = error.response?.data?.message || error.response?.data?.error || 'שגיאה בהתחברות עם Google';
         setError(errorMessage);

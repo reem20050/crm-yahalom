@@ -897,7 +897,7 @@ router.post('/:id/assign', requireManager, [
     `, [assignmentId, req.params.id, employee_id, role || 'guard']);
 
     // Send WhatsApp assignment confirmation (non-blocking)
-    whatsappHelper.sendAssignmentConfirmation(employee_id, req.params.id).catch(() => {});
+    whatsappHelper.sendAssignmentConfirmation(employee_id, req.params.id).catch(err => console.error('[Shift] WhatsApp assignment confirmation failed:', err.message));
 
     res.status(201).json({ assignment: result.rows[0] });
   } catch (error) {
@@ -964,7 +964,7 @@ router.post('/check-in/:assignmentId', async (req, res) => {
         check_in_distance_meters = $4
       WHERE id = $1
       RETURNING *
-    `, [req.params.assignmentId, latitude || null, longitude || null, distanceMeters]);
+    `, [req.params.assignmentId, latitude ?? null, longitude ?? null, distanceMeters]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'שיבוץ לא נמצא' });
@@ -1045,7 +1045,7 @@ router.post('/check-out/:assignmentId', async (req, res) => {
         check_out_distance_meters = $5
       WHERE id = $1
       RETURNING *
-    `, [req.params.assignmentId, actualHours.toFixed(2), latitude || null, longitude || null, distanceMeters]);
+    `, [req.params.assignmentId, actualHours.toFixed(2), latitude ?? null, longitude ?? null, distanceMeters]);
 
     // Check if all assignments are checked out
     const shiftId = (await db.query('SELECT shift_id FROM shift_assignments WHERE id = $1', [req.params.assignmentId])).rows[0].shift_id;

@@ -230,8 +230,8 @@ router.post('/:id/sites', requireManager, [
     const { name, address, city, requirements, requires_weapon, notes, latitude, longitude } = req.body;
 
     // Auto-geocode if no coordinates provided
-    let lat = latitude || null;
-    let lng = longitude || null;
+    let lat = latitude ?? null;
+    let lng = longitude ?? null;
     if (!lat && address) {
       try {
         const { geocodeAddress } = require('../utils/geocoder');
@@ -263,7 +263,7 @@ router.put('/:id/sites/:siteId', requireManager, async (req, res) => {
         requires_weapon = $5, notes = $6, latitude = $7, longitude = $8
       WHERE id = $9 AND customer_id = $10
       RETURNING *
-    `, [name, address, city, requirements, requires_weapon ? 1 : 0, notes, latitude || null, longitude || null, req.params.siteId, req.params.id]);
+    `, [name, address, city, requirements, requires_weapon ? 1 : 0, notes, latitude ?? null, longitude ?? null, req.params.siteId, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'אתר לא נמצא' });
     res.json({ site: result.rows[0] });
   } catch (error) {

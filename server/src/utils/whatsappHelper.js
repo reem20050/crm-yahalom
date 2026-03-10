@@ -15,7 +15,8 @@ class WhatsAppHelper {
       if (settings.rows.length === 0) return false;
       const s = settings.rows[0];
       return !!(s.whatsapp_phone_id && s.whatsapp_access_token);
-    } catch {
+    } catch (err) {
+      console.error('[WhatsApp] isConfigured check failed:', err.message);
       return false;
     }
   }
@@ -36,7 +37,8 @@ class WhatsAppHelper {
         }
       }
       return false;
-    } catch {
+    } catch (err) {
+      console.error('[WhatsApp] loadCredentials failed:', err.message);
       return false;
     }
   }

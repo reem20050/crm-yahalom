@@ -17,7 +17,8 @@ class GoogleHelper {
       const tokens = JSON.parse(settings.rows[0].google_tokens);
       googleService.setCredentials(tokens);
       return true;
-    } catch {
+    } catch (err) {
+      console.error('[GoogleHelper] isConfigured check failed:', err.message);
       return false;
     }
   }

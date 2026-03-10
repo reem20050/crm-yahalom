@@ -216,7 +216,7 @@ router.post('/', requireManager, [
       if (calendarId) {
         await db.query('UPDATE events SET google_calendar_event_id = $1 WHERE id = $2', [calendarId, createdEvent.id]);
       }
-    }).catch(() => {});
+    }).catch(err => console.error('[Event] Google Calendar sync failed:', err.message));
 
     res.status(201).json({ event: createdEvent });
   } catch (error) {
@@ -269,7 +269,7 @@ router.put('/:id', requireManager, async (req, res) => {
 
     // Sync to Google Calendar if connected (non-blocking)
     if (updatedEvent.google_calendar_event_id) {
-      googleHelper.updateCalendarEvent(updatedEvent.google_calendar_event_id, updatedEvent).catch(() => {});
+      googleHelper.updateCalendarEvent(updatedEvent.google_calendar_event_id, updatedEvent).catch(err => console.error('[Event] Google Calendar update failed:', err.message));
     }
 
     // Auto-generate invoice for completed event
@@ -325,7 +325,7 @@ router.post('/:id/assign', requireManager, [
     }
 
     // Send WhatsApp notification to assigned employee (non-blocking)
-    whatsappHelper.notifyEventAssignment(employee_id, req.params.id).catch(() => {});
+    whatsappHelper.notifyEventAssignment(employee_id, req.params.id).catch(err => console.error('[Event] WhatsApp assignment notification failed:', err.message));
 
     res.status(201).json({ assignment: result.rows[0] });
   } catch (error) {
