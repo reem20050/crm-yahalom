@@ -136,6 +136,130 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Operations dashboard data
+router.get('/operations', async (req, res) => {
+  try {
+    const [
+      guardsToday,
+      siteCoverage,
+      openIncidents,
+      guardsNotCheckedIn,
+      sitesNoCoverage,
+      shiftChanges,
+      expiringCerts,
+      todayIncidents
+    ] = await Promise.all([
+      // Guards on duty today
+      db.query(`
+        SELECT
+          COUNT(DISTINCT sa.employee_id) as on_duty,
+          (SELECT SUM(s2.required_employees) FROM shifts s2 WHERE s2.date = date('now') AND s2.status != 'cancelled') as expected
+        FROM shift_assignments sa
+        JOIN shifts s ON sa.shift_id = s.id
+        WHERE s.date = date('now') AND s.status IN ('in_progress', 'completed')
+      `),
+
+      // Sites with coverage today
+      db.query(`
+        SELECT COUNT(DISTINCT s.site_id) as covered
+        FROM shifts s
+        WHERE s.date = date('now') AND s.status != 'cancelled' AND s.site_id IS NOT NULL
+      `),
+
+      // Open incidents
+      db.query(`
+        SELECT
+          COUNT(*) as count,
+          SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical
+        FROM incidents
+        WHERE status IN ('open', 'investigating')
+      `),
+
+      // Guards not checked in (assigned but no check-in)
+      db.query(`
+        SELECT e.id, e.first_name, e.last_name, e.phone,
+               s.start_time, si.name as site_name, c.company_name
+        FROM shift_assignments sa
+        JOIN shifts s ON sa.shift_id = s.id
+        JOIN employees e ON sa.employee_id = e.id
+        LEFT JOIN sites si ON s.site_id = si.id
+        LEFT JOIN customers c ON s.customer_id = c.id
+        WHERE s.date = date('now')
+          AND s.status = 'scheduled'
+          AND sa.check_in_time IS NULL
+          AND s.start_time <= strftime('%H:%M', 'now', 'localtime')
+        ORDER BY s.start_time
+        LIMIT 10
+      `),
+
+      // Sites without coverage today
+      db.query(`
+        SELECT si.id, si.name, si.address, c.company_name,
+               s.start_time, s.end_time
+        FROM shifts s
+        JOIN sites si ON s.site_id = si.id
+        LEFT JOIN customers c ON s.customer_id = c.id
+        WHERE s.date = date('now')
+          AND s.status != 'cancelled'
+          AND (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) < s.required_employees
+        ORDER BY s.start_time
+        LIMIT 10
+      `),
+
+      // Upcoming shift changes (next 3 days)
+      db.query(`
+        SELECT s.*, c.company_name,
+               (SELECT COUNT(*) FROM shift_assignments WHERE shift_id = s.id) as assigned_count
+        FROM shifts s
+        LEFT JOIN customers c ON s.customer_id = c.id
+        WHERE s.date BETWEEN date('now', '+1 days') AND date('now', '+3 days')
+          AND s.status != 'cancelled'
+        ORDER BY s.date, s.start_time
+        LIMIT 10
+      `),
+
+      // Expiring licenses/certifications (next 30 days)
+      db.query(`
+        SELECT gc.id, gc.type, gc.name as cert_name, gc.expiry_date,
+               e.first_name || ' ' || e.last_name as employee_name,
+               CAST(julianday(gc.expiry_date) - julianday('now') AS INTEGER) as days_left
+        FROM guard_certifications gc
+        JOIN employees e ON gc.employee_id = e.id
+        WHERE gc.status = 'active'
+          AND gc.expiry_date BETWEEN date('now') AND date('now', '+30 days')
+        ORDER BY gc.expiry_date
+        LIMIT 10
+      `),
+
+      // Today's incidents
+      db.query(`
+        SELECT i.*, si.name as site_name, c.company_name
+        FROM incidents i
+        LEFT JOIN sites si ON i.site_id = si.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        WHERE i.incident_date = date('now') OR (i.incident_date IS NULL AND i.created_at >= date('now'))
+        ORDER BY i.created_at DESC
+        LIMIT 10
+      `)
+    ]);
+
+    res.json({
+      guards_on_duty: guardsToday.rows[0]?.on_duty || 0,
+      guards_expected_today: guardsToday.rows[0]?.expected || 0,
+      sites_with_coverage: siteCoverage.rows[0]?.covered || 0,
+      open_incidents: openIncidents.rows[0] || { count: 0, critical: 0 },
+      guards_not_checked_in: guardsNotCheckedIn.rows,
+      sites_without_coverage: sitesNoCoverage.rows,
+      upcoming_shift_changes: shiftChanges.rows,
+      expiring_licenses: expiringCerts.rows,
+      today_incidents: todayIncidents.rows
+    });
+  } catch (error) {
+    console.error('Get operations dashboard error:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת דשבורד מבצעי' });
+  }
+});
+
 // Get notifications
 router.get('/notifications', async (req, res) => {
   try {

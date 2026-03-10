@@ -989,30 +989,61 @@ const initializeDatabase = async () => {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         description TEXT,
-        type TEXT DEFAULT 'security',
+        incident_type TEXT DEFAULT 'security',
         severity TEXT DEFAULT 'medium',
         status TEXT DEFAULT 'open',
         site_id TEXT REFERENCES sites(id),
+        customer_id TEXT,
+        shift_id TEXT,
         reported_by TEXT REFERENCES employees(id),
         assigned_to TEXT,
-        location TEXT,
-        date TEXT,
-        time TEXT,
+        location_details TEXT,
+        incident_date TEXT,
+        incident_time TEXT,
+        police_called INTEGER DEFAULT 0,
+        police_report_number TEXT,
+        ambulance_called INTEGER DEFAULT 0,
+        injuries_reported INTEGER DEFAULT 0,
+        property_damage INTEGER DEFAULT 0,
+        witnesses TEXT,
+        actions_taken TEXT,
         resolution TEXT,
+        resolution_date TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    // Migrations for existing incidents table with old column names
+    const incidentMigrations = [
+      `ALTER TABLE incidents ADD COLUMN incident_type TEXT DEFAULT 'security'`,
+      `ALTER TABLE incidents ADD COLUMN customer_id TEXT`,
+      `ALTER TABLE incidents ADD COLUMN shift_id TEXT`,
+      `ALTER TABLE incidents ADD COLUMN location_details TEXT`,
+      `ALTER TABLE incidents ADD COLUMN incident_date TEXT`,
+      `ALTER TABLE incidents ADD COLUMN incident_time TEXT`,
+      `ALTER TABLE incidents ADD COLUMN police_called INTEGER DEFAULT 0`,
+      `ALTER TABLE incidents ADD COLUMN police_report_number TEXT`,
+      `ALTER TABLE incidents ADD COLUMN ambulance_called INTEGER DEFAULT 0`,
+      `ALTER TABLE incidents ADD COLUMN injuries_reported INTEGER DEFAULT 0`,
+      `ALTER TABLE incidents ADD COLUMN property_damage INTEGER DEFAULT 0`,
+      `ALTER TABLE incidents ADD COLUMN witnesses TEXT`,
+      `ALTER TABLE incidents ADD COLUMN actions_taken TEXT`,
+      `ALTER TABLE incidents ADD COLUMN resolution_date TEXT`,
+    ];
+    for (const sql of incidentMigrations) {
+      await safeMigrate(sql);
+    }
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS incident_updates (
         id TEXT PRIMARY KEY,
         incident_id TEXT REFERENCES incidents(id),
         user_id TEXT REFERENCES users(id),
-        content TEXT NOT NULL,
+        update_text TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await safeMigrate(`ALTER TABLE incident_updates ADD COLUMN update_text TEXT`);
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS guard_certifications (
@@ -1226,6 +1257,29 @@ const initializeDatabase = async () => {
     for (const sql of runLogAlters) {
       await safeMigrate(sql);
     }
+
+    // Shift templates (for auto-generation)
+    await execDDL(`
+      CREATE TABLE IF NOT EXISTS shift_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        customer_id TEXT,
+        site_id TEXT,
+        start_time TEXT,
+        end_time TEXT,
+        required_employees INTEGER DEFAULT 1,
+        requires_weapon INTEGER DEFAULT 0,
+        requires_vehicle INTEGER DEFAULT 0,
+        days_of_week TEXT DEFAULT '[]',
+        shift_type TEXT DEFAULT 'regular',
+        default_notes TEXT,
+        preferred_employees TEXT DEFAULT '[]',
+        is_active INTEGER DEFAULT 1,
+        auto_generate INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS auto_generation_log (
