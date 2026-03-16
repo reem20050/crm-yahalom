@@ -29,7 +29,7 @@ router.get('/sales', async (req, res) => {
           COUNT(*) as total_leads,
           SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
           SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END) as lost,
-          ROUND(CAST(SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) AS REAL) / CASE WHEN COUNT(*) = 0 THEN 1 ELSE COUNT(*) END * 100, 2) as conversion_rate
+          ROUND(SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) * 100.0 / CASE WHEN COUNT(*) = 0 THEN 1 ELSE COUNT(*) END, 2) as conversion_rate
         FROM leads
         WHERE created_at BETWEEN $1 AND $2
       `, [startDateParam, endDateParam]),

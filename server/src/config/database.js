@@ -67,6 +67,7 @@ const generateUUID = () => crypto.randomUUID();
  *   datetime('now', 'localtime')        -> NOW()
  *   datetime('now', '-N hours')         -> NOW() - INTERVAL 'N hours'
  *   datetime('now', '-' || $N || ' hours') -> NOW() - ($N || ' hours')::interval
+ *   strftime('%H:%M', 'now'[, 'localtime']) -> TO_CHAR(NOW(), 'HH24:MI')
  *   strftime('%Y-%m', col)              -> TO_CHAR((col)::date, 'YYYY-MM')
  *   strftime('%w', col)                 -> EXTRACT(DOW FROM (col)::date)
  *   strftime('%Y', col)                 -> TO_CHAR((col)::date, 'YYYY')
@@ -219,6 +220,12 @@ function convertSqliteToPostgres(sql) {
   //   ((X)::timestamp - (Y)::timestamp) * 24  -> EXTRACT(EPOCH FROM ...) / 3600
   // Use a function-based approach instead of simple regex for robustness
   out = fixTimestampArithmetic(out);
+
+  // ---- strftime('%H:%M', 'now', 'localtime') -> TO_CHAR(NOW(), 'HH24:MI') ----
+  out = out.replace(
+    /strftime\(\s*'%H:%M'\s*,\s*'now'\s*(?:,\s*'localtime'\s*)?\)/gi,
+    `TO_CHAR(NOW(), 'HH24:MI')`
+  );
 
   // ---- strftime('%w', column) -> EXTRACT(DOW FROM (column)::date) ----
   out = out.replace(
