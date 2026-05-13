@@ -1,10 +1,7 @@
 # Render.com deployment configuration
-databases:
-  - name: crm-yahalom-db
-    plan: free
-    databaseName: crm_yahalom
-    user: crm_user
-    region: frankfurt
+# Note: external Postgres (Neon) is used. DATABASE_URL is set manually in the
+# Render dashboard (sync: false). Render's free managed Postgres was dropped
+# because the free tier auto-deletes the DB after 30 days.
 
 services:
   # Main CRM application (frontend + backend)
@@ -18,9 +15,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: crm-yahalom-db
-          property: connectionString
+        sync: false
       - key: NODE_ENV
         value: production
       - key: JWT_SECRET
