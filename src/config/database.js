@@ -1031,7 +1031,10 @@ const initializeDatabase = async () => {
       CREATE TABLE IF NOT EXISTS guard_certifications (
         id TEXT PRIMARY KEY,
         employee_id TEXT REFERENCES employees(id),
-        type TEXT NOT NULL,
+        cert_type TEXT,
+        cert_name TEXT,
+        cert_number TEXT,
+        type TEXT,
         name TEXT,
         issue_date TEXT,
         expiry_date TEXT,
@@ -1042,6 +1045,24 @@ const initializeDatabase = async () => {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Align guard_certifications with the route/frontend contract
+    // (cert_type/cert_name/cert_number). Older deployments created the table
+    // with type/name/certificate_number + a NOT NULL on `type`, which made
+    // POST /api/certifications fail. These migrations are idempotent.
+    const certMigrations = [
+      `ALTER TABLE guard_certifications ADD COLUMN cert_type TEXT`,
+      `ALTER TABLE guard_certifications ADD COLUMN cert_name TEXT`,
+      `ALTER TABLE guard_certifications ADD COLUMN cert_number TEXT`,
+    ];
+    for (const ddl of certMigrations) {
+      try { await execDDL(ddl); } catch (e) { /* column already exists */ }
+    }
+    if (isPostgres) {
+      try {
+        await pool.query(`ALTER TABLE guard_certifications ALTER COLUMN type DROP NOT NULL`);
+      } catch (e) { /* already nullable or column absent */ }
+    }
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS guard_weapons (
