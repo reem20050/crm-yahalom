@@ -176,6 +176,17 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/automation', automationRoutes);
 app.use('/api/contractors', contractorsRoutes);
 
+// MCP (Model Context Protocol) endpoint for AI agents (e.g. Hermes).
+// Gated by the MCP_API_TOKEN env var; disabled (503) when not configured.
+// Mounted before the SPA catch-all so POST /mcp is handled here.
+try {
+  const mcpRouter = require('./mcp/crmMcp');
+  app.use('/mcp', mcpRouter);
+  console.log(`🔌 MCP endpoint mounted at /mcp (${process.env.MCP_API_TOKEN ? 'enabled' : 'disabled - set MCP_API_TOKEN'})`);
+} catch (e) {
+  console.error('Failed to mount MCP router:', e.message);
+}
+
 // Health check
 app.get('/api/health', async (req, res) => {
   let dbStatus = 'unknown';
