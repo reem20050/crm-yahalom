@@ -862,6 +862,9 @@ const initializeDatabase = async () => {
     `);
 
     // Invoices table
+    // deleted_at is inline because this CREATE runs AFTER the softDeleteTables
+    // migration loop above — on a fresh database the ALTER hits a missing table
+    // (swallowed) and the column would otherwise never exist until a restart.
     await execDDL(`
       CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
@@ -879,9 +882,11 @@ const initializeDatabase = async () => {
         description TEXT,
         document_url TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT DEFAULT NULL
       )
     `);
+    await safeMigrate(`ALTER TABLE invoices ADD COLUMN deleted_at TEXT DEFAULT NULL`);
 
     // Notifications table
     await execDDL(`
@@ -1056,7 +1061,10 @@ const initializeDatabase = async () => {
       CREATE TABLE IF NOT EXISTS guard_certifications (
         id TEXT PRIMARY KEY,
         employee_id TEXT REFERENCES employees(id),
-        type TEXT NOT NULL,
+        cert_type TEXT,
+        cert_name TEXT,
+        cert_number TEXT,
+        type TEXT,
         name TEXT,
         issue_date TEXT,
         expiry_date TEXT,
@@ -1067,6 +1075,18 @@ const initializeDatabase = async () => {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Align guard_certifications with the route contract (cert_type/cert_name/
+    // cert_number). Older tables were created with type NOT NULL +
+    // name/certificate_number, which makes POST /api/certifications fail.
+    await safeMigrate(`ALTER TABLE guard_certifications ADD COLUMN cert_type TEXT`);
+    await safeMigrate(`ALTER TABLE guard_certifications ADD COLUMN cert_name TEXT`);
+    await safeMigrate(`ALTER TABLE guard_certifications ADD COLUMN cert_number TEXT`);
+    if (isPostgres) {
+      try {
+        await pool.query(`ALTER TABLE guard_certifications ALTER COLUMN type DROP NOT NULL`);
+      } catch (e) { /* already nullable or column absent */ }
+    }
 
     await execDDL(`
       CREATE TABLE IF NOT EXISTS guard_weapons (
