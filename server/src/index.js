@@ -51,6 +51,7 @@ const documentsRoutes = require('./routes/documents');
 const sitesRoutes = require('./routes/sites');
 const automationRoutes = require('./routes/automation');
 const contractorsRoutes = require('./routes/contractors');
+const priorityRoutes = require('./routes/priority');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
@@ -175,6 +176,7 @@ app.use('/api/equipment', equipmentRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/automation', automationRoutes);
 app.use('/api/contractors', contractorsRoutes);
+app.use('/api/priority', priorityRoutes);
 
 // MCP (Model Context Protocol) endpoint for AI agents (e.g. Hermes).
 // Gated by the MCP_API_TOKEN env var; disabled (503) when not configured.

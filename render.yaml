@@ -28,6 +28,18 @@ services:
         generateValue: true
       - key: TZ
         value: Asia/Jerusalem
+      # מראת Priority (מסך /priority, קריאה בלבד). ארבעתם נדרשים יחד —
+      # חסר אחד והמסך מחזיר 503 מפורש במקום להיכשל בשקט.
+      # הערכים נלקחים מ-priority-integration/dist-skill/tzevet-yahalom-crm/.env
+      # (שם הם נקראים SUPABASE_URL / SUPABASE_ANON_KEY / HERMES_EMAIL / HERMES_PASSWORD).
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: PRIORITY_MIRROR_EMAIL
+        sync: false
+      - key: PRIORITY_MIRROR_PASSWORD
+        sync: false
       - key: WAHA_API_URL
         value: https://crm-yahalom-waha.onrender.com
       - key: WAHA_WEBHOOK_URL

@@ -457,4 +457,13 @@ export const alertsApi = {
     api.get('/automation/alerts/escalations', { params: { limit } }),
 };
 
+// Priority (ERP) — קריאה בלבד מהמראה. השרת מתווך: הדפדפן לא מחזיק קרדנציאלים
+// של Supabase, ולא פונה ל-Priority ישירות (קריאות API נספרות במכסת טרנזקציות).
+export const priorityApi = {
+  getSummary: () => api.get('/priority/summary'),
+  getJournal: (params?: Record<string, unknown>) => api.get('/priority/journal', { params }),
+  getAccounts: (params?: Record<string, unknown>) => api.get('/priority/accounts', { params }),
+  getDocuments: (params?: Record<string, unknown>) => api.get('/priority/documents', { params }),
+};
+
 export default api;

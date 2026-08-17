@@ -29,6 +29,7 @@ import {
   CalendarPlus,
   Zap,
   Briefcase,
+  Database,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -81,6 +82,7 @@ const navigationGroups = [
     items: [
       { name: 'חשבוניות', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
       { name: 'דוחות', href: '/reports', icon: BarChart3, permission: 'page:reports' },
+      { name: 'Priority', href: '/priority', icon: Database, permission: 'page:priority' },
     ],
   },
   {

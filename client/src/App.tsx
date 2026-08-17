@@ -20,6 +20,7 @@ const Events = lazy(() => import('./pages/Events'));
 const EventDetails = lazy(() => import('./pages/EventDetails'));
 const Invoices = lazy(() => import('./pages/Invoices'));
 const Reports = lazy(() => import('./pages/Reports'));
+const Priority = lazy(() => import('./pages/Priority'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Calendar = lazy(() => import('./pages/Calendar'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -106,6 +107,7 @@ function App() {
             <Route path="weapons" element={<RoleRoute permission="page:weapons"><WeaponsEquipment /></RoleRoute>} />
             <Route path="invoices" element={<RoleRoute permission="page:invoices"><Invoices /></RoleRoute>} />
             <Route path="reports" element={<RoleRoute permission="page:reports"><Reports /></RoleRoute>} />
+            <Route path="priority" element={<RoleRoute permission="page:priority"><Priority /></RoleRoute>} />
             <Route path="users" element={<RoleRoute permission="page:users"><Users /></RoleRoute>} />
             <Route path="settings" element={<RoleRoute permission="page:settings"><Settings /></RoleRoute>} />
             <Route path="automation" element={<RoleRoute permission="page:settings"><AutomationSettings /></RoleRoute>} />

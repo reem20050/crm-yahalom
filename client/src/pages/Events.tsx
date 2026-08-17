@@ -150,6 +150,9 @@ export default function Events() {
             company_name: string;
             required_guards: number;
             assigned_count: number;
+            // מוחזר מהשרת כתת-שאילתה (routes/events.js) אך הושמט מהטיפוס כאן,
+            // ולכן `tsc` נכשל ו-`npm run build` נעצר לפני `vite build`.
+            contractor_count: number;
             status: string;
             price: number;
           }) => (
