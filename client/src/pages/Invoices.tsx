@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, RefreshCw, Mail, ExternalLink, Download, Search } from 'lucide-react';
+import { Receipt, Calendar, Building2, AlertCircle, Plus, X, Trash2, Check, Printer, FileCheck, Mail, ExternalLink, Download, Search } from 'lucide-react';
 import { invoicesApi, customersApi, integrationsApi } from '../services/api';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
@@ -135,17 +135,6 @@ export default function Invoices() {
     onError: () => toast.error('שגיאה ביצירת חשבונית ירוקה'),
   });
 
-  const syncMutation = useMutation({
-    mutationFn: () => integrationsApi.syncGreenInvoices(),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
-      const count = res.data.count || 0;
-      toast.success(count > 0 ? `סונכרנו ${count} חשבוניות מחשבונית ירוקה` : 'אין חשבוניות חדשות לסנכרון');
-    },
-    onError: () => toast.error('שגיאה בסנכרון חשבוניות'),
-  });
-
   const sendEmailMutation = useMutation({
     mutationFn: ({ id, email }: { id: string; email?: string }) => invoicesApi.sendEmail(id, email),
     onSuccess: (res) => {
@@ -245,16 +234,6 @@ export default function Invoices() {
           <p className="page-subtitle">ניהול חשבוניות ותשלומים</p>
         </div>
         <div className="flex items-center gap-2">
-          {can('invoices:create') && (
-            <button
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <RefreshCw className={`w-5 h-5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-              סנכרן
-            </button>
-          )}
           {can('invoices:create') && (
             <button
               onClick={() => setIsGreenInvoiceModalOpen(true)}

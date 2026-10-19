@@ -23,6 +23,9 @@ import WhatsAppButton from '../components/WhatsAppButton';
 import ActivityLog from '../components/ActivityLog';
 import EmailComposeModal from '../components/EmailComposeModal';
 import DocumentManager from '../components/DocumentManager';
+import PriorityCustomerDocs from '../components/PriorityCustomerDocs';
+import PriorityLinkControl from '../components/PriorityLinkControl';
+import { usePermissions } from '../hooks/usePermissions';
 
 const SERVICE_TYPE_OPTIONS = [
   { value: 'regular', label: 'שמירה רגילה' },
@@ -89,6 +92,12 @@ export default function CustomerDetails() {
   });
 
   const customer = data?.customer;
+
+  // Priority מנפיקה את המסמכים הרשמיים. ללקוח מקושר מוצגים מסמכי Priority במקום
+  // רשימת חשבונית ירוקה — אלה נתוני CRM ואינם המקור.
+  const { can } = usePermissions();
+  const canPriority = can('page:priority');
+  const priorityLinked = canPriority && !!customer?.priority_customer_no;
 
   // Sync edit form when customer data loads or changes
   useEffect(() => {
@@ -545,6 +554,9 @@ export default function CustomerDetails() {
             )}
           </div>
 
+          {/* Priority documents (linked customers only) */}
+          {priorityLinked && id && <PriorityCustomerDocs customerId={id} />}
+
           {/* Documents */}
           {id && (
             <div className="card">
@@ -688,8 +700,13 @@ export default function CustomerDetails() {
             )}
           </div>
 
-          {/* Recent invoices */}
-          {data?.invoices?.length > 0 && (
+          {/* Priority link */}
+          {canPriority && id && customer && (
+            <PriorityLinkControl customerId={id} customer={customer} />
+          )}
+
+          {/* Recent invoices (Green Invoice) — hidden once the customer is linked to Priority */}
+          {!priorityLinked && data?.invoices?.length > 0 && (
             <div className="card">
               <h2 className="text-lg font-semibold mb-4 font-heading">חשבוניות אחרונות</h2>
               <div className="space-y-2">

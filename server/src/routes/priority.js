@@ -18,6 +18,8 @@
 
 const express = require('express');
 const { authenticateToken, requireManager } = require('../middleware/auth');
+const db = require('../config/database');
+const { proposeMatches, documentTotals } = require('../services/priorityLink');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -106,6 +108,59 @@ function clampLimit(v, dflt = 100) {
   const n = parseInt(v, 10);
   if (Number.isNaN(n) || n <= 0) return dflt;
   return Math.min(n, PAGE_MAX);
+}
+
+// מספר לקוח Priority (200xxx) — ספרות בלבד. נבדק לפני שהוא נשתל ב-URL של PostgREST.
+const CUSTOMER_NO_RE = /^\d{1,20}$/;
+const MATCHED_BY = { vat: 'לפי ח.פ.', name: 'לפי שם', manual: 'ידני' };
+
+function isUniqueViolation(e) {
+  return e && (e.code === '23505' || e.code === 'SQLITE_CONSTRAINT_UNIQUE'
+    || String(e.message || '').includes('UNIQUE constraint failed'));
+}
+
+function userName(user) {
+  return `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'מערכת';
+}
+
+/** רישום ביומן פעולות. כשל ברישום לא מבטל את הקישור שכבר נשמר. */
+async function logActivity(req, customerId, action, changes, description) {
+  try {
+    await db.query(
+      'INSERT INTO activity_log (id, user_id, entity_type, entity_id, action, changes, description, user_name)'
+      + ' VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [db.generateUUID(), req.user?.id || null, 'customer', customerId, action,
+        JSON.stringify(changes), description, userName(req.user)],
+    );
+  } catch (e) {
+    console.error('priority activity_log error:', e.message);
+  }
+}
+
+async function activeCustomer(id) {
+  const r = await db.query(
+    'SELECT id, company_name, priority_customer_no FROM customers WHERE id = $1 AND deleted_at IS NULL',
+    [id],
+  );
+  return r.rows[0] || null;
+}
+
+async function conflictFor(no, customerId) {
+  const r = await db.query(
+    'SELECT id, company_name, deleted_at FROM customers WHERE priority_customer_no = $1 AND id <> $2',
+    [no, customerId],
+  );
+  return r.rows[0] || null;
+}
+
+function conflictResponse(res, other, no) {
+  const error = other?.deleted_at
+    ? `מספר לקוח Priority ${no} מקושר ללקוח שנמחק (${other.company_name})`
+    : `מספר לקוח Priority ${no} כבר מקושר ללקוח אחר${other ? ` (${other.company_name})` : ''}`;
+  return res.status(409).json({
+    error,
+    conflict: other ? { customer_id: other.id, customer_name: other.company_name } : null,
+  });
 }
 
 // ── GET /api/priority/summary ────────────────────────────────────────────────
@@ -200,12 +255,17 @@ router.get('/accounts', async (req, res, next) => {
 // מסמך מבוטל נשאר בטבלה, ולכן סכימה בלי סינון מנפחת את ההכנסות.
 router.get('/documents', async (req, res, next) => {
   try {
+    const partyKey = String(req.query.party_key ?? '').trim();
+    if (partyKey && !CUSTOMER_NO_RE.test(partyKey)) {
+      return res.status(400).json({ error: 'party_key חייב להכיל ספרות בלבד' });
+    }
     const limit = clampLimit(req.query.limit, 100);
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
-    let path = 'p_documents?select=id,doc_type,doc_no,issue_date,party_name,'
+    let path = 'p_documents?select=id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,'
              + 'party_vat_id,total_incl_vat,vat_amount,cancelled'
              + '&order=issue_date.desc.nullslast'
              + `&limit=${limit}&offset=${offset}`;
+    if (partyKey) path += `&party_key=eq.${partyKey}`;
     if (req.query.includeCancelled !== 'true') path += '&cancelled=is.false';
     const q = (req.query.q || '').trim();
     if (q) {
@@ -215,6 +275,164 @@ router.get('/documents', async (req, res, next) => {
     }
     const { rows, total } = await pm(path, { count: true });
     res.json({ rows, total, limit, offset });
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/priority/link-proposals ─────────────────────────────────────────
+// הצעות קישור לקוח CRM ↔ לקוח Priority. **הצעות בלבד** — מנהל מאשר כל אחת ב-POST /links.
+// summary.accounts_read = 0 מראה ש-RLS החזירה מערך ריק, ולא ש"אין התאמות".
+const ACCOUNTS_PAGE = 1000;
+const ACCOUNTS_MAX_PAGES = 20;
+
+router.get('/link-proposals', async (req, res, next) => {
+  try {
+    const accounts = [];
+    let offset = 0;
+    for (let page = 0; page < ACCOUNTS_MAX_PAGES; page += 1) {
+      // הדפדוף לפי total (count) ולא לפי "דף קצר" — max-rows של PostgREST עלול להיות קטן מ-1000.
+      const { rows, total } = await pm(
+        'p_accounts?select=account_key,account_name,party_vat_id&kind=eq.customer'
+        + `&order=account_key&limit=${ACCOUNTS_PAGE}&offset=${offset}`,
+        { count: true },
+      );
+      accounts.push(...rows);
+      offset += rows.length;
+      if (rows.length === 0 || accounts.length >= total) break;
+      if (page === ACCOUNTS_MAX_PAGES - 1) {
+        console.warn(`priority link-proposals: stopped after ${accounts.length} of ${total} accounts`);
+      }
+    }
+
+    const customers = await db.query(
+      'SELECT id, company_name, business_id, priority_customer_no, priority_matched_by, deleted_at'
+      + ' FROM customers WHERE deleted_at IS NULL',
+    );
+    res.json(proposeMatches(accounts, customers.rows));
+  } catch (e) { next(e); }
+});
+
+// ── POST /api/priority/links ─────────────────────────────────────────────────
+// אישור מנהל לקישור. body: { customer_id, priority_customer_no, matched_by: vat|name|manual }
+router.post('/links', async (req, res, next) => {
+  try {
+    const customerId = String(req.body?.customer_id ?? '').trim();
+    const no = String(req.body?.priority_customer_no ?? '').trim();
+    const matchedBy = String(req.body?.matched_by ?? '').trim();
+    if (!customerId) return res.status(400).json({ error: 'חסר customer_id' });
+    if (!CUSTOMER_NO_RE.test(no)) {
+      return res.status(400).json({ error: 'מספר לקוח Priority חייב להכיל ספרות בלבד' });
+    }
+    if (!Object.prototype.hasOwnProperty.call(MATCHED_BY, matchedBy)) {
+      return res.status(400).json({ error: 'matched_by חייב להיות vat, name או manual' });
+    }
+
+    const customer = await activeCustomer(customerId);
+    if (!customer) return res.status(404).json({ error: 'לקוח לא נמצא' });
+
+    const acc = await pm(
+      `p_accounts?select=account_key,account_name&kind=eq.customer&account_key=eq.${no}&limit=1`,
+    );
+    if (acc.rows.length === 0) {
+      return res.status(422).json({ error: 'מספר לקוח לא נמצא במראה של Priority' });
+    }
+
+    const other = await conflictFor(no, customerId);
+    if (other) return conflictResponse(res, other, no);
+
+    let updated;
+    try {
+      updated = await db.query(
+        'UPDATE customers SET priority_customer_no = $1, priority_matched_by = $2,'
+        + ' priority_confirmed_by = $3, priority_confirmed_at = $4, updated_at = CURRENT_TIMESTAMP'
+        + ' WHERE id = $5 RETURNING *',
+        [no, matchedBy, req.user.id, new Date().toISOString(), customerId],
+      );
+    } catch (e) {
+      if (isUniqueViolation(e)) return conflictResponse(res, await conflictFor(no, customerId), no);
+      throw e;
+    }
+
+    await logActivity(req, customerId, 'priority_link',
+      { priority_customer_no: no, matched_by: matchedBy },
+      `קושר ללקוח Priority ${no} (${MATCHED_BY[matchedBy]})`);
+
+    res.json({ customer: updated.rows[0] });
+  } catch (e) { next(e); }
+});
+
+// ── DELETE /api/priority/links/:customerId ───────────────────────────────────
+// גם לקוח שנמחק (soft-delete): האינדקס הייחודי כולל אותו, ובלי זה המספר שלו נעול לתמיד
+// (POST /links ללקוח אחר מחזיר 409 על הלקוח המחוק).
+router.delete('/links/:customerId', async (req, res, next) => {
+  try {
+    const customerId = req.params.customerId;
+    const prev = await db.query(
+      'SELECT id, priority_customer_no, priority_matched_by FROM customers WHERE id = $1',
+      [customerId],
+    );
+    if (prev.rows.length === 0) return res.status(404).json({ error: 'לקוח לא נמצא' });
+
+    const updated = await db.query(
+      'UPDATE customers SET priority_customer_no = NULL, priority_matched_by = NULL,'
+      + ' priority_confirmed_by = NULL, priority_confirmed_at = NULL, updated_at = CURRENT_TIMESTAMP'
+      + ' WHERE id = $1 RETURNING *',
+      [customerId],
+    );
+
+    const was = prev.rows[0] || {};
+    if (was.priority_customer_no) {   // ביטול קישור שלא היה קיים — אין מה לרשום
+      await logActivity(req, customerId, 'priority_unlink',
+        { priority_customer_no: was.priority_customer_no, matched_by: was.priority_matched_by ?? null },
+        `בוטל הקישור ללקוח Priority ${was.priority_customer_no}`);
+    }
+
+    res.json({ customer: updated.rows[0] });
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/priority/customer/:customerId ───────────────────────────────────
+// כרטיס לקוח: הקישור, חשבון Priority וכל המסמכים — **כולל מבוטלים** (מסומנים, ולא נסכמים).
+router.get('/customer/:customerId', async (req, res, next) => {
+  try {
+    const r = await db.query(
+      'SELECT c.id, c.company_name, c.priority_customer_no, c.priority_matched_by, c.priority_confirmed_at,'
+      + ' u.first_name, u.last_name'
+      + ' FROM customers c LEFT JOIN users u ON u.id = c.priority_confirmed_by'
+      + ' WHERE c.id = $1 AND c.deleted_at IS NULL',
+      [req.params.customerId],
+    );
+    const c = r.rows[0];
+    if (!c) return res.status(404).json({ error: 'לקוח לא נמצא' });
+    if (!c.priority_customer_no) return res.json({ linked: false, customer_id: c.id });
+
+    const no = String(c.priority_customer_no);
+    if (!CUSTOMER_NO_RE.test(no)) {
+      return res.status(422).json({ error: 'מספר לקוח Priority השמור אינו תקין' });
+    }
+
+    const cols = 'id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,party_vat_id,'
+               + 'total_after_discount_ex_vat,vat_amount,total_incl_vat,withholding_amount,cancelled';
+    const [docs, acc] = await Promise.all([
+      pm(`p_documents?select=${cols}&party_key=eq.${no}`
+         + '&order=issue_date.desc.nullslast,doc_no.desc&limit=500', { count: true }),
+      pm(`p_accounts?select=account_key,account_name,party_vat_id,balance&account_key=eq.${no}&limit=1`),
+    ]);
+
+    const confirmedBy = `${c.first_name || ''} ${c.last_name || ''}`.trim() || null;
+    res.json({
+      linked: true,
+      link: {
+        priority_customer_no: no,
+        matched_by: c.priority_matched_by ?? null,
+        confirmed_at: c.priority_confirmed_at ?? null,
+        confirmed_by_name: confirmedBy,
+      },
+      account: acc.rows[0] || null,
+      rows: docs.rows,
+      total: docs.total,
+      truncated: docs.total > docs.rows.length,
+      totals: documentTotals(docs.rows),
+    });
   } catch (e) { next(e); }
 });
 
