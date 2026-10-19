@@ -10,6 +10,13 @@ const { query, db, generateUUID } = require('../config/database');
 const whatsappHelper = require('../utils/whatsappHelper');
 const googleHelper = require('../utils/googleHelper');
 
+// משימות שרצות על חשבוניות חשבונית ירוקה (טבלת invoices). המסמכים הרשמיים מופקים ב-Priority,
+// ולכן המשימות האלה כבויות כברירת מחדל: הן היו מזכירות ללקוחות חובות שלא קיימים / מפספסות חובות אמיתיים.
+// מחזירים אותן (GREEN_INVOICE_JOBS_ENABLED=true) רק אחרי שיחוברו לסטטוס הפתוח מ-Priority.
+const GREEN_INVOICE_JOBS = new Set(['overdue-invoice-check', 'customer-invoice-reminders']);
+const isGatedOff = (name) =>
+  GREEN_INVOICE_JOBS.has(name) && process.env.GREEN_INVOICE_JOBS_ENABLED !== 'true';
+
 class Scheduler {
   constructor() {
     this.jobs = new Map(); // name -> { cronJob, schedule, handler }
@@ -210,6 +217,12 @@ class Scheduler {
    * Execute a job with DB logging, config checks, and retry logic
    */
   async executeJob(jobName, handler) {
+    // Code-level gate first: covers cron, missed-job catch-up and retries alike
+    if (isGatedOff(jobName)) {
+      console.log(`[CRON] Skipped (Green Invoice data, off by default): ${jobName}`);
+      return;
+    }
+
     // Check if job is enabled in DB
     const config = await this.getJobConfig(jobName);
     if (config && config.is_enabled === 0) {
@@ -309,6 +322,9 @@ class Scheduler {
     if (!jobEntry) {
       return { success: false, message: `Job ${name} not found` };
     }
+    if (isGatedOff(name)) {
+      return { success: false, message: `Job ${name} is off: it runs on Green Invoice data (set GREEN_INVOICE_JOBS_ENABLED=true to allow)` };
+    }
 
     // Reset retry count before manual trigger
     await this.updateJobConfig(name, { retry_count: 0 });
@@ -364,6 +380,7 @@ class Scheduler {
     const jobEntry = this.jobs.get(name);
     return {
       ...config,
+      ...(isGatedOff(name) ? { is_enabled: 0, disabled_reason: 'green_invoice_data' } : {}),
       is_registered: !!jobEntry,
       has_pending_retry: this.retryTimers.has(name),
     };
@@ -376,6 +393,7 @@ class Scheduler {
     const configs = await this.getAllJobConfigs();
     return configs.map(config => ({
       ...config,
+      ...(isGatedOff(config.job_name) ? { is_enabled: 0, disabled_reason: 'green_invoice_data' } : {}),
       is_registered: this.jobs.has(config.job_name),
       has_pending_retry: this.retryTimers.has(config.job_name),
     }));
@@ -425,9 +443,9 @@ class Scheduler {
 
     this.jobs.set(name, { cronJob, schedule, handler });
 
-    // Check if job is disabled in DB and stop cron if so
+    // Check if job is disabled in DB (or gated off in code) and stop cron if so
     const config = await this.getJobConfig(name);
-    if (config && config.is_enabled === 0) {
+    if ((config && config.is_enabled === 0) || isGatedOff(name)) {
       cronJob.stop();
     }
 

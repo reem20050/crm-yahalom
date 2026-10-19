@@ -1210,6 +1210,29 @@ const initializeDatabase = async () => {
     // Migrate integration_settings: add google_maps_api_key
     await safeMigrate(`ALTER TABLE integration_settings ADD COLUMN google_maps_api_key TEXT`);
 
+    // Migrate customers: link to the Priority customer (מס. לקוח 200xxx = p_documents.party_key).
+    // ה-CRM הוא הבעלים של הקישור. נקבע רק באישור מנהל (routes/priority.js) — אין יצירה או מיזוג אוטומטיים.
+    const customerPriorityMigrations = [
+      `ALTER TABLE customers ADD COLUMN priority_customer_no TEXT`,
+      `ALTER TABLE customers ADD COLUMN priority_matched_by TEXT`,   // vat | name | manual
+      `ALTER TABLE customers ADD COLUMN priority_confirmed_by TEXT`,
+      `ALTER TABLE customers ADD COLUMN priority_confirmed_at TEXT`,
+    ];
+    for (const ddl of customerPriorityMigrations) {
+      await safeMigrate(ddl);
+    }
+    await safeMigrate(`CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_priority_no
+      ON customers(priority_customer_no) WHERE priority_customer_no IS NOT NULL`);
+
+    // Migrate activity_log: manual activities (POST /customers|leads/:id/activities) write these
+    const activityLogMigrations = [
+      `ALTER TABLE activity_log ADD COLUMN description TEXT`,
+      `ALTER TABLE activity_log ADD COLUMN user_name TEXT`,
+    ];
+    for (const ddl of activityLogMigrations) {
+      await safeMigrate(ddl);
+    }
+
     await execDDL(`
       CREATE TABLE IF NOT EXISTS documents (
         id TEXT PRIMARY KEY,

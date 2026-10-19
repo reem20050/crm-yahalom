@@ -5,7 +5,7 @@
  * 2. Monthly for active contracts with auto_invoice enabled
  *
  * v2 enhancements:
- * - Configurable VAT rate chain: contract → customer → system config → 17%
+ * - Configurable VAT rate chain: contract → customer → system config → 18%
  * - Configurable payment terms chain: contract → customer → system config → 30 days
  * - Prorating for partial months (start/end mid-month)
  * - Custom billing description templates with variable substitution
@@ -42,7 +42,7 @@ class AutoInvoiceGenerator {
   // ── Resolution Chains ──────────────────────────────────────────────
 
   /**
-   * Resolve VAT rate: contract → customer → system_config → 17.0
+   * Resolve VAT rate: contract → customer → system_config → 18.0 (מע"מ 18% מ-01/2025)
    */
   async resolveVatRate(contract, customer) {
     if (contract.vat_rate != null && contract.vat_rate !== '') {
@@ -55,7 +55,7 @@ class AutoInvoiceGenerator {
     if (systemRate != null) {
       return parseFloat(systemRate);
     }
-    return 17.0;
+    return 18.0;
   }
 
   /**

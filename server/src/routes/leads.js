@@ -480,7 +480,7 @@ router.post('/:id/activities', async (req, res) => {
     const result = await db.query(
       `INSERT INTO activity_log (id, entity_type, entity_id, action, description, user_id, user_name)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [activityId, 'lead', req.params.id, action, description || '', req.user?.id || '', ((req.user?.first_name || '') + ' ' + (req.user?.last_name || '')).trim() || 'מערכת']
+      [activityId, 'lead', req.params.id, action, description || '', req.user?.id || null, ((req.user?.first_name || '') + ' ' + (req.user?.last_name || '')).trim() || 'מערכת']
     );
     res.status(201).json({ activity: result.rows[0] });
   } catch (error) {

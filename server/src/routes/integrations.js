@@ -5,7 +5,7 @@ const googleService = require('../services/google');
 const whatsappService = require('../services/whatsapp');
 const greenInvoiceService = require('../services/greenInvoice');
 const whatsappHelper = require('../utils/whatsappHelper');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 // ====================
 // PUBLIC ROUTES (no auth required)
@@ -136,7 +136,7 @@ async function ensureIntegrationSettingsTable() {
 }
 
 // Get integration settings
-router.get('/settings', async (req, res) => {
+router.get('/settings', requireAdmin, async (req, res) => {
   try {
     // Ensure table exists before querying
     await ensureIntegrationSettingsTable();
@@ -182,7 +182,7 @@ router.get('/settings', async (req, res) => {
 // ====================
 
 // Get Google auth URL
-router.get('/google/auth-url', (req, res) => {
+router.get('/google/auth-url', requireAdmin, (req, res) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       return res.status(400).json({
@@ -201,7 +201,7 @@ router.get('/google/auth-url', (req, res) => {
 // Google OAuth callback is defined above (public route, no auth required)
 
 // Disconnect Google
-router.post('/google/disconnect', async (req, res) => {
+router.post('/google/disconnect', requireAdmin, async (req, res) => {
   try {
     await query(`
       UPDATE integration_settings
@@ -259,7 +259,7 @@ async function getWahaConfig() {
 }
 
 // Save WAHA URL + API key and start a session
-router.post('/whatsapp/settings', async (req, res) => {
+router.post('/whatsapp/settings', requireAdmin, async (req, res) => {
   try {
     const { wahaUrl, apiKey } = req.body;
 
@@ -325,7 +325,7 @@ router.post('/whatsapp/settings', async (req, res) => {
 });
 
 // Get QR code from WAHA
-router.get('/whatsapp/qr', async (req, res) => {
+router.get('/whatsapp/qr', requireAdmin, async (req, res) => {
   try {
     const config = await getWahaConfig();
     if (!config) {
@@ -429,7 +429,7 @@ router.get('/whatsapp/status', async (req, res) => {
 });
 
 // Disconnect WhatsApp (logout + stop WAHA session, keep server config for easy reconnect)
-router.post('/whatsapp/disconnect', async (req, res) => {
+router.post('/whatsapp/disconnect', requireAdmin, async (req, res) => {
   try {
     const config = await getWahaConfig();
 
@@ -526,7 +526,7 @@ router.post('/whatsapp/test', async (req, res) => {
 // ====================
 
 // Save Green Invoice settings
-router.post('/green-invoice/settings', async (req, res) => {
+router.post('/green-invoice/settings', requireAdmin, async (req, res) => {
   try {
     const { apiKey, apiSecret } = req.body;
 
@@ -564,7 +564,7 @@ router.post('/green-invoice/settings', async (req, res) => {
 });
 
 // Disconnect Green Invoice
-router.post('/green-invoice/disconnect', async (req, res) => {
+router.post('/green-invoice/disconnect', requireAdmin, async (req, res) => {
   try {
     await query(`
       UPDATE integration_settings
@@ -645,17 +645,11 @@ router.post('/green-invoice/create-invoice', async (req, res) => {
   }
 });
 
-// Sync invoices from Green Invoice
-router.post('/green-invoice/sync', async (req, res) => {
-  try {
-    const fromDate = req.body.fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const count = await greenInvoiceService.syncInvoices({ query }, fromDate);
-
-    res.json({ message: `${count} חשבוניות סונכרנו בהצלחה` });
-  } catch (error) {
-    console.error('Sync invoices error:', error);
-    res.status(500).json({ message: 'שגיאה בסנכרון חשבוניות' });
-  }
+// Sync invoices from Green Invoice — כבוי.
+// המסמכים הרשמיים מופקים ב-Priority ומגיעים למראה (routes/priority.js). הסנכרון הזה גם
+// הכפיל רשומות (syncInvoices לא מחכה ל-query, כך שבדיקת "קיים?" תמיד נכשלת ב-Postgres).
+router.post('/green-invoice/sync', requireAdmin, (req, res) => {
+  res.status(410).json({ message: 'סנכרון חשבונית ירוקה כבוי. המסמכים הרשמיים מגיעים מ-Priority.' });
 });
 
 // ====================

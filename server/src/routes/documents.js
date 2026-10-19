@@ -8,6 +8,14 @@ const googleService = require('../services/google');
 const router = express.Router();
 router.use(authenticateToken);
 
+// Documents with the field names DocumentManager.tsx expects
+const DOC_SELECT = `
+  SELECT d.*, d.name AS file_name, d.type AS file_type, d.size AS file_size,
+         d.file_url AS google_drive_url,
+         COALESCE(u.first_name || ' ' || u.last_name, 'מערכת') AS uploaded_by_name
+  FROM documents d
+  LEFT JOIN users u ON u.id = d.uploaded_by`;
+
 // Multer memory storage (max 10MB)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -38,13 +46,14 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       req.file.mimetype
     );
 
-    // Save to DB
+    // Save to DB — the table's columns are name/type/size/file_url (config/database.js);
+    // the client's field names (file_name, google_drive_url, ...) are aliased in DOC_SELECT.
     const id = crypto.randomUUID();
     await query(`
-      INSERT INTO documents (id, entity_type, entity_id, file_name, file_type, file_size, google_drive_id, google_drive_url, uploaded_by, uploaded_by_name)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [id, entity_type, entity_id, req.file.originalname, req.file.mimetype, req.file.size,
-        driveResult.id, driveResult.url, req.user?.id || null, req.user?.name || 'מערכת']);
+      INSERT INTO documents (id, name, type, entity_type, entity_id, file_url, google_drive_id, uploaded_by, size)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [id, req.file.originalname, req.file.mimetype, entity_type, entity_id,
+        driveResult.url, driveResult.id, req.user?.id || null, req.file.size]);
 
     res.json({
       document: {
@@ -53,6 +62,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         file_type: req.file.mimetype,
         file_size: req.file.size,
         google_drive_url: driveResult.url,
+        uploaded_by_name: `${req.user?.first_name || ''} ${req.user?.last_name || ''}`.trim() || 'מערכת',
         created_at: new Date().toISOString(),
       }
     });
@@ -71,7 +81,7 @@ router.get('/', async (req, res) => {
     }
 
     const result = await query(
-      'SELECT * FROM documents WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC',
+      `${DOC_SELECT} WHERE d.entity_type = $1 AND d.entity_id = $2 ORDER BY d.created_at DESC`,
       [entity_type, entity_id]
     );
 

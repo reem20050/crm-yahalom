@@ -209,7 +209,7 @@ router.get('/calculate', requireManager, async (req, res) => {
 
     // Get contract for hourly rate
     const contract = await db.query(`
-      SELECT monthly_value, service_type FROM contracts
+      SELECT monthly_value FROM contracts
       WHERE customer_id = ? AND status = 'active'
       ORDER BY created_at DESC LIMIT 1
     `, [customer_id]);
@@ -248,15 +248,15 @@ router.get('/calculate', requireManager, async (req, res) => {
       });
     }
 
-    // Get events
+    // Get events (events has no actual_cost column — the billed amount is events.price)
     const events = await db.query(`
-      SELECT event_name, event_date, start_time, end_time, actual_cost
+      SELECT event_name, event_date, start_time, end_time, price
       FROM events
       WHERE customer_id = ? AND event_date BETWEEN ? AND ? AND status = 'completed'
       ORDER BY event_date
     `, [customer_id, start_date, end_date]);
 
-    const eventTotal = events.rows.reduce((sum, e) => sum + (e.actual_cost || 0), 0);
+    const eventTotal = events.rows.reduce((sum, e) => sum + (Number(e.price) || 0), 0);
     const shiftTotal = Math.round(totalGuardHours * hourlyRate);
 
     res.json({
@@ -348,7 +348,7 @@ router.post('/', requireManager, [
       }
     }
 
-    const vatCalc = vat_amount || (amount ? amount * 0.17 : 0);
+    const vatCalc = vat_amount || (amount ? amount * 0.18 : 0);   // מע"מ 18% מ-01/2025
     const totalCalc = total_amount || (amount ? amount + vatCalc : baseAmount);
 
     const invoiceId = db.generateUUID();

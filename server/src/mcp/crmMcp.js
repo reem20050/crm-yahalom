@@ -306,7 +306,8 @@ router.use((req, res, next) => {
   }
   if (req.method === 'GET' || req.method === 'POST') {
     const auth = req.headers['authorization'] || '';
-    const provided = auth.startsWith('Bearer ') ? auth.slice(7) : (req.query && req.query.api_key) || '';
+    // כותרת בלבד: טוקן ב-URL (?api_key=) נשמר בלוגים של Render ובהיסטוריה של פרוקסי.
+    const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (!safeEqual(provided, configured)) {
       return res.status(401).json(rpcError(null, -32001, 'Unauthorized'));
     }

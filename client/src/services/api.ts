@@ -250,8 +250,6 @@ export const integrationsApi = {
     api.post('/integrations/whatsapp/send', { to, message }),
   createGreenInvoice: (data: Record<string, unknown>) =>
     api.post('/integrations/green-invoice/create-invoice', data),
-  syncGreenInvoices: (fromDate?: string) =>
-    api.post('/integrations/green-invoice/sync', { fromDate }),
   getSchedulerStatus: () => api.get('/integrations/scheduler/status'),
   getGoogleCalendarEvents: (start_date: string, end_date: string) =>
     api.get('/integrations/google/calendar/events', { params: { start_date, end_date } }),
@@ -464,6 +462,14 @@ export const priorityApi = {
   getJournal: (params?: Record<string, unknown>) => api.get('/priority/journal', { params }),
   getAccounts: (params?: Record<string, unknown>) => api.get('/priority/accounts', { params }),
   getDocuments: (params?: Record<string, unknown>) => api.get('/priority/documents', { params }),
+  // כרטיס לקוח: מסמכי Priority של לקוח מקושר. הקישור עצמו — הצעה + אישור מנהל בלבד.
+  getCustomerDocuments: (customerId: string) =>
+    api.get(`/priority/customer/${encodeURIComponent(customerId)}`),
+  getLinkProposals: () => api.get('/priority/link-proposals'),
+  setLink: (data: { customer_id: string; priority_customer_no: string; matched_by: 'vat' | 'name' | 'manual' }) =>
+    api.post('/priority/links', data),
+  removeLink: (customerId: string) =>
+    api.delete(`/priority/links/${encodeURIComponent(customerId)}`),
 };
 
 export default api;
