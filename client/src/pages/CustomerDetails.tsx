@@ -25,6 +25,7 @@ import EmailComposeModal from '../components/EmailComposeModal';
 import DocumentManager from '../components/DocumentManager';
 import PriorityCustomerDocs from '../components/PriorityCustomerDocs';
 import PriorityLinkControl from '../components/PriorityLinkControl';
+import PriorityIssueRequests from '../components/PriorityIssueRequests';
 import { usePermissions } from '../hooks/usePermissions';
 
 const SERVICE_TYPE_OPTIONS = [
@@ -556,6 +557,9 @@ export default function CustomerDetails() {
 
           {/* Priority documents (linked customers only) */}
           {priorityLinked && id && <PriorityCustomerDocs customerId={id} />}
+
+          {/* Priority issue requests (linked customers only; issuing needs Reem's approval in HERMES) */}
+          {priorityLinked && id && <PriorityIssueRequests customerId={id} />}
 
           {/* Documents */}
           {id && (
