@@ -478,6 +478,8 @@ export const priorityApi = {
   getRequests: (params?: Record<string, unknown>) => api.get('/priority/requests', { params }),
   createRequest: (data: Record<string, unknown>) => api.post('/priority/requests', data),
   cancelRequest: (id: number) => api.post(`/priority/requests/${id}/cancel`),
+  // "מי חייב": סטטוס תשלום נגזר לכל לקוח (אותו חישוב כמו paid-check בטלגרם)
+  getCollections: () => api.get('/priority/collections'),
 };
 
 export default api;
