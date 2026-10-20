@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, FileText, RefreshCw } from 'lucide-react';
 import { priorityApi } from '../services/api';
+import PriorityPaymentStatus, { type PaymentStatus } from './PriorityPaymentStatus';
 
 export type MatchedBy = 'vat' | 'name' | 'manual';
 
@@ -50,6 +51,9 @@ export type PriorityCustomerResponse =
       linked: true;
       link: PriorityLink;
       account: PriorityAccount | null;
+      /** סטטוס תשלום נגזר (p_customer_status) — null כשעוד לא חושב. */
+      status?: PaymentStatus | null;
+      status_unavailable?: boolean;
       rows: PriorityDocRow[];
       total: number;
       truncated: boolean;
@@ -191,6 +195,7 @@ export default function PriorityCustomerDocs({ customerId }: { customerId: strin
     const { rows, totals, account } = data;
     body = (
       <>
+        <PriorityPaymentStatus status={data.status} unavailable={data.status_unavailable} />
         <div className={`grid grid-cols-2 ${account ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-3 mb-4`}>
           <Tile
             label="חשבוניות מס נטו"

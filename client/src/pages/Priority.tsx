@@ -21,12 +21,15 @@ import {
 import { priorityApi } from '../services/api';
 import { SkeletonGrid } from '../components/Skeleton';
 import { AmbiguousTab, LINK_QUEUE_KEY, UnmatchedTab } from '../components/PriorityLinkQueue';
+import PriorityCollections from '../components/PriorityCollections';
 
 type DataTab = 'journal' | 'accounts' | 'documents';
 // לשוניות תור הקישור: נטענות מ-/priority/unmatched, עם סינון מקומי משלהן
 type QueueTab = 'unmatched' | 'ambiguous';
-type Tab = DataTab | QueueTab;
+// "מי חייב": סטטוס תשלום נגזר (p_customer_status), נטען מ-/priority/collections
+type Tab = DataTab | QueueTab | 'collections';
 const isQueueTab = (t: Tab): t is QueueTab => t === 'unmatched' || t === 'ambiguous';
+const COLLECTIONS_KEY = ['priority-collections'];
 
 interface Summary {
   dataAsOf: string | null;
@@ -133,6 +136,8 @@ export default function Priority() {
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
   const queueTab = isQueueTab(tab);
+  // לשונית עם טעינה משלה — בלי חיפוש ובלי rowsQ
+  const ownTab = queueTab || tab === 'collections';
 
   const summaryQ = useQuery<Summary>({
     queryKey: ['priority', 'summary'],
@@ -149,7 +154,7 @@ export default function Priority() {
       if (tab === 'documents') return priorityApi.getDocuments(params).then((r) => r.data);
       return priorityApi.getJournal(params).then((r) => r.data);
     },
-    enabled: !queueTab,
+    enabled: !ownTab,
   });
 
   const notConfigured =
@@ -196,6 +201,7 @@ export default function Priority() {
           onClick={() => {
             summaryQ.refetch();
             if (queueTab) queryClient.invalidateQueries({ queryKey: LINK_QUEUE_KEY });
+            else if (tab === 'collections') queryClient.invalidateQueries({ queryKey: COLLECTIONS_KEY });
             else rowsQ.refetch();
           }}
           className="btn-secondary flex items-center gap-2"
@@ -255,6 +261,7 @@ export default function Priority() {
           ['journal', 'תנועות יומן'],
           ['accounts', 'חשבונות'],
           ['documents', 'מסמכים'],
+          ['collections', 'מי חייב'],
           ['unmatched', 'לקוחות ללא כרטיס'],
           ['ambiguous', 'דו-משמעיים'],
         ] as [Tab, string][]).map(([key, label]) => (
@@ -274,8 +281,9 @@ export default function Priority() {
 
       {tab === 'unmatched' && <UnmatchedTab />}
       {tab === 'ambiguous' && <AmbiguousTab />}
+      {tab === 'collections' && <PriorityCollections />}
 
-      {!queueTab && (<>
+      {!ownTab && (<>
       <div className="relative">
         <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input

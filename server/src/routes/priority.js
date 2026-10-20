@@ -32,6 +32,11 @@ router.use(requireManager);   // נתונים פיננסיים — הנהלה ב
 
 const SCHEMA = 'priority_mirror';
 const PAGE_MAX = 500;
+// סטטוס תשלום נגזר (p_customer_status, נכתב ב-VPS מ-paid-check)
+const STATUS_COLS = 'party_key,as_of,bank_through,computed_at,balance,paid_no_receipt,short,maybe,to_chase,deals_open';
+const STATUS_MONEY = ['balance', 'paid_no_receipt', 'short', 'maybe', 'to_chase'];
+// numeric עלול לחזור כמחרוזת — הלקוח מחבר סכומים, ו-"1"+"2" היה מציג 12
+const statusRow = (r) => (r ? { ...r, ...Object.fromEntries(STATUS_MONEY.map((k) => [k, Number(r[k] || 0)])) } : null);
 
 // ── חיבור למראה ──────────────────────────────────────────────────────────────
 let cached = { token: null, expiresAt: 0 };
@@ -532,10 +537,12 @@ router.get('/customer/:customerId', async (req, res, next) => {
 
     const cols = 'id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,party_vat_id,'
                + 'total_after_discount_ex_vat,vat_amount,total_incl_vat,withholding_amount,cancelled';
-    const [docs, acc] = await Promise.all([
+    const [docs, acc, st] = await Promise.all([
       pm(`p_documents?select=${cols}&party_key=eq.${no}`
          + '&order=issue_date.desc.nullslast,doc_no.desc&limit=500', { count: true }),
       pm(`p_accounts?select=account_key,account_name,party_vat_id,balance&account_key=eq.${no}&limit=1`),
+      // סטטוס תשלום — נגזר (אותו חישוב כמו paid-check ב-VPS). כשל כאן לא מפיל את הכרטיס
+      pm(`p_customer_status?select=${STATUS_COLS},items&party_key=eq.${no}&limit=1`).catch(() => ({ rows: [], failed: true })),
     ]);
 
     const confirmedBy = `${c.first_name || ''} ${c.last_name || ''}`.trim() || null;
@@ -548,10 +555,45 @@ router.get('/customer/:customerId', async (req, res, next) => {
         confirmed_by_name: confirmedBy,
       },
       account: acc.rows[0] || null,
+      status: statusRow(st.rows[0]),
+      status_unavailable: st.failed === true,   // תקלת קריאה ≠ "עוד לא חושב"
       rows: docs.rows,
       total: docs.total,
       truncated: docs.total > docs.rows.length,
       totals: documentTotals(docs.rows),
+    });
+  } catch (e) { next(e); }
+});
+
+// ── מי חייב (סטטוס תשלום נגזר) ────────────────────────────────────────────────
+// p_customer_status נכתב ב-VPS אחרי הצילום הלילי מאותו חישוב כמו `prio paid-check`: יתרה, "שולם בבנק — חסרה קבלה",
+// "לבירור", ו"לגבות" = אין ראיה לתשלום **עד התדפיס האחרון** (bank_through). המסמכים הפתוחים הם הערכת FIFO.
+
+router.get('/collections', async (req, res, next) => {
+  try {
+    const { rows } = await pm(`p_customer_status?select=${STATUS_COLS}`
+      + '&or=(to_chase.gt.0,paid_no_receipt.gt.0,maybe.gt.0,short.gt.0)&order=to_chase.desc&limit=500');
+    const keys = rows.map((r) => r.party_key).filter((k) => CUSTOMER_NO_RE.test(String(k)));
+    const linked = keys.length ? (await db.query(
+      `SELECT id, company_name, priority_customer_no FROM customers
+       WHERE deleted_at IS NULL AND priority_customer_no IS NOT NULL`,
+    )).rows : [];
+    const byNo = new Map(linked.map((c) => [String(c.priority_customer_no), c]));
+    const names = keys.length ? (await pm(`p_accounts?select=account_key,account_name&account_key=in.(${keys.join(',')})`)).rows : [];
+    const nameByNo = new Map(names.map((a) => [String(a.account_key), a.account_name]));
+    const sum = (k) => Math.round(rows.reduce((s, r) => s + Number(r[k] || 0), 0) * 100) / 100;
+    res.json({
+      as_of: rows[0]?.as_of ?? null,
+      bank_through: rows[0]?.bank_through ?? null,
+      totals: { to_chase: sum('to_chase'), paid_no_receipt: sum('paid_no_receipt'), maybe: sum('maybe'), short: sum('short') },
+      rows: rows.map((r) => {
+        const c = byNo.get(String(r.party_key));
+        return {
+          ...statusRow(r),
+          customer_id: c?.id ?? null,
+          name: c?.company_name || nameByNo.get(String(r.party_key)) || null,
+        };
+      }),
     });
   } catch (e) { next(e); }
 });
