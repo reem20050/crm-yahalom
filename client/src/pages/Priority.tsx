@@ -14,14 +14,19 @@
  *   האחרונה בו בת חודש — ומסך שמציג רק את הראשון ישקר בביטחון מלא.
  */
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Database, Search, RefreshCw, AlertTriangle, CheckCircle2, Clock, FileText,
 } from 'lucide-react';
 import { priorityApi } from '../services/api';
 import { SkeletonGrid } from '../components/Skeleton';
+import { AmbiguousTab, LINK_QUEUE_KEY, UnmatchedTab } from '../components/PriorityLinkQueue';
 
-type Tab = 'journal' | 'accounts' | 'documents';
+type DataTab = 'journal' | 'accounts' | 'documents';
+// לשוניות תור הקישור: נטענות מ-/priority/unmatched, עם סינון מקומי משלהן
+type QueueTab = 'unmatched' | 'ambiguous';
+type Tab = DataTab | QueueTab;
+const isQueueTab = (t: Tab): t is QueueTab => t === 'unmatched' || t === 'ambiguous';
 
 interface Summary {
   dataAsOf: string | null;
@@ -126,6 +131,8 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 export default function Priority() {
   const [tab, setTab] = useState<Tab>('journal');
   const [search, setSearch] = useState('');
+  const queryClient = useQueryClient();
+  const queueTab = isQueueTab(tab);
 
   const summaryQ = useQuery<Summary>({
     queryKey: ['priority', 'summary'],
@@ -142,6 +149,7 @@ export default function Priority() {
       if (tab === 'documents') return priorityApi.getDocuments(params).then((r) => r.data);
       return priorityApi.getJournal(params).then((r) => r.data);
     },
+    enabled: !queueTab,
   });
 
   const notConfigured =
@@ -185,7 +193,11 @@ export default function Priority() {
           </p>
         </div>
         <button
-          onClick={() => { summaryQ.refetch(); rowsQ.refetch(); }}
+          onClick={() => {
+            summaryQ.refetch();
+            if (queueTab) queryClient.invalidateQueries({ queryKey: LINK_QUEUE_KEY });
+            else rowsQ.refetch();
+          }}
           className="btn-secondary flex items-center gap-2"
           disabled={summaryQ.isFetching || rowsQ.isFetching}
         >
@@ -243,6 +255,8 @@ export default function Priority() {
           ['journal', 'תנועות יומן'],
           ['accounts', 'חשבונות'],
           ['documents', 'מסמכים'],
+          ['unmatched', 'לקוחות ללא כרטיס'],
+          ['ambiguous', 'דו-משמעיים'],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -258,6 +272,10 @@ export default function Priority() {
         ))}
       </div>
 
+      {tab === 'unmatched' && <UnmatchedTab />}
+      {tab === 'ambiguous' && <AmbiguousTab />}
+
+      {!queueTab && (<>
       <div className="relative">
         <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -359,6 +377,7 @@ export default function Priority() {
           {total > rows.length && ' — לצמצום התוצאות יש להשתמש בחיפוש'}
         </p>
       )}
+      </>)}
     </div>
   );
 }

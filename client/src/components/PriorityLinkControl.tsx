@@ -77,7 +77,7 @@ function fmtTimestamp(v: string) {
 }
 
 /** הודעה לשגיאת קישור. null = המיירט הגלובלי כבר הציג הודעה (403 / 5xx כללי). */
-function linkErrorMessage(err: unknown, no: string): string | null {
+export function linkErrorMessage(err: unknown, no: string): string | null {
   const status = httpStatus(err);
   switch (status) {
     case 400:

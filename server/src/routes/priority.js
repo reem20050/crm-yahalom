@@ -19,7 +19,9 @@
 const express = require('express');
 const { authenticateToken, requireManager } = require('../middleware/auth');
 const db = require('../config/database');
-const { proposeMatches, documentTotals } = require('../services/priorityLink');
+const {
+  CUSTOMER_NO_RE, proposeMatches, documentTotals, runImport, buildImportQueue,
+} = require('../services/priorityLink');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -110,8 +112,7 @@ function clampLimit(v, dflt = 100) {
   return Math.min(n, PAGE_MAX);
 }
 
-// מספר לקוח Priority (200xxx) — ספרות בלבד. נבדק לפני שהוא נשתל ב-URL של PostgREST.
-const CUSTOMER_NO_RE = /^\d{1,20}$/;
+// מספר לקוח Priority (200xxx): CUSTOMER_NO_RE — ספרות בלבד. נבדק לפני שהוא נשתל ב-URL של PostgREST.
 const MATCHED_BY = { vat: 'לפי ח.פ.', name: 'לפי שם', manual: 'ידני' };
 
 function isUniqueViolation(e) {
@@ -284,30 +285,121 @@ router.get('/documents', async (req, res, next) => {
 const ACCOUNTS_PAGE = 1000;
 const ACCOUNTS_MAX_PAGES = 20;
 
+/** כל השורות של שאילתה. הדפדוף לפי total (count) ולא לפי "דף קצר" — max-rows של PostgREST
+ *  עלול להיות קטן מ-1000. path בלי limit/offset, וחייב order יציב. */
+async function pmAll(path, label) {
+  const out = [];
+  let offset = 0;
+  for (let page = 0; page < ACCOUNTS_MAX_PAGES; page += 1) {
+    const { rows, total } = await pm(`${path}&limit=${ACCOUNTS_PAGE}&offset=${offset}`, { count: true });
+    out.push(...rows);
+    offset += rows.length;
+    if (rows.length === 0 || out.length >= total) break;
+    if (page === ACCOUNTS_MAX_PAGES - 1) {
+      console.warn(`priority ${label}: stopped after ${out.length} of ${total} rows`);
+    }
+  }
+  return out;
+}
+
+/** כל חשבונות הלקוח ב-Priority (kind=customer). */
+function customerAccounts(select) {
+  return pmAll(`p_accounts?select=${select}&kind=eq.customer&order=account_key`, 'accounts');
+}
+
 router.get('/link-proposals', async (req, res, next) => {
   try {
-    const accounts = [];
-    let offset = 0;
-    for (let page = 0; page < ACCOUNTS_MAX_PAGES; page += 1) {
-      // הדפדוף לפי total (count) ולא לפי "דף קצר" — max-rows של PostgREST עלול להיות קטן מ-1000.
-      const { rows, total } = await pm(
-        'p_accounts?select=account_key,account_name,party_vat_id&kind=eq.customer'
-        + `&order=account_key&limit=${ACCOUNTS_PAGE}&offset=${offset}`,
-        { count: true },
-      );
-      accounts.push(...rows);
-      offset += rows.length;
-      if (rows.length === 0 || accounts.length >= total) break;
-      if (page === ACCOUNTS_MAX_PAGES - 1) {
-        console.warn(`priority link-proposals: stopped after ${accounts.length} of ${total} accounts`);
-      }
-    }
-
+    const accounts = await customerAccounts('account_key,account_name,party_vat_id');
     const customers = await db.query(
       'SELECT id, company_name, business_id, priority_customer_no, priority_matched_by, deleted_at'
       + ' FROM customers WHERE deleted_at IS NULL',
     );
     res.json(proposeMatches(accounts, customers.rows));
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/priority/unmatched ──────────────────────────────────────────────
+// חשבונות Priority בלי לקוח ב-CRM (unmatched) והדו-משמעיים, עם עיר וסטטיסטיקת מסמכים —
+// כדי להחליט על מה לפתוח כרטיס. לכל unmatched: blocked = מה ש-POST /import-customers היה מחזיר.
+const IN_CHUNK = 100;   // מספרים לבקשה אחת ב-party_key=in.(…) — שה-URL לא יתארך בלי גבול
+
+router.get('/unmatched', async (req, res, next) => {
+  try {
+    const accounts = await customerAccounts('account_key,account_name,party_vat_id,city');
+    // כולל מחוקים: מספר Priority שמקושר ללקוח מחוק עדיין תפוס (האינדקס הייחודי כולל אותו)
+    const all = (await db.query(
+      'SELECT id, company_name, business_id, priority_customer_no, priority_matched_by, deleted_at FROM customers',
+    )).rows;
+    const matches = proposeMatches(accounts, all.filter((c) => !c.deleted_at));
+
+    const keys = [...new Set([...matches.unmatched, ...matches.ambiguous].map((x) => x.priority_customer_no))]
+      .filter((k) => CUSTOMER_NO_RE.test(k));
+    const docs = [];
+    for (let i = 0; i < keys.length; i += IN_CHUNK) {
+      docs.push(...await pmAll(
+        'p_documents?select=id,party_key,doc_type,issue_date,total_incl_vat,cancelled'
+        + `&party_key=in.(${keys.slice(i, i + IN_CHUNK).join(',')})&order=id`,
+        'documents',
+      ));
+    }
+
+    res.json(buildImportQueue(matches, accounts, all, docs));
+  } catch (e) { next(e); }
+});
+
+// ── POST /api/priority/import-customers ──────────────────────────────────────
+// יוצר לקוח CRM לכל מספר שמנהל **סימן** ומקשר אותו מיד (matched_by=manual). body: { priority_customer_nos: [] }
+// שם, ח.פ. ועיר נלקחים מהמראה — לא מהבקשה. מדלג על מספר שכבר מקושר; ח.פ. (או שם, כשאין ח.פ.)
+// שכבר קיים ב-CRM חוזר כ-conflict ולא נוצר. 200 גם בהצלחה חלקית — התוצאה לכל מספר בגוף התשובה.
+const IMPORT_MAX = 200;
+
+router.post('/import-customers', async (req, res, next) => {
+  try {
+    const raw = req.body?.priority_customer_nos;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return res.status(400).json({ error: 'נדרשת רשימת מספרי לקוח Priority (priority_customer_nos)' });
+    }
+    if (raw.length > IMPORT_MAX) {
+      return res.status(400).json({ error: `עד ${IMPORT_MAX} מספרים בבקשה אחת` });
+    }
+    const nos = [...new Set(raw.map((v) => String(v ?? '').trim()))];
+    const valid = nos.filter((n) => CUSTOMER_NO_RE.test(n));   // לא תקינים → skipped invalid_no
+
+    // כל החשבונות ולא רק המבוקשים: כפיל ב-Priority של חשבון שכבר מקושר מזוהה לפי ח.פ. של החשבון האחר
+    const accounts = valid.length === 0 ? [] : await customerAccounts('account_key,account_name,party_vat_id,city');
+    const customers = (await db.query(
+      'SELECT id, company_name, business_id, priority_customer_no, deleted_at FROM customers',
+    )).rows;
+
+    const now = new Date();
+    const confirmedAt = now.toISOString();
+    // אותו נוסח כמו בייבוא הראשון (20/10/2026), כדי שכל הכרטיסים שנוצרו מ-Priority ייראו אותו דבר
+    const createdOn = now.toLocaleDateString('en-GB', { timeZone: 'Asia/Jerusalem' });
+    const result = await runImport(nos, accounts, customers, async (row) => {
+      const id = db.generateUUID();
+      let created;
+      try {
+        // יצירה וקישור בפקודה אחת: ל-db אין טרנזקציות, ושתי פקודות היו משאירות לקוח בלי קישור אם השנייה נכשלת
+        created = await db.query(
+          'INSERT INTO customers (id, company_name, business_id, city, notes, priority_customer_no, priority_matched_by,'
+          + ' priority_confirmed_by, priority_confirmed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+          [id, row.company_name, row.business_id, row.city,
+            `נוצר מ-Priority (לקוח ${row.priority_customer_no}) ${createdOn}`,
+            row.priority_customer_no, 'manual', req.user.id, confirmedAt],
+        );
+      } catch (e) {
+        if (isUniqueViolation(e)) return null;   // המספר נקשר בינתיים ללקוח אחר
+        throw e;
+      }
+      await logActivity(req, id, 'priority_import',
+        { source: 'priority', priority_customer_no: row.priority_customer_no, matched_by: 'manual',
+          company_name: row.company_name, business_id: row.business_id, city: row.city },
+        `נוצר מחשבון Priority ${row.priority_customer_no} וקושר אליו (ידני)`);
+      return created.rows[0] || { id, company_name: row.company_name };
+    });
+
+    result.failed.forEach((f) => console.error('priority import-customers failed:', f.priority_customer_no, f.error));
+    res.json(result);
   } catch (e) { next(e); }
 });
 
