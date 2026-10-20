@@ -470,6 +470,11 @@ export const priorityApi = {
     api.post('/priority/links', data),
   removeLink: (customerId: string) =>
     api.delete(`/priority/links/${encodeURIComponent(customerId)}`),
+  // חשבונות Priority בלי לקוח ב-CRM + דו-משמעיים, עם נתוני מסמכים — להחלטת מנהל
+  getUnmatched: () => api.get('/priority/unmatched'),
+  // יוצר ומקשר לקוח רק לכל מספר שסומן. התוצאה לכל מספר בגוף התשובה (200 גם בהצלחה חלקית)
+  importCustomers: (priorityCustomerNos: string[]) =>
+    api.post('/priority/import-customers', { priority_customer_nos: priorityCustomerNos }),
 };
 
 export default api;

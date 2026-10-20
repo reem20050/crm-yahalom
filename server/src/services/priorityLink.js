@@ -19,10 +19,14 @@ const DOC_TYPES = {
   400: { label: 'קבלה', prefixes: ['RC'] },
 };
 
-/** ח.פ. / תיק מע"מ להשוואה: ספרות בלבד, בלי אפסים מובילים. פחות מ-5 ספרות = לא מזהה. */
+// ח.פ. דמה שעובר את ספרת הביקורת ומשמש ב-Priority כ"אין ח.פ." (999999998 נמצא בנתונים ב-20/10).
+// אם הוא נחשב מזהה, כל החשבונות שנושאים אותו "תואמים" זה לזה וחוסמים זה את זה.
+const DUMMY_VATS = new Set(['999999998', '999999999']);
+
+/** ח.פ. / תיק מע"מ להשוואה: ספרות בלבד, בלי אפסים מובילים. פחות מ-5 ספרות או ח.פ. דמה = לא מזהה. */
 function normVat(v) {
   const d = String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
-  return d.length >= 5 ? d : '';
+  return d.length >= 5 && !DUMMY_VATS.has(d) ? d : '';
 }
 
 /** שם להשוואה: בלי מרכאות/גרש, בלי פיסוק, בלי סיומות צורת התאגדות (בע"מ, ע"ר, Ltd). */
@@ -173,4 +177,187 @@ function documentTotals(rows) {
   };
 }
 
-module.exports = { DOC_TYPES, CREDIT_NOTE, normVat, normName, proposeMatches, documentTotals };
+// ── ייבוא מבוקר: חשבון Priority בלי לקוח ב-CRM → לקוח חדש ומקושר ─────────────
+// רק מספרים שמנהל סימן. כל מספר עובר את importDecision, גם בתצוגה (GET /unmatched) וגם ביצירה
+// (POST /import-customers), כדי שמה שהמסך מציג כחסום הוא בדיוק מה שהשרת ידחה.
+
+const CUSTOMER_NO_RE = /^\d{1,20}$/;
+const EMPTY_STATS = { doc_count: 0, cancelled_count: 0, tax_invoices_net: 0, receipts: 0, last_doc_date: null };
+
+/**
+ * סטטיסטיקת מסמכים לכל party_key, להחלטה אם לפתוח כרטיס. סכום = documentTotals (נטו חשבוניות מס,
+ * וקבלות בנפרד), לא סכום גולמי של total_incl_vat. התאריך האחרון — מסמכים שלא בוטלו בלבד.
+ * מחזיר Map: party_key (מחרוזת) → { doc_count, cancelled_count, tax_invoices_net, receipts, last_doc_date }.
+ */
+function documentStats(docs) {
+  const out = new Map();
+  for (const [key, rows] of groupBy(docs, (d) => (d.party_key == null ? '' : String(d.party_key)))) {
+    const live = rows.filter((d) => !d.cancelled);
+    const totals = documentTotals(rows);
+    let last = null;
+    for (const d of live) if (d.issue_date && (!last || String(d.issue_date) > last)) last = String(d.issue_date);
+    out.set(key, {
+      doc_count: live.length,
+      cancelled_count: rows.length - live.length,
+      tax_invoices_net: totals.tax_invoices_net,
+      receipts: totals.receipts,
+      last_doc_date: last,
+    });
+  }
+  return out;
+}
+
+/**
+ * לקוח CRM קיים שחשבון Priority היה משכפל. אותם כללים כמו proposeMatches, אבל מול **כל** הלקוחות
+ * הפעילים — גם מקושרים: חשבון כפול ב-Priority שהח.פ. שלו שייך ללקוח שכבר קושר נוחת ב-unmatched.
+ * customers: לקוחות פעילים בלבד. מחזיר { reason: vat_exists|name_exists, customer_id, ... } או null.
+ */
+function findExisting(account, customers) {
+  const vat = normVat(account.party_vat_id);
+  let hit = vat ? customers.find((c) => normVat(c.business_id) === vat) : null;
+  let reason = 'vat_exists';
+  if (!hit) {
+    const name = normName(account.account_name);
+    // שני ח.פ. תקינים ושונים = שתי ישויות, גם בשם זהה
+    hit = name ? customers.find((c) => normName(c.company_name) === name && !(vat && normVat(c.business_id))) : null;
+    reason = 'name_exists';
+  }
+  if (!hit) return null;
+  return {
+    reason,
+    customer_id: hit.id ?? null,
+    customer_name: hit.company_name,
+    customer_priority_no: hit.priority_customer_no == null ? null : String(hit.priority_customer_no),
+  };
+}
+
+/**
+ * חשבון Priority אחר עם אותו ח.פ. שכבר מקושר ללקוח פעיל = כפילות ב-Priority (כמו 200029/200157).
+ * תופס גם את המקרה שבו בכרטיס ה-CRM אין ח.פ., ולכן findExisting לא רואה את הכפילות.
+ */
+function linkedTwin(account, no, accByNo, activeCustomers) {
+  const vat = normVat(account.party_vat_id);
+  if (!vat) return null;
+  for (const other of accByNo.values()) {
+    const key = String(other.account_key);
+    if (key === no || normVat(other.party_vat_id) !== vat) continue;
+    const c = activeCustomers.find((x) => x.priority_customer_no != null && String(x.priority_customer_no) === key);
+    if (c) {
+      return { reason: 'priority_duplicate', customer_id: c.id ?? null, customer_name: c.company_name, customer_priority_no: key };
+    }
+  }
+  return null;
+}
+
+/**
+ * מה לעשות עם מספר אחד שסומן. accByNo: Map של **כל** חשבונות הלקוח ב-p_accounts לפי account_key
+ * (לא רק המבוקשים — בלעדיהם אין דרך לזהות כפיל ב-Priority של חשבון שכבר מקושר).
+ * customers: **כל** לקוחות ה-CRM, כולל מחוקים — האינדקס הייחודי על priority_customer_no כולל אותם.
+ * מחזיר { action: 'create', row } | { action: 'skip', reason, ... } | { action: 'conflict', reason, ... }.
+ */
+function importDecision(no, accByNo, customers) {
+  if (!CUSTOMER_NO_RE.test(no)) return { action: 'skip', reason: 'invalid_no' };
+  const linkedTo = customers.find((c) => c.priority_customer_no != null && String(c.priority_customer_no) === no);
+  if (linkedTo) {
+    return {
+      action: 'skip',
+      reason: linkedTo.deleted_at ? 'linked_to_deleted' : 'already_linked',
+      customer_id: linkedTo.id ?? null,
+      customer_name: linkedTo.company_name,
+    };
+  }
+  const a = accByNo.get(no);
+  if (!a) return { action: 'skip', reason: 'not_in_mirror' };
+  const name = String(a.account_name ?? '').trim();
+  if (!name) return { action: 'skip', reason: 'missing_name' };
+  const active = customers.filter((c) => !c.deleted_at);
+  const existing = findExisting(a, active) || linkedTwin(a, no, accByNo, active);
+  if (existing) return { action: 'conflict', ...existing };
+  const city = String(a.city ?? '').trim();
+  return {
+    action: 'create',
+    row: {
+      priority_customer_no: no,
+      company_name: name,
+      // ח.פ. זבל (פחות מ-5 ספרות) לא נשמר — הוא לא מזהה, ורק היה יוצר התנגשויות שווא בעתיד
+      business_id: normVat(a.party_vat_id) ? String(a.party_vat_id).trim() : null,
+      city: city || null,
+    },
+  };
+}
+
+/**
+ * מריץ ייבוא לפי הסדר. create(row) יוצר ומקשר בפעולה אחת ומחזיר את הלקוח; null = המספר נתפס בינתיים
+ * (אינדקס ייחודי); זריקה = כשל ברשומה הזו בלבד. לקוח שנוצר נכנס מיד לבדיקה של הבאים — שני חשבונות
+ * עם אותו ח.פ. באותה בקשה יוצרים לקוח אחד, והשני חוזר כ-conflict.
+ * מחזיר { created, conflicts, skipped, failed, summary }.
+ */
+async function runImport(nos, accounts, customers, create) {
+  const accByNo = new Map(accounts.map((a) => [String(a.account_key), a]));
+  const pool = [...customers];
+  const out = { created: [], conflicts: [], skipped: [], failed: [] };
+  for (const no of nos) {
+    const d = importDecision(no, accByNo, pool);
+    const { action, ...info } = d;
+    if (action === 'skip') { out.skipped.push({ priority_customer_no: no, ...info }); continue; }
+    if (action === 'conflict') { out.conflicts.push({ priority_customer_no: no, ...info }); continue; }
+    let customer;
+    try {
+      customer = await create(d.row);
+    } catch (e) {
+      out.failed.push({ priority_customer_no: no, error: String(e?.message || e).slice(0, 200) });
+      continue;
+    }
+    if (!customer) { out.skipped.push({ priority_customer_no: no, reason: 'already_linked' }); continue; }
+    pool.push({ ...d.row, ...customer, priority_customer_no: no, deleted_at: null });
+    out.created.push({ priority_customer_no: no, customer_id: customer.id, customer_name: customer.company_name });
+  }
+  out.summary = {
+    requested: nos.length,
+    created: out.created.length,
+    conflicts: out.conflicts.length,
+    skipped: out.skipped.length,
+    failed: out.failed.length,
+  };
+  return out;
+}
+
+/**
+ * תור ההחלטה למסך: unmatched ו-ambiguous של proposeMatches, עם עיר וסטטיסטיקת מסמכים מהמראה.
+ * לכל unmatched: blocked — ההחלטה שהשרת היה מקבל ביצירה (null = אפשר ליצור), ו-priority_duplicates —
+ * חשבונות Priority אחרים עם אותו ח.פ.
+ * customers: כל הלקוחות, כולל מחוקים (כמו importDecision).
+ */
+function buildImportQueue(matches, accounts, customers, docs) {
+  const accByNo = new Map(accounts.map((a) => [String(a.account_key), a]));
+  const stats = documentStats(docs);
+  const byVat = groupBy(accounts, (a) => normVat(a.party_vat_id));
+  const extra = (no) => ({ city: accByNo.get(no)?.city ?? null, ...(stats.get(no) || EMPTY_STATS) });
+
+  const unmatched = matches.unmatched.map((u) => {
+    const no = u.priority_customer_no;
+    const { action, row: _row, ...info } = importDecision(no, accByNo, customers);
+    const vat = normVat(u.priority_vat_id);
+    return {
+      ...u,
+      ...extra(no),
+      blocked: action === 'create' ? null : info,
+      priority_duplicates: vat ? (byVat.get(vat) || []).map((a) => String(a.account_key)).filter((k) => k !== no) : [],
+    };
+  });
+  // פעילים לאחרונה קודם; בלי מסמכים — בסוף
+  unmatched.sort((x, y) => (y.last_doc_date || '').localeCompare(x.last_doc_date || '')
+    || y.doc_count - x.doc_count
+    || x.priority_customer_no.localeCompare(y.priority_customer_no));
+
+  return {
+    summary: { ...matches.summary, importable: unmatched.filter((u) => !u.blocked).length },
+    unmatched,
+    ambiguous: matches.ambiguous.map((a) => ({ ...a, ...extra(a.priority_customer_no) })),
+  };
+}
+
+module.exports = {
+  DOC_TYPES, CREDIT_NOTE, CUSTOMER_NO_RE, normVat, normName, proposeMatches, documentTotals,
+  documentStats, findExisting, importDecision, runImport, buildImportQueue,
+};
