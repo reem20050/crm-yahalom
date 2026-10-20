@@ -95,9 +95,10 @@ export default function PriorityPaymentStatus({ status, unavailable }: {
                     <span className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-xs">{i.ref}</span>
                       <span className="text-gray-500 text-xs">{fmtDate(i.date)} · {i.days ?? '—'} ימים</span>
-                      {i.status && ITEM_STATUS[i.status] && (
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${ITEM_STATUS[i.status].cls}`}>
-                          {ITEM_STATUS[i.status].label}
+                      {i.status && (
+                        // ערך שלא ממופה מוצג כמו שהוא — לא נעלם
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${ITEM_STATUS[i.status]?.cls ?? 'bg-gray-100 text-gray-700'}`}>
+                          {ITEM_STATUS[i.status]?.label ?? i.status}
                         </span>
                       )}
                     </span>

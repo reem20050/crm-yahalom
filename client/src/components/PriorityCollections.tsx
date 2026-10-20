@@ -37,6 +37,15 @@ export default function PriorityCollections() {
     return <p className="text-danger-600 py-4">לא ניתן לקרוא את סטטוס התשלום (תקלת חיבור — לא "אין חובות").</p>;
   }
   const { rows, totals, as_of, bank_through } = q.data;
+  if (rows.length === 0) {
+    // ריק = כנראה החישוב הלילי לא רץ / לא נכתב — לא "אף אחד לא חייב"
+    return (
+      <div className="card border-r-4 border-warning-500">
+        <p className="font-semibold text-warning-700">אין נתוני סטטוס תשלום</p>
+        <p className="text-sm text-gray-600 mt-1">לבדוק שהחישוב הלילי ב-VPS רץ (mirror-status). זה לא אומר שאין חובות.</p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-3">
       <div className="card">
