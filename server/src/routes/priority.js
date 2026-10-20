@@ -22,6 +22,9 @@ const db = require('../config/database');
 const {
   CUSTOMER_NO_RE, proposeMatches, documentTotals, runImport, buildImportQueue,
 } = require('../services/priorityLink');
+const {
+  KINDS: REQUEST_KINDS, SKUS: REQUEST_SKUS, OPEN_STATUSES, STATUS_LABELS, validateRequest, netTotal, requestKey,
+} = require('../services/priorityRequests');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -97,6 +100,31 @@ async function pm(path, { count = false } = {}) {
     if (!Number.isNaN(n)) total = n;
   }
   return { rows, total };
+}
+
+/** כתיבה ל-PostgREST (רק טבלת הבקשות p_requests). מחזיר את השורות שנכתבו (return=representation). */
+async function pmWrite(method, path, body) {
+  const c = config();
+  const jwt = await token();
+  const res = await fetch(`${c.url}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: c.anon,
+      Authorization: `Bearer ${jwt}`,
+      'Accept-Profile': SCHEMA,
+      'Content-Profile': SCHEMA,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 300);
+    const err = new Error(`mirror_write_failed_${res.status}: ${detail}`);
+    err.status = 502;
+    throw err;
+  }
+  return res.json();
 }
 
 /** בונה ערך ilike בטוח. **חובה לקודד** — הערך נשתל לתוך מחרוזת ה-URL שנשלחת
@@ -525,6 +553,94 @@ router.get('/customer/:customerId', async (req, res, next) => {
       truncated: docs.total > docs.rows.length,
       totals: documentTotals(docs.rows),
     });
+  } catch (e) { next(e); }
+});
+
+// ── בקשות הפקה ל-Priority ─────────────────────────────────────────────────────
+// ה-CRM רק מבקש. ההכנה (ריצה יבשה) והשליחה לאישור — העובד ב-VPS; ההפקה — רק אחרי "כן" של רעם ב-HERMES.
+// מספר הלקוח ב-Priority נלקח מהלקוח המקושר בשרת, לא מהדפדפן; החברה לא נשלחת כלל (= הראשית).
+
+const REQUEST_COLS = 'id,created_at,updated_at,created_by,crm_customer_id,priority_customer_no,kind,payload,status,'
+  + 'summary,warnings,final_number,error';
+
+function decorate(r) {
+  return {
+    ...r,
+    kind_label: REQUEST_KINDS[r.kind] || r.kind,
+    status_label: STATUS_LABELS[r.status] || r.status,
+    net_total: r.payload && r.payload.lines ? netTotal(r.payload) : null,
+  };
+}
+
+router.get('/requests/meta', (req, res) => {
+  res.json({ kinds: REQUEST_KINDS, skus: REQUEST_SKUS, statuses: STATUS_LABELS });
+});
+
+router.get('/requests', async (req, res, next) => {
+  try {
+    const customerId = String(req.query.customer_id ?? '').trim();
+    let path = `p_requests?select=${REQUEST_COLS}&order=id.desc&limit=${clampLimit(req.query.limit, 20)}`;
+    if (customerId) {
+      if (!/^[0-9a-f-]{8,64}$/i.test(customerId)) return res.status(400).json({ error: 'customer_id לא תקין' });
+      path += `&crm_customer_id=eq.${encodeURIComponent(customerId)}`;
+    }
+    const { rows } = await pm(path);
+    res.json({ rows: rows.map(decorate) });
+  } catch (e) { next(e); }
+});
+
+router.post('/requests', async (req, res, next) => {
+  try {
+    const customerId = String(req.body?.customer_id ?? '').trim();
+    if (!customerId) return res.status(400).json({ error: 'חסר customer_id' });
+    let parsed;
+    try {
+      parsed = validateRequest(req.body);
+    } catch (e) {
+      return res.status(e.status || 400).json({ error: e.message });
+    }
+    const r = await db.query(
+      'SELECT id, company_name, priority_customer_no FROM customers WHERE id = $1 AND deleted_at IS NULL', [customerId],
+    );
+    const c = r.rows[0];
+    if (!c) return res.status(404).json({ error: 'לקוח לא נמצא' });
+    const no = String(c.priority_customer_no || '');
+    if (!no) return res.status(422).json({ error: 'הלקוח לא מקושר ל-Priority — קשרו אותו קודם' });
+    if (!CUSTOMER_NO_RE.test(no)) return res.status(422).json({ error: 'מספר לקוח Priority השמור אינו תקין' });
+
+    // לחיצה כפולה: בקשה פתוחה זהה לאותו לקוח — מחזירים אותה במקום ליצור עוד אחת
+    const open = await pm(`p_requests?select=${REQUEST_COLS}&crm_customer_id=eq.${encodeURIComponent(c.id)}`
+      + `&status=in.(${OPEN_STATUSES.join(',')})&order=id.desc&limit=20`);
+    const key = requestKey(no, parsed.kind, parsed.payload);
+    const dup = open.rows.find((x) => requestKey(x.priority_customer_no, x.kind, x.payload || {}) === key);
+    if (dup) return res.status(409).json({ error: 'בקשה זהה כבר בטיפול', request: decorate(dup) });
+
+    const rows = await pmWrite('POST', 'p_requests', [{
+      created_by: userName(req.user),
+      crm_customer_id: c.id,
+      priority_customer_no: no,
+      kind: parsed.kind,
+      payload: parsed.payload,
+    }]);
+    const created = rows[0];
+    await logActivity(req, c.id, 'priority_request', { request_id: created.id, kind: parsed.kind },
+      `בקשת הפקה ל-Priority #${created.id}: ${REQUEST_KINDS[parsed.kind]}`
+      + (parsed.payload.lines ? ` (${netTotal(parsed.payload).toLocaleString('he-IL')} ₪ לפני מע"מ)` : ''));
+    res.status(201).json({ request: decorate(created) });
+  } catch (e) { next(e); }
+});
+
+// ביטול — רק לפני שהעובד לקח את הבקשה (status=new). אחרי זה: "לא <id>" לרעם בטלגרם.
+router.post('/requests/:id/cancel', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'מזהה לא תקין' });
+    const rows = await pmWrite('PATCH', `p_requests?id=eq.${id}&status=eq.new`,
+      { status: 'rejected', error: `בוטל ב-CRM ע"י ${userName(req.user)}`, notified: true });
+    if (!rows.length) return res.status(409).json({ error: 'אפשר לבטל רק בקשה שעוד לא נכנסה להכנה' });
+    await logActivity(req, rows[0].crm_customer_id, 'priority_request_cancel', { request_id: id },
+      `בקשת הפקה #${id} בוטלה`);
+    res.json({ request: decorate(rows[0]) });
   } catch (e) { next(e); }
 });
 

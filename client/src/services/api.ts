@@ -475,6 +475,9 @@ export const priorityApi = {
   // יוצר ומקשר לקוח רק לכל מספר שסומן. התוצאה לכל מספר בגוף התשובה (200 גם בהצלחה חלקית)
   importCustomers: (priorityCustomerNos: string[]) =>
     api.post('/priority/import-customers', { priority_customer_nos: priorityCustomerNos }),
+  getRequests: (params?: Record<string, unknown>) => api.get('/priority/requests', { params }),
+  createRequest: (data: Record<string, unknown>) => api.post('/priority/requests', data),
+  cancelRequest: (id: number) => api.post(`/priority/requests/${id}/cancel`),
 };
 
 export default api;
