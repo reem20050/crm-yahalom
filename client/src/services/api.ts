@@ -484,6 +484,8 @@ export const priorityApi = {
   cancelRequest: (id: number) => api.post(`/priority/requests/${id}/cancel`),
   // "מי חייב": סטטוס תשלום נגזר לכל לקוח (אותו חישוב כמו paid-check בטלגרם)
   getCollections: () => api.get('/priority/collections'),
+  // רשימת הלקוחות: לגבות + מסמך אחרון לכל לקוח מקושר (שתי שאילתות למראה, לא אחת לכל לקוח)
+  getCustomerOverview: () => api.get('/priority/customer-overview'),
 };
 
 export default api;

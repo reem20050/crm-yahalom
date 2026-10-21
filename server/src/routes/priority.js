@@ -20,7 +20,7 @@ const express = require('express');
 const { authenticateToken, requireManager } = require('../middleware/auth');
 const db = require('../config/database');
 const {
-  CUSTOMER_NO_RE, proposeMatches, documentTotals, runImport, buildImportQueue,
+  CUSTOMER_NO_RE, DOC_TYPES, proposeMatches, documentTotals, lastDocuments, runImport, buildImportQueue,
 } = require('../services/priorityLink');
 const {
   KINDS: REQUEST_KINDS, SKUS: REQUEST_SKUS, OPEN_STATUSES, STATUS_LABELS, validateRequest, netTotal, requestKey,
@@ -636,12 +636,14 @@ router.get('/customer/:customerId', async (req, res, next) => {
 
     const cols = 'id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,party_vat_id,'
                + 'total_after_discount_ex_vat,vat_amount,total_incl_vat,withholding_amount,cancelled';
-    const [docs, acc, st] = await Promise.all([
+    const [docs, acc, st, lastEntry] = await Promise.all([
       pm(`p_documents?select=${cols}&party_key=eq.${no}`
          + '&order=issue_date.desc.nullslast,doc_no.desc&limit=500', { count: true }),
       pm(`p_accounts?select=account_key,account_name,party_vat_id,balance&account_key=eq.${no}&limit=1`),
       // סטטוס תשלום — נגזר (אותו חישוב כמו paid-check ב-VPS). כשל כאן לא מפיל את הכרטיס
       pm(`p_customer_status?select=${STATUS_COLS},items&party_key=eq.${no}&limit=1`).catch(() => ({ rows: [], failed: true })),
+      // עד מתי הכרטסת נכונה (התנועה האחרונה, כמו dataAsOf ב-/summary) — ליד "יתרה בכרטסת"
+      pm('p_journal?select=entry_date&order=entry_date.desc.nullslast&limit=1').catch(() => ({ rows: [] })),
     ]);
 
     const confirmedBy = `${c.first_name || ''} ${c.last_name || ''}`.trim() || null;
@@ -654,6 +656,9 @@ router.get('/customer/:customerId', async (req, res, next) => {
         confirmed_by_name: confirmedBy,
       },
       account: acc.rows[0] || null,
+      kartesset_as_of: lastEntry.rows[0]?.entry_date ?? null,
+      // אותו כלל כמו ברשימת הלקוחות (GET /customer-overview)
+      last_doc: lastDocuments(docs.rows).get(no) ?? null,
       status: statusRow(st.rows[0]),
       status_unavailable: st.failed === true,   // תקלת קריאה ≠ "עוד לא חושב"
       rows: docs.rows,
@@ -692,6 +697,44 @@ router.get('/collections', async (req, res, next) => {
           customer_id: c?.id ?? null,
           // כרטיס CRM → p_accounts → השם מהצילום (לקוח עם חוב בלי שורה ב-p_accounts, כמו 200039)
           name: c?.company_name || nameByNo.get(String(r.party_key)) || r.party_name || null,
+        };
+      }),
+    });
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/priority/customer-overview ──────────────────────────────────────
+// עמודות Priority ברשימת הלקוחות: לכל לקוח CRM מקושר — הסטטוס הנגזר (לגבות / שולם בבנק) והמסמך האחרון.
+// שתי שאילתות למראה (עם דפדוף) לכל הלקוחות יחד, לא שאילתה לכל לקוח. מסמכי לקוח בלבד (לא 700 של ספקים).
+// לקוח מקושר בלי שורת סטטוס → status: null ("עוד לא חושב"), לא אפסים.
+router.get('/customer-overview', async (req, res, next) => {
+  try {
+    const linked = (await db.query(
+      `SELECT id, priority_customer_no FROM customers
+       WHERE deleted_at IS NULL AND priority_customer_no IS NOT NULL`,
+    )).rows.filter((c) => CUSTOMER_NO_RE.test(String(c.priority_customer_no)));
+    if (!linked.length) return res.json({ as_of: null, bank_through: null, rows: [] });
+
+    const [status, docs] = await Promise.all([
+      pmAll(`p_customer_status?select=${STATUS_COLS}&order=party_key`, 'status'),
+      pmAll('p_documents?select=id,party_key,doc_type,doc_no,issue_date,doc_date,total_incl_vat,cancelled'
+        + `&cancelled=is.false&doc_type=in.(${Object.keys(DOC_TYPES).join(',')})&order=id`, 'documents'),
+    ]);
+    const statusByNo = new Map(status.map((r) => [String(r.party_key), r]));
+    const lastByNo = lastDocuments(docs);
+    res.json({
+      as_of: status[0]?.as_of ?? null,
+      bank_through: status[0]?.bank_through ?? null,
+      rows: linked.map((c) => {
+        const no = String(c.priority_customer_no);
+        const st = statusRow(statusByNo.get(no));
+        return {
+          customer_id: c.id,
+          priority_customer_no: no,
+          status: st && {
+            to_chase: st.to_chase, paid_no_receipt: st.paid_no_receipt, maybe: st.maybe, short: st.short,
+          },
+          last_doc: lastByNo.get(no) ?? null,
         };
       }),
     });

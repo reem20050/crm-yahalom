@@ -5,7 +5,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normVat, normName, proposeMatches, documentTotals, DOC_TYPES } = require('../src/services/priorityLink');
+const {
+  normVat, normName, proposeMatches, documentTotals, lastDocuments, DOC_TYPES,
+} = require('../src/services/priorityLink');
 
 // ── normVat ──────────────────────────────────────────────────────────────────
 test('normVat: ספרות בלבד, בלי אפסים מובילים', () => {
@@ -289,4 +291,27 @@ test('documentTotals: doc_type וסכום כמחרוזת, עיגול לאגור�
 
 test('documentTotals: רשימה ריקה', () => {
   assert.deepEqual(documentTotals([]), { by_type: {}, tax_invoices_net: 0, deal_invoices: 0, receipts: 0 });
+});
+
+// ── lastDocuments ────────────────────────────────────────────────────────────
+test('lastDocuments: המסמך האחרון לכל לקוח — בלי מבוטלים ובלי מסמכי ספק', () => {
+  const m = lastDocuments([
+    { id: 1, party_key: '200100', doc_type: 305, doc_no: 'IN1', issue_date: '2026-09-01', total_incl_vat: '118.00' },
+    { id: 2, party_key: '200100', doc_type: 305, doc_no: 'IN2', issue_date: '2026-10-05', cancelled: true },
+    { id: 3, party_key: '200100', doc_type: 700, doc_no: 'SUP', issue_date: '2026-10-09' },
+    { id: 4, party_key: '200100', doc_type: 400, doc_no: 'RC1', issue_date: '2026-09-20', total_incl_vat: null },
+    { id: 5, party_key: 200200, doc_type: 300, doc_no: 'PI1', issue_date: null, doc_date: '2026-08-01T00:00:00' },
+  ]);
+  assert.deepEqual(m.get('200100'), { id: 4, doc_type: 400, doc_no: 'RC1', date: '2026-09-20', total_incl_vat: null });
+  // בלי issue_date → doc_date; מספר לקוח מספרי → מפתח מחרוזת
+  assert.equal(m.get('200200').doc_no, 'PI1');
+  assert.equal(m.get('200200').date, '2026-08-01');
+});
+
+test('lastDocuments: באותו יום — id גבוה יותר, בלי תלות בסדר השורות', () => {
+  const a = { id: 7, party_key: '200100', doc_type: 305, doc_no: 'IN7', issue_date: '2026-10-01' };
+  const b = { id: 9, party_key: '200100', doc_type: 400, doc_no: 'RC9', issue_date: '2026-10-01' };
+  assert.equal(lastDocuments([a, b]).get('200100').doc_no, 'RC9');
+  assert.equal(lastDocuments([b, a]).get('200100').doc_no, 'RC9');
+  assert.equal(lastDocuments([{ ...a, cancelled: true }]).size, 0);
 });
