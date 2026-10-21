@@ -18,7 +18,7 @@ const EmployeeDetails = lazy(() => import('./pages/EmployeeDetails'));
 const Shifts = lazy(() => import('./pages/Shifts'));
 const Events = lazy(() => import('./pages/Events'));
 const EventDetails = lazy(() => import('./pages/EventDetails'));
-const Invoices = lazy(() => import('./pages/Invoices'));
+const Documents = lazy(() => import('./pages/Documents'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Priority = lazy(() => import('./pages/Priority'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -105,7 +105,7 @@ function App() {
             <Route path="events/:id" element={<EventDetails />} />
             <Route path="incidents" element={<Incidents />} />
             <Route path="weapons" element={<RoleRoute permission="page:weapons"><WeaponsEquipment /></RoleRoute>} />
-            <Route path="invoices" element={<RoleRoute permission="page:invoices"><Invoices /></RoleRoute>} />
+            <Route path="invoices" element={<RoleRoute permission="page:invoices"><Documents /></RoleRoute>} />
             <Route path="reports" element={<RoleRoute permission="page:reports"><Reports /></RoleRoute>} />
             <Route path="priority" element={<RoleRoute permission="page:priority"><Priority /></RoleRoute>} />
             <Route path="users" element={<RoleRoute permission="page:users"><Users /></RoleRoute>} />

@@ -462,6 +462,10 @@ export const priorityApi = {
   getJournal: (params?: Record<string, unknown>) => api.get('/priority/journal', { params }),
   getAccounts: (params?: Record<string, unknown>) => api.get('/priority/accounts', { params }),
   getDocuments: (params?: Record<string, unknown>) => api.get('/priority/documents', { params }),
+  // מסמך אחד: כותרת + שורות + לקוח מקושר + מצב פתוח משוער
+  getDocument: (id: number) => api.get(`/priority/documents/${id}`),
+  // חשבוניות מס שהופקו לפי חודש (לפני מע"מ) — לדשבורד העסקי
+  getRevenueMonthly: (months = 6) => api.get('/priority/revenue-monthly', { params: { months } }),
   // כרטיס לקוח: מסמכי Priority של לקוח מקושר. הקישור עצמו — הצעה + אישור מנהל בלבד.
   getCustomerDocuments: (customerId: string) =>
     api.get(`/priority/customer/${encodeURIComponent(customerId)}`),

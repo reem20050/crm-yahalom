@@ -7,11 +7,12 @@
  * הנתונים מגיעים מהמראה (`priority_mirror`) דרך השרת — נכונים לטעינה האחרונה,
  * לא לרגע זה.
  */
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, FileText, RefreshCw } from 'lucide-react';
 import { priorityApi } from '../services/api';
 import PriorityPaymentStatus, { type PaymentStatus } from './PriorityPaymentStatus';
+import PriorityDocumentDrawer from './PriorityDocumentDrawer';
 
 export type MatchedBy = 'vat' | 'name' | 'manual';
 
@@ -73,9 +74,9 @@ export const MATCHED_BY_LABELS: Record<MatchedBy, string> = {
   manual: 'ידני',
 };
 
-const CREDIT_NOTE = 330;
+export const CREDIT_NOTE = 330;
 
-const DOC_TYPES: Record<number, string> = {
+export const DOC_TYPES: Record<number, string> = {
   300: 'חשבון עסקה',
   305: 'חשבונית מס',
   310: 'חשבונית מרכזת',
@@ -117,10 +118,10 @@ export function fmtDate(v: string | null | undefined) {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : v;
 }
 
-const docTypeLabel = (code: number) => DOC_TYPES[code] ?? String(code);
+export const docTypeLabel = (code: number) => DOC_TYPES[code] ?? String(code);
 
 /** זיכוי מוצג תמיד שלילי. Math.abs — כי לא ידוע אם המראה כבר שומרת אותו בסימן מינוס. */
-const signedTotal = (d: PriorityDocRow) =>
+export const signedTotal = (d: Pick<PriorityDocRow, 'doc_type' | 'total_incl_vat'>) =>
   d.total_incl_vat == null ? null
     : d.doc_type === CREDIT_NOTE ? -Math.abs(d.total_incl_vat) : d.total_incl_vat;
 
@@ -147,6 +148,7 @@ function countHint(
 export default function PriorityCustomerDocs({ customerId }: { customerId: string }) {
   const q = usePriorityCustomer(customerId, true);
   const data = q.data;
+  const [openId, setOpenId] = useState<number | null>(null);
 
   let body: ReactNode;
   if (q.isLoading) {
@@ -244,7 +246,7 @@ export default function PriorityCustomerDocs({ customerId }: { customerId: strin
                   const struck = d.cancelled ? 'line-through text-gray-400' : '';
                   const negative = !d.cancelled && amount != null && amount < 0 ? 'text-danger-700' : '';
                   return (
-                    <tr key={d.id}>
+                    <tr key={d.id} onClick={() => setOpenId(d.id)} className="cursor-pointer hover:bg-gray-50" title="לחיצה פותחת את המסמך">
                       <td className={`tabular-nums ${struck}`}>{fmtDate(d.issue_date ?? d.doc_date)}</td>
                       <td className={struck}>{docTypeLabel(d.doc_type)}</td>
                       <td className={`tabular-nums ${struck}`}>{d.doc_no}</td>
@@ -278,6 +280,7 @@ export default function PriorityCustomerDocs({ customerId }: { customerId: strin
         )}
       </div>
       {body}
+      <PriorityDocumentDrawer docId={openId} onClose={() => setOpenId(null)} />
     </div>
   );
 }

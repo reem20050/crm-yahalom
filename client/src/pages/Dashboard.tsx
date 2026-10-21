@@ -24,9 +24,10 @@ import {
   UserPlus,
   Receipt,
 } from 'lucide-react';
-import { dashboardApi, shiftsApi } from '../services/api';
+import { dashboardApi, priorityApi, shiftsApi } from '../services/api';
+import { fmtDate, shekel } from '../components/PriorityCustomerDocs';
 import type { Shift, Event, Equipment, Incident, Invoice, Site, Employee, Certification } from '../types';
-import { QuickLeadModal, QuickShiftModal, QuickInvoiceModal, QuickIncidentModal } from '../components/QuickActionModals';
+import { QuickLeadModal, QuickShiftModal, QuickIncidentModal } from '../components/QuickActionModals';
 import { SkeletonPulse, SkeletonStatCard, SkeletonCard } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuthStore } from '../stores/authStore';
@@ -255,15 +256,16 @@ export default function Dashboard() {
             <div className="text-xs text-white/70">צור משמרת מהירה</div>
           </div>
         </button>
-        <button onClick={() => setQuickModal('invoice')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+        {/* מסמכים רשמיים מופקים רק ב-Priority — הכפתור מוביל למסמכים, לא ליצירת חשבונית בתוך ה-CRM */}
+        <Link to="/invoices" className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
           <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <Receipt className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-semibold text-sm text-white truncate">חשבונית חדשה</div>
-            <div className="text-xs text-white/70">הפק חשבונית מהירה</div>
+            <div className="font-semibold text-sm text-white truncate">מסמכים</div>
+            <div className="text-xs text-white/70">חשבוניות וקבלות מ-Priority</div>
           </div>
-        </button>
+        </Link>
         <button onClick={() => setQuickModal('incident')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-red-500 to-red-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
           <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5" />
@@ -284,7 +286,6 @@ export default function Dashboard() {
       {/* Quick Action Modals */}
       <QuickLeadModal isOpen={quickModal === 'lead'} onClose={() => setQuickModal(null)} />
       <QuickShiftModal isOpen={quickModal === 'shift'} onClose={() => setQuickModal(null)} />
-      <QuickInvoiceModal isOpen={quickModal === 'invoice'} onClose={() => setQuickModal(null)} />
       <QuickIncidentModal isOpen={quickModal === 'incident'} onClose={() => setQuickModal(null)} />
     </div>
   );
@@ -887,7 +888,24 @@ function OperationsView({ data }: { data: DashboardOpsData }) {
 }
 
 /* ======== BUSINESS VIEW ======== */
+interface CollectionsRow { party_key: string; name: string | null; customer_id: string | null; to_chase: number }
+
 function BusinessView({ data }: { data: DashboardBusinessData }) {
+  // הנתונים הכספיים מ-Priority (מראה). התצוגה העסקית מוצגת רק למנהלים — כמו requireManager של /api/priority.
+  const revenueQ = useQuery({
+    queryKey: ['priority', 'revenue-monthly', 6],
+    queryFn: () => priorityApi.getRevenueMonthly(6).then((r) => r.data as { months: { month: string; net: number }[] }),
+    retry: false,
+  });
+  const collectionsQ = useQuery({
+    queryKey: ['priority-collections'],
+    queryFn: () => priorityApi.getCollections().then((r) => r.data as {
+      bank_through: string | null; totals: { to_chase: number }; rows: CollectionsRow[];
+    }),
+    retry: false,
+  });
+  const revenue = (revenueQ.data?.months ?? []).map((m) => ({ ...m, label: `${m.month.slice(5)}/${m.month.slice(2, 4)}` }));
+  const chase = (collectionsQ.data?.rows ?? []).filter((r) => r.to_chase > 0).slice(0, 5);
   const stats = [
     {
       name: 'לידים חדשים',
@@ -953,11 +971,17 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
             <div className="section-header-icon bg-gradient-to-br from-primary-100 to-primary-50">
               <TrendingUp className="w-4 h-4 text-primary-600" />
             </div>
-            <h3 className="section-header-title">הכנסות - 6 חודשים אחרונים</h3>
+            <div>
+              <h3 className="section-header-title">חשבוניות מס שהופקו — 6 חודשים</h3>
+              <p className="text-xs text-gray-500">לפי Priority, לפני מע"מ, בניכוי זיכויים (לא כולל חשבונות עסקה)</p>
+            </div>
           </div>
+          {revenueQ.isError ? (
+            <p className="text-sm text-danger-700 py-10 text-center">לא ניתן לקרוא את המסמכים מ-Priority (תקלת קריאה).</p>
+          ) : (
           <div className="h-48 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data?.monthlyRevenue || []}>
+              <LineChart data={revenue}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
@@ -965,10 +989,10 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(v: number) => `${Math.round(v / 1000)}K`} />
                 <Tooltip
-                  formatter={(value: number) => [`₪${value?.toLocaleString()}`, 'הכנסות']}
+                  formatter={(value: number) => [shekel(value), 'הופק (לפני מע"מ)']}
                   contentStyle={{
                     borderRadius: '12px',
                     border: '1px solid #e2e8f0',
@@ -978,13 +1002,13 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
                 />
                 <Area
                   type="monotone"
-                  dataKey="revenue"
+                  dataKey="net"
                   stroke="none"
                   fill="url(#revenueGradient)"
                 />
                 <Line
                   type="monotone"
-                  dataKey="revenue"
+                  dataKey="net"
                   stroke="#6366f1"
                   strokeWidth={2.5}
                   dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
@@ -993,6 +1017,7 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          )}
         </div>
 
         {/* Upcoming events */}
@@ -1075,49 +1100,53 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
           )}
         </div>
 
-        {/* Overdue invoices */}
+        {/* לגבות — מ-Priority (אותו חישוב כמו "מי חייב" וסיכום הבוקר), לא מטבלת החשבוניות הישנה של ה-CRM */}
         <div className="card">
           <div className="section-header">
             <div className="section-header-icon bg-gradient-to-br from-amber-100 to-amber-50">
               <FileWarning className="w-4 h-4 text-amber-600" />
             </div>
-            <h3 className="section-header-title">חשבוניות באיחור</h3>
+            <div>
+              <h3 className="section-header-title">לגבות</h3>
+              {collectionsQ.data && (
+                <p className="text-xs text-gray-500">
+                  {shekel(collectionsQ.data.totals.to_chase)} · אין ראיה לתשלום עד {fmtDate(collectionsQ.data.bank_through)}
+                </p>
+              )}
+            </div>
           </div>
-          {(data?.overdueInvoices?.length ?? 0) > 0 ? (
-            <div className="space-y-2.5">
-              {data.overdueInvoices!.map((invoice: OverdueInvoice) => (
-                <div
-                  key={invoice.id}
-                  className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm text-gray-900">
-                        {invoice.company_name}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        חשבונית #{invoice.invoice_number}
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold text-sm text-gray-900">
-                        ₪{invoice.total_amount?.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-red-500 font-medium">
-                        {invoice.days_overdue} ימים באיחור
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {collectionsQ.isLoading ? (
+            <p className="text-sm text-gray-500 py-10 text-center">טוען…</p>
+          ) : collectionsQ.isError || !collectionsQ.data ? (
+            <p className="text-sm text-danger-700 py-10 text-center">לא ניתן לקרוא את סטטוס התשלום (תקלת קריאה — לא "אין חובות").</p>
+          ) : collectionsQ.data.rows.length === 0 ? (
+            <p className="text-sm text-warning-700 py-10 text-center">אין נתוני סטטוס תשלום — לבדוק שהחישוב הלילי רץ.</p>
           ) : (
-            <div className="text-center py-10">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mx-auto mb-2">
-                <CheckCircle className="w-5 h-5 text-emerald-500" />
+            <>
+              <div className="space-y-2.5">
+                {chase.map((r) => (
+                  <div
+                    key={r.party_key}
+                    className="p-3.5 rounded-xl bg-gray-50/60 border border-gray-100 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      {r.customer_id ? (
+                        <Link to={`/customers/${r.customer_id}`} className="font-medium text-sm text-primary-700 hover:underline truncate block">
+                          {r.name || r.party_key}
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-sm text-gray-900 truncate">{r.name || r.party_key}</p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-0.5 tabular-nums">לקוח {r.party_key}</p>
+                    </div>
+                    <p className="font-bold text-sm text-gray-900 tabular-nums shrink-0">{shekel(r.to_chase)}</p>
+                  </div>
+                ))}
               </div>
-              <p className="text-sm text-emerald-600 font-medium">אין חשבוניות באיחור</p>
-            </div>
+              <Link to="/priority?tab=collections" className="block text-sm text-primary-600 hover:underline mt-3">
+                לכל הרשימה ("מי חייב") ←
+              </Link>
+            </>
           )}
         </div>
 
