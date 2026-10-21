@@ -32,8 +32,8 @@ router.use(requireManager);   // נתונים פיננסיים — הנהלה ב
 
 const SCHEMA = 'priority_mirror';
 const PAGE_MAX = 500;
-// סטטוס תשלום נגזר (p_customer_status, נכתב ב-VPS מ-paid-check)
-const STATUS_COLS = 'party_key,as_of,bank_through,computed_at,balance,paid_no_receipt,short,maybe,to_chase,deals_open';
+// סטטוס תשלום נגזר (p_customer_status, נכתב ב-VPS מ-paid-check). party_name — מהצילום, ללקוח בלי שורה ב-p_accounts
+const STATUS_COLS = 'party_key,party_name,as_of,bank_through,computed_at,balance,paid_no_receipt,short,maybe,to_chase,deals_open';
 const STATUS_MONEY = ['balance', 'paid_no_receipt', 'short', 'maybe', 'to_chase'];
 // numeric עלול לחזור כמחרוזת — הלקוח מחבר סכומים, ו-"1"+"2" היה מציג 12
 const statusRow = (r) => (r ? { ...r, ...Object.fromEntries(STATUS_MONEY.map((k) => [k, Number(r[k] || 0)])) } : null);
@@ -591,7 +591,8 @@ router.get('/collections', async (req, res, next) => {
         return {
           ...statusRow(r),
           customer_id: c?.id ?? null,
-          name: c?.company_name || nameByNo.get(String(r.party_key)) || null,
+          // כרטיס CRM → p_accounts → השם מהצילום (לקוח עם חוב בלי שורה ב-p_accounts, כמו 200039)
+          name: c?.company_name || nameByNo.get(String(r.party_key)) || r.party_name || null,
         };
       }),
     });
