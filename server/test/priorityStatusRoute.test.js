@@ -72,10 +72,11 @@ const TABLES = {
   ],
   p_documents: [],
   // numeric חוזר כמחרוזת — השרת חייב להמיר למספר
+  // party_name — השם מהצילום; ה-CRM נופל אליו רק כשאין שם מהכרטיס או מ-p_accounts
   p_customer_status: [
-    ST('200100', { balance: '3000.00', to_chase: '2000.00', paid_no_receipt: '1000.00',
+    ST('200100', { party_name: 'אלפא מהצילום', balance: '3000.00', to_chase: '2000.00', paid_no_receipt: '1000.00',
       items: [{ ref: 'IN1', open: 2000, status: 'to_chase' }] }),
-    ST('200200', { balance: '500.00', maybe: '300.50', short: '199.50' }),
+    ST('200200', { party_name: 'בטא מהצילום', balance: '500.00', maybe: '300.50', short: '199.50' }),
     ST('200300'),
   ],
 };
@@ -103,7 +104,12 @@ function postgrest(url) {
     } else throw new Error(`unsupported filter ${k}=${v}`);
   }
   if (table === 'p_customer_status') rows.sort((x, y) => Number(y.to_chase) - Number(x.to_chase));
-  return { page: rows.slice(0, limit), total: rows.length };
+  // רק העמודות שנבחרו — כמו PostgREST. עמודה שלא ב-select לא מגיעה לשרת
+  const select = u.searchParams.get('select');
+  const cols = select && select !== '*' ? select.split(',') : null;
+  const page = rows.slice(0, limit)
+    .map((r) => (cols ? Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]])) : r));
+  return { page, total: rows.length };
 }
 
 const realFetch = globalThis.fetch;
@@ -167,6 +173,22 @@ test('GET /collections: רק לקוחות עם משהו פתוח, ממוינים
   assert.equal(beta.customer_id, null);
   assert.equal(beta.name, 'בטא (Priority)');
   assert.equal(beta.maybe + beta.short, 500);
+});
+
+test('GET /collections: לקוח בלי כרטיס ובלי שורה ב-p_accounts מקבל את השם מהצילום', async () => {
+  // כמו 200039 (מועצה דתית עמק חפר): חוב במראה, אין p_accounts — עד 21/10 הוצג לפי מספר בלבד
+  TABLES.p_customer_status.push(ST('200400', { party_name: 'דלתא מהצילום', balance: '50.00', to_chase: '50.00' }));
+  try {
+    const { status, body } = await call('/collections');
+    assert.equal(status, 200);
+    const byNo = new Map(body.rows.map((r) => [r.party_key, r]));
+    const delta = byNo.get('200400');
+    assert.equal(delta.customer_id, null);
+    assert.equal(delta.name, 'דלתא מהצילום');
+    // הסדר: כרטיס CRM → p_accounts → הצילום
+    assert.equal(byNo.get('200100').name, 'אלפא');
+    assert.equal(byNo.get('200200').name, 'בטא (Priority)');
+  } finally { TABLES.p_customer_status.pop(); }
 });
 
 test('GET /customer/:id: מחזיר סטטוס עם פירוט המסמכים', async () => {
