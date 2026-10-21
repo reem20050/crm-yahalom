@@ -70,13 +70,13 @@ export default function PriorityCustomerSummary({ customerId, onIssue, onShowPay
           <FilePlus2 className="w-4 h-4" /> הפקת מסמך
         </button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Stat label="לגבות" {...toChase} />
         <Stat label="שולם בבנק — חסרה קבלה" {...paidNoReceipt} />
         {last ? (
           <button
             onClick={() => setOpenId(last.id)}
-            className="p-3 rounded-lg bg-gray-50 text-right hover:bg-gray-100 transition-colors"
+            className="col-span-2 sm:col-span-1 p-3 rounded-lg bg-gray-50 text-right hover:bg-gray-100 transition-colors"
             title="לחיצה פותחת את המסמך"
           >
             <p className="text-xs text-gray-600">מסמך אחרון</p>
@@ -88,7 +88,9 @@ export default function PriorityCustomerSummary({ customerId, onIssue, onShowPay
             </p>
           </button>
         ) : (
-          <Stat label="מסמך אחרון" value="—" hint="אין מסמכים ב-Priority" />
+          <div className="col-span-2 sm:col-span-1">
+            <Stat label="מסמך אחרון" value="—" hint="אין מסמכים ב-Priority" />
+          </div>
         )}
       </div>
       {open > 0 && (

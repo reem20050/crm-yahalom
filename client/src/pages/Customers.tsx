@@ -60,6 +60,8 @@ type LinkFilter = '' | 'linked' | 'unlinked';
 const STATUS_LABELS: Record<string, string> = { active: 'פעיל', inactive: 'לא פעיל', suspended: 'מושהה' };
 // כל הלקוחות בבקשה אחת: המיון והסינון בדפדפן (כ-150 לקוחות). אם יש יותר — מוצגת אזהרה.
 const FETCH_LIMIT = 1000;
+// בטלפון הטבלה נגללת הצידה — השם נשאר במקום (RTL: הטור הימני)
+const STICKY = 'sticky right-0 z-10 shadow-[-1px_0_0_rgb(243_244_246)]';
 
 export default function Customers() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -170,9 +172,9 @@ export default function Customers() {
     // סכום ותאריך — מהגדול/החדש; טקסט — א-ב
     : { key, dir: key === 'to_chase' || key === 'last_doc' ? -1 : 1 }));
 
-  const th = (k: SortKey, children: ReactNode) => (
+  const th = (k: SortKey, children: ReactNode, className = '') => (
     <th
-      className="sortable"
+      className={`sortable ${className}`}
       onClick={() => sortBy(k)}
       aria-sort={sort.key === k ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
     >
@@ -291,17 +293,17 @@ export default function Customers() {
           <table className="table">
             <thead>
               <tr>
-                {th('name', 'שם')}
+                {th('name', 'שם', `${STICKY} bg-gray-50`)}
                 {canPriority && th('no', 'מספר Priority')}
                 {canPriority && th('to_chase', (
-                  <>
+                  <span className="flex flex-col leading-tight">
                     לגבות
                     {overviewQ.data?.bank_through && (
-                      <span className="font-normal normal-case tracking-normal text-gray-400">
-                        (עד {fmtDate(overviewQ.data.bank_through)})
+                      <span className="font-normal normal-case tracking-normal text-gray-400 whitespace-nowrap">
+                        עד {fmtDate(overviewQ.data.bank_through)}
                       </span>
                     )}
-                  </>
+                  </span>
                 ))}
                 {canPriority && th('last_doc', 'מסמך אחרון')}
                 {th('city', 'עיר')}
@@ -315,7 +317,7 @@ export default function Customers() {
                 const linked = !!c.priority_customer_no;
                 return (
                   <tr key={c.id} onClick={() => navigate(`/customers/${c.id}`)} className="cursor-pointer">
-                    <td className="whitespace-normal min-w-[10rem]">
+                    <td className={`whitespace-normal min-w-[9rem] bg-white ${STICKY}`}>
                       <Link
                         to={`/customers/${c.id}`}
                         onClick={(e) => e.stopPropagation()}

@@ -62,8 +62,8 @@ export default function PriorityPaymentStatus({ status, unavailable }: {
   const clear = !status.to_chase && !status.paid_no_receipt && !status.maybe && !status.short;
   return (
     <div className="mb-4">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <h3 className="font-semibold text-gray-800 flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
+        <h3 className="font-semibold text-gray-800 flex items-center gap-1.5 shrink-0">
           <Landmark className="w-4 h-4 text-primary-600" /> מצב תשלום
         </h3>
         <span className="text-xs text-gray-500">

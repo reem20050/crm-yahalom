@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -115,6 +115,8 @@ export default function CustomerDetails() {
   // "הפקת מסמך" — פותח את טופס הבקשה. המונה מרכיב מחדש את רכיב הבקשות גם כשכבר נמצאים בלשונית
   const [issueNonce, setIssueNonce] = useState(0);
   const [issueOpen, setIssueOpen] = useState(false);
+  // בטלפון הטופס נפתח מתחת לקצה המסך — גוללים אל הלשוניות כדי שיראו אותו
+  const tabsRef = useRef<HTMLDivElement>(null);
   const goTab = (t: Tab) => {
     if (t !== 'requests') setIssueOpen(false);
     setParams(t === 'overview' ? {} : { tab: t }, { replace: true });
@@ -355,7 +357,12 @@ export default function CustomerDetails() {
       {priorityLinked && id && (
         <PriorityCustomerSummary
           customerId={id}
-          onIssue={() => { setIssueNonce((n) => n + 1); setIssueOpen(true); goTab('requests'); }}
+          onIssue={() => {
+            setIssueNonce((n) => n + 1);
+            setIssueOpen(true);
+            goTab('requests');
+            requestAnimationFrame(() => tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          }}
           onShowPayment={() => goTab('payment')}
         />
       )}
@@ -366,7 +373,7 @@ export default function CustomerDetails() {
       )}
 
       {/* Tabs — scroll sideways on narrow screens */}
-      <div className="flex gap-1 border-b border-gray-100 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div ref={tabsRef} className="flex gap-1 border-b border-gray-100 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scroll-mt-20">
         {tabs.map(([key, label]) => (
           <button
             key={key}

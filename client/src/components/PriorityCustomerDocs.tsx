@@ -288,9 +288,9 @@ export default function PriorityCustomerDocs({ customerId }: { customerId: strin
                   <tr>
                     <th>תאריך</th>
                     <th>סוג</th>
-                    <th>מספר</th>
+                    <th className="hidden sm:table-cell">מספר</th>
                     <th>סה"כ כולל מע"מ</th>
-                    <th></th>
+                    <th className="hidden sm:table-cell"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -301,10 +301,16 @@ export default function PriorityCustomerDocs({ customerId }: { customerId: strin
                     return (
                       <tr key={d.id} onClick={() => setOpenId(d.id)} className="cursor-pointer hover:bg-gray-50" title="לחיצה פותחת את המסמך">
                         <td className={`tabular-nums ${struck}`}>{fmtDate(d.issue_date ?? d.doc_date)}</td>
-                        <td className={struck}>{docTypeLabel(d.doc_type)}</td>
-                        <td className={`tabular-nums ${struck}`}>{d.doc_no}</td>
+                        <td className={struck}>
+                          {docTypeLabel(d.doc_type)}
+                          {/* בטלפון המספר מתחת לסוג, כדי שהסכום ייכנס בלי גלילה הצידה */}
+                          <span className="block sm:hidden text-xs text-gray-400 tabular-nums">
+                            {d.doc_no}{d.cancelled && ' · מבוטל'}
+                          </span>
+                        </td>
+                        <td className={`hidden sm:table-cell tabular-nums ${struck}`}>{d.doc_no}</td>
                         <td className={`tabular-nums ${struck} ${negative}`}>{shekel(amount)}</td>
-                        <td>{d.cancelled && <span className="badge badge-gray">מבוטל</span>}</td>
+                        <td className="hidden sm:table-cell">{d.cancelled && <span className="badge badge-gray">מבוטל</span>}</td>
                       </tr>
                     );
                   })}
