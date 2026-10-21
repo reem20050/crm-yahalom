@@ -80,7 +80,7 @@ const navigationGroups = [
   {
     label: 'כספים',
     items: [
-      { name: 'חשבוניות', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
+      { name: 'מסמכים', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
       { name: 'דוחות', href: '/reports', icon: BarChart3, permission: 'page:reports' },
       { name: 'Priority', href: '/priority', icon: Database, permission: 'page:priority' },
     ],

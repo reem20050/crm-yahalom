@@ -14,6 +14,7 @@
  *   האחרונה בו בת חודש — ומסך שמציג רק את הראשון ישקר בביטחון מלא.
  */
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Database, Search, RefreshCw, AlertTriangle, CheckCircle2, Clock, FileText,
@@ -22,12 +23,14 @@ import { priorityApi } from '../services/api';
 import { SkeletonGrid } from '../components/Skeleton';
 import { AmbiguousTab, LINK_QUEUE_KEY, UnmatchedTab } from '../components/PriorityLinkQueue';
 import PriorityCollections from '../components/PriorityCollections';
+import PriorityDocumentDrawer from '../components/PriorityDocumentDrawer';
 
 type DataTab = 'journal' | 'accounts' | 'documents';
 // לשוניות תור הקישור: נטענות מ-/priority/unmatched, עם סינון מקומי משלהן
 type QueueTab = 'unmatched' | 'ambiguous';
 // "מי חייב": סטטוס תשלום נגזר (p_customer_status), נטען מ-/priority/collections
 type Tab = DataTab | QueueTab | 'collections';
+const TAB_KEYS = ['journal', 'accounts', 'documents', 'collections', 'unmatched', 'ambiguous'] as const;
 const isQueueTab = (t: Tab): t is QueueTab => t === 'unmatched' || t === 'ambiguous';
 const COLLECTIONS_KEY = ['priority-collections'];
 
@@ -108,14 +111,12 @@ function Freshness({ asOf, days }: { asOf: string | null; days: number | null })
       <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${tone.text}`} />
       <div className="min-w-0">
         <p className={`font-semibold ${tone.text}`}>
-          הנתונים נכונים עד {asOf} — לפני {days} ימים
+          תנועות היומן והיתרות (כרטסת) נכונות עד {asOf} — לפני {days} ימים
         </p>
-        {days > 7 && (
-          <p className="text-sm text-gray-600 mt-0.5">
-            כדי לרענן: להפיק כרטסת מפריוריטי (בשדה <b>חשבון</b> להזין <code>*</code> —
-            ריק מחזיר דוח ריק) ולהריץ <code>python sync_kartesset.py --commit</code>.
-          </p>
-        )}
+        <p className="text-sm text-gray-600 mt-0.5">
+          המסמכים ו"מי חייב" מתעדכנים כל לילה. הכרטסת מתעדכנת ידנית
+          {days > 7 ? ' — לרענון לפנות לרעם.' : '.'}
+        </p>
       </div>
     </div>
   );
@@ -132,7 +133,12 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 export default function Priority() {
-  const [tab, setTab] = useState<Tab>('journal');
+  // ברירת המחדל "מי חייב" — היומן הגולמי (קודי חשבון) הוא לרואה החשבון, לא לעבודה היומית.
+  // ?tab=… מאפשר קישור ישיר (למשל מהדשבורד).
+  const [params] = useSearchParams();
+  const initialTab = (TAB_KEYS as readonly string[]).includes(params.get('tab') || '') ? params.get('tab') as Tab : 'collections';
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [openDoc, setOpenDoc] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
   const queueTab = isQueueTab(tab);
@@ -234,7 +240,7 @@ export default function Priority() {
             <Stat
               label="יתרת לקוחות"
               value={shekel(s?.summary?.receivable)}
-              hint="לפי הכרטסת בלבד — אינו כולל חשבון עסקה, 2024 והעוסק המורשה"
+              hint={`לפי הכרטסת${s?.dataAsOf ? ` עד ${s.dataAsOf}` : ''} — אינו כולל חשבון עסקה, 2024 והעוסק המורשה. לגבייה: "מי חייב"`}
             />
             <Stat label="יתרת ספקים" value={shekel(s?.summary?.payable)} />
             <Stat
@@ -258,10 +264,10 @@ export default function Priority() {
       {/* לשוניות */}
       <div className="flex gap-2 border-b border-gray-100">
         {([
-          ['journal', 'תנועות יומן'],
-          ['accounts', 'חשבונות'],
-          ['documents', 'מסמכים'],
           ['collections', 'מי חייב'],
+          ['documents', 'מסמכים'],
+          ['accounts', 'חשבונות'],
+          ['journal', 'תנועות יומן'],
           ['unmatched', 'לקוחות ללא כרטיס'],
           ['ambiguous', 'דו-משמעיים'],
         ] as [Tab, string][]).map(([key, label]) => (
@@ -362,7 +368,7 @@ export default function Priority() {
                 </tr></thead>
                 <tbody>
                   {(rows as DocRow[]).map((d) => (
-                    <tr key={d.id}>
+                    <tr key={d.id} onClick={() => setOpenDoc(d.id)} className="cursor-pointer hover:bg-gray-50">
                       <td className="tabular-nums">{d.issue_date ?? '—'}</td>
                       <td>{DOC_TYPES[d.doc_type] ?? d.doc_type}</td>
                       <td className="tabular-nums">{d.doc_no}</td>
@@ -386,6 +392,7 @@ export default function Priority() {
         </p>
       )}
       </>)}
+      <PriorityDocumentDrawer docId={openDoc} onClose={() => setOpenDoc(null)} />
     </div>
   );
 }

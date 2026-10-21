@@ -37,6 +37,23 @@ const STATUS_COLS = 'party_key,party_name,as_of,bank_through,computed_at,balance
 const STATUS_MONEY = ['balance', 'paid_no_receipt', 'short', 'maybe', 'to_chase'];
 // numeric עלול לחזור כמחרוזת — הלקוח מחבר סכומים, ו-"1"+"2" היה מציג 12
 const statusRow = (r) => (r ? { ...r, ...Object.fromEntries(STATUS_MONEY.map((k) => [k, Number(r[k] || 0)])) } : null);
+const DOC_COLS = 'id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,party_vat_id,'
+               + 'total_after_discount_ex_vat,vat_amount,total_incl_vat,withholding_amount,cancelled';
+const DOC_TYPE_RE = /^\d{3}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** מספרי לקוח Priority → כרטיס CRM פעיל (id, company_name). מספרים לא תקינים מסוננים. */
+async function crmCustomersByNo(keys) {
+  const nos = [...new Set(keys.map((k) => String(k ?? '')).filter((k) => CUSTOMER_NO_RE.test(k)))];
+  if (!nos.length) return new Map();
+  const ph = nos.map((_, i) => `$${i + 1}`).join(',');
+  const { rows } = await db.query(
+    `SELECT id, company_name, priority_customer_no FROM customers
+     WHERE deleted_at IS NULL AND priority_customer_no IN (${ph})`,
+    nos,
+  );
+  return new Map(rows.map((c) => [String(c.priority_customer_no), c]));
+}
 
 // ── חיבור למראה ──────────────────────────────────────────────────────────────
 let cached = { token: null, expiresAt: 0 };
@@ -293,13 +310,24 @@ router.get('/documents', async (req, res, next) => {
     if (partyKey && !CUSTOMER_NO_RE.test(partyKey)) {
       return res.status(400).json({ error: 'party_key חייב להכיל ספרות בלבד' });
     }
+    const types = String(req.query.doc_type ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+    if (types.some((t) => !DOC_TYPE_RE.test(t))) {
+      return res.status(400).json({ error: 'doc_type: קודי סוג מסמך (3 ספרות), מופרדים בפסיק' });
+    }
+    const from = String(req.query.from ?? '').trim();
+    const to = String(req.query.to ?? '').trim();
+    if ((from && !DATE_RE.test(from)) || (to && !DATE_RE.test(to))) {
+      return res.status(400).json({ error: 'from / to בפורמט YYYY-MM-DD' });
+    }
     const limit = clampLimit(req.query.limit, 100);
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
-    let path = 'p_documents?select=id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,'
-             + 'party_vat_id,total_incl_vat,vat_amount,cancelled'
-             + '&order=issue_date.desc.nullslast'
+    let path = `p_documents?select=${DOC_COLS}`
+             + '&order=issue_date.desc.nullslast,doc_no.desc'
              + `&limit=${limit}&offset=${offset}`;
     if (partyKey) path += `&party_key=eq.${partyKey}`;
+    if (types.length) path += `&doc_type=in.(${types.join(',')})`;
+    if (from) path += `&issue_date=gte.${from}`;
+    if (to) path += `&issue_date=lte.${to}`;
     if (req.query.includeCancelled !== 'true') path += '&cancelled=is.false';
     const q = (req.query.q || '').trim();
     if (q) {
@@ -308,7 +336,78 @@ router.get('/documents', async (req, res, next) => {
             + `party_vat_id.ilike.${like})`;
     }
     const { rows, total } = await pm(path, { count: true });
-    res.json({ rows, total, limit, offset });
+    const byNo = await crmCustomersByNo(rows.map((r) => r.party_key));
+    res.json({
+      rows: rows.map((r) => ({ ...r, customer_id: byNo.get(String(r.party_key))?.id ?? null })),
+      total, limit, offset,
+    });
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/priority/documents/:id ──────────────────────────────────────────
+// מסמך אחד: כותרת, שורות (p_doc_lines — לא לכל מסמך יש שורות במראה: קבלה אין לה, ולחלק לא נטענו),
+// הלקוח המקושר ב-CRM, ומצב פתוח **משוער** מ-p_customer_status (FIFO — לא ההתאמה הרשמית של Priority).
+router.get('/documents/:id', async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    if (!/^\d{1,18}$/.test(id)) return res.status(400).json({ error: 'מזהה מסמך לא תקין' });
+    const [d, lines] = await Promise.all([
+      pm(`p_documents?select=${DOC_COLS},value_date,party_city,party_phone,total_before_discount,doc_discount`
+         + `&id=eq.${id}&limit=1`),
+      pm('p_doc_lines?select=line_no,internal_sku,description,unit,quantity,unit_price,line_discount,line_total,vat_rate'
+         + `&document_id=eq.${id}&order=line_no`),
+    ]);
+    const doc = d.rows[0];
+    if (!doc) return res.status(404).json({ error: 'המסמך לא נמצא במראה' });
+
+    const key = String(doc.party_key ?? '');
+    let customer = null;
+    let payment = null;
+    if (CUSTOMER_NO_RE.test(key)) {
+      const c = (await crmCustomersByNo([key])).get(key);
+      customer = c ? { id: c.id, name: c.company_name } : null;
+      // סטטוס התשלום — תוספת; כשל בקריאה שלו לא מפיל את המסמך
+      const st = await pm(`p_customer_status?select=as_of,bank_through,items&party_key=eq.${key}&limit=1`)
+        .catch(() => null);
+      const row = st?.rows?.[0];
+      if (row) {
+        const item = (row.items || []).find((i) => String(i.ref) === String(doc.doc_no));
+        payment = {
+          as_of: row.as_of,
+          bank_through: row.bank_through,
+          open: item ? Number(item.open || 0) : 0,
+          status: item?.status ?? null,
+          days: item?.days ?? null,
+        };
+      }
+    }
+    res.json({ document: doc, lines: lines.rows, customer, payment });
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/priority/revenue-monthly ────────────────────────────────────────
+// חשבוניות מס שהופקו לפי חודש (305/310/320 פחות זיכויים 330, בלי מבוטלים), **לפני מע"מ**.
+// זה "הופק", לא "נגבה". חשבון עסקה (300) לא נספר — הוא לא הכנסה עד שמופקת חשבונית.
+router.get('/revenue-monthly', async (req, res, next) => {
+  try {
+    const months = Math.min(24, Math.max(1, parseInt(req.query.months, 10) || 6));
+    const now = new Date();
+    const keys = [];
+    for (let i = months - 1; i >= 0; i -= 1) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      keys.push(d.toISOString().slice(0, 7));
+    }
+    const rows = await pmAll('p_documents?select=id,doc_type,issue_date,total_after_discount_ex_vat'
+      + `&issue_date=gte.${keys[0]}-01&cancelled=is.false&doc_type=in.(305,310,320,330)&order=id`, 'revenue');
+    const by = new Map(keys.map((k) => [k, { month: k, net: 0, count: 0 }]));
+    for (const r of rows) {
+      const b = by.get(String(r.issue_date || '').slice(0, 7));
+      if (!b) continue;
+      const v = Number(r.total_after_discount_ex_vat || 0);
+      b.net += r.doc_type === 330 ? -Math.abs(v) : v;
+      b.count += 1;
+    }
+    res.json({ months: [...by.values()].map((b) => ({ ...b, net: Math.round(b.net * 100) / 100 })) });
   } catch (e) { next(e); }
 });
 
