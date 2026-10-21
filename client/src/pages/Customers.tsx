@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Search, Building2, MapPin, Plus, X, Trash2 } from 'lucide-react';
-import { customersApi } from '../services/api';
-import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
+import {
+  AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Building2, Plus, Search, Trash2, X,
+} from 'lucide-react';
+import { customersApi, priorityApi } from '../services/api';
+import { SkeletonPulse } from '../components/Skeleton';
+import { docTypeLabel, fmtDate, shekel, type LastDoc } from '../components/PriorityCustomerDocs';
 import { usePermissions } from '../hooks/usePermissions';
 
 const customerSchema = z.object({
@@ -27,15 +30,61 @@ const customerSchema = z.object({
 
 type CustomerForm = z.infer<typeof customerSchema>;
 
+// עמודות Priority (מספר, לגבות, מסמך אחרון) — הנהלה בלבד, מ-GET /priority/customer-overview (מאחורי requireManager).
+// לגבות = אין ראיה לתשלום עד התדפיס האחרון (bank_through), לא "לא שילם".
+interface CustomerRow {
+  id: string;
+  company_name: string;
+  business_id: string | null;
+  city: string | null;
+  status: string;
+  priority_customer_no: string | number | null;
+}
+
+interface OverviewRow {
+  customer_id: string;
+  priority_customer_no: string;
+  status: { to_chase: number; paid_no_receipt: number; maybe: number; short: number } | null;
+  last_doc: LastDoc | null;
+}
+
+interface Overview {
+  as_of: string | null;
+  bank_through: string | null;
+  rows: OverviewRow[];
+}
+
+type SortKey = 'name' | 'no' | 'to_chase' | 'last_doc' | 'city' | 'status';
+type LinkFilter = '' | 'linked' | 'unlinked';
+
+const STATUS_LABELS: Record<string, string> = { active: 'פעיל', inactive: 'לא פעיל', suspended: 'מושהה' };
+// כל הלקוחות בבקשה אחת: המיון והסינון בדפדפן (כ-150 לקוחות). אם יש יותר — מוצגת אזהרה.
+const FETCH_LIMIT = 1000;
+
 export default function Customers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [debtOnly, setDebtOnly] = useState(false);
+  const [linkFilter, setLinkFilter] = useState<LinkFilter>('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 });
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canPriority = can('page:priority');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', { search: searchTerm }],
-    queryFn: () => customersApi.getAll({ search: searchTerm, limit: 50 }).then((res) => res.data),
+    queryKey: ['customers', { all: true }],
+    queryFn: () => customersApi.getAll({ limit: FETCH_LIMIT }).then((res) => res.data),
   });
+
+  const overviewQ = useQuery({
+    queryKey: ['priority', 'customer-overview'],
+    queryFn: () => priorityApi.getCustomerOverview().then((r) => r.data as Overview),
+    enabled: canPriority,
+    retry: false,
+  });
+  const overviewOk = canPriority && overviewQ.isSuccess;
 
   const createMutation = useMutation({
     mutationFn: (data: CustomerForm) => customersApi.create(data),
@@ -74,7 +123,67 @@ export default function Customers() {
     },
   });
 
-  const { can } = usePermissions();
+  const customers: CustomerRow[] = useMemo(() => data?.customers || [], [data]);
+  const total: number = data?.pagination?.total ?? customers.length;
+  const byCustomer = useMemo(
+    () => new Map((overviewQ.data?.rows || []).map((r) => [r.customer_id, r])),
+    [overviewQ.data],
+  );
+
+  const rows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const list = customers.filter((c) => {
+      const linked = !!c.priority_customer_no;
+      if (statusFilter && c.status !== statusFilter) return false;
+      if (canPriority && linkFilter === 'linked' && !linked) return false;
+      if (canPriority && linkFilter === 'unlinked' && linked) return false;
+      if (overviewOk && debtOnly && !((byCustomer.get(c.id)?.status?.to_chase ?? 0) > 0)) return false;
+      if (!term) return true;
+      return [c.company_name, c.business_id, c.city, canPriority ? c.priority_customer_no : null]
+        .some((v) => v != null && String(v).toLowerCase().includes(term));
+    });
+    const value = (c: CustomerRow): string | number | null => {
+      const o = byCustomer.get(c.id);
+      switch (sort.key) {
+        case 'no': return c.priority_customer_no ? Number(c.priority_customer_no) : null;
+        case 'to_chase': return o?.status ? o.status.to_chase : null;
+        case 'last_doc': return o?.last_doc?.date ?? null;
+        case 'city': return c.city || null;
+        case 'status': return STATUS_LABELS[c.status] || c.status || null;
+        default: return c.company_name || null;
+      }
+    };
+    // ריקים תמיד בסוף, בשני הכיוונים
+    return list.sort((x, y) => {
+      const a = value(x);
+      const b = value(y);
+      if (a == null || b == null) return a == null ? (b == null ? 0 : 1) : -1;
+      const cmp = typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), 'he');
+      return cmp * sort.dir;
+    });
+  }, [customers, searchTerm, statusFilter, linkFilter, debtOnly, sort, byCustomer, canPriority, overviewOk]);
+
+  const filtered = !!(searchTerm.trim() || statusFilter || linkFilter || debtOnly);
+  const clearFilters = () => { setSearchTerm(''); setStatusFilter(''); setLinkFilter(''); setDebtOnly(false); };
+  const sortBy = (key: SortKey) => setSort((s) => (s.key === key
+    ? { key, dir: s.dir === 1 ? -1 : 1 }
+    // סכום ותאריך — מהגדול/החדש; טקסט — א-ב
+    : { key, dir: key === 'to_chase' || key === 'last_doc' ? -1 : 1 }));
+
+  const th = (k: SortKey, children: ReactNode) => (
+    <th
+      className="sortable"
+      onClick={() => sortBy(k)}
+      aria-sort={sort.key === k ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
+    >
+      <span className="inline-flex items-center gap-1">
+        {children}
+        {sort.key === k
+          ? (sort.dir === 1 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)
+          : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+      </span>
+    </th>
+  );
 
   const onSubmit = (data: CustomerForm) => {
     createMutation.mutate(data);
@@ -95,84 +204,176 @@ export default function Customers() {
         )}
       </div>
 
-      <div className="relative">
-        <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="חיפוש לקוחות..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="input pr-11"
-        />
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder={canPriority ? 'חיפוש לפי שם, ח.פ., עיר או מספר Priority...' : 'חיפוש לקוחות...'}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input pr-11"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {canPriority && (
+            <button
+              onClick={() => setDebtOnly((v) => !v)}
+              disabled={!overviewOk}
+              title={overviewOk ? 'לגבות גדול מאפס' : 'נתוני Priority לא נטענו'}
+              className={`px-3 py-1.5 rounded-full border transition-colors disabled:opacity-40 ${
+                debtOnly ? 'bg-danger-50 border-danger-500 text-danger-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              יש חוב
+            </button>
+          )}
+          {canPriority && (
+            <select className="input py-1.5 w-auto" value={linkFilter} onChange={(e) => setLinkFilter(e.target.value as LinkFilter)}>
+              <option value="">Priority: הכל</option>
+              <option value="linked">מקושר</option>
+              <option value="unlinked">לא מקושר</option>
+            </select>
+          )}
+          <select className="input py-1.5 w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">סטטוס: הכל</option>
+            <option value="active">פעיל</option>
+            <option value="inactive">לא פעיל</option>
+            <option value="suspended">מושהה</option>
+          </select>
+          {filtered && (
+            <button onClick={clearFilters} className="text-primary-600 hover:underline px-1">נקה סינון</button>
+          )}
+          {!isLoading && (
+            <span className="text-gray-500 mr-auto tabular-nums">
+              {rows.length.toLocaleString('he-IL')} מתוך {total.toLocaleString('he-IL')} לקוחות
+            </span>
+          )}
+        </div>
+        {total > customers.length && (
+          <p className="text-sm text-warning-700 flex items-center gap-1">
+            <AlertTriangle className="w-4 h-4" />
+            נטענו {customers.length.toLocaleString('he-IL')} לקוחות מתוך {total.toLocaleString('he-IL')} — המיון והסינון רק עליהם.
+          </p>
+        )}
+        {canPriority && overviewQ.isError && (
+          <div className="p-3 rounded-lg bg-warning-50 border-r-4 border-warning-500 text-sm">
+            <p className="font-semibold text-warning-700">לא ניתן לקרוא את נתוני Priority</p>
+            <p className="text-gray-600">העמודות "לגבות" ו"מסמך אחרון" ריקות בגלל תקלה בקריאה — <b>לא</b> כי אין חוב.</p>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
-        <div className="space-y-6">
-          <SkeletonPulse className="h-10 w-full rounded-xl" />
-          <SkeletonGrid count={6} />
+        <div className="space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonPulse key={i} className="h-12 w-full rounded-xl" />)}
         </div>
-      ) : data?.customers?.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {data.customers.map((customer: {
-            id: string;
-            company_name: string;
-            city: string;
-            status: string;
-            sites_count: number;
-            active_contracts: number;
-          }) => (
-            <div
-              key={customer.id}
-              className="card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300"
-            >
-              <div className="flex items-start gap-3.5">
-                <Link to={`/customers/${customer.id}`} className="flex items-start gap-3.5 flex-1 min-w-0">
-                  <div className="w-11 h-11 bg-gradient-to-br from-primary-100 to-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Building2 className="w-5 h-5 text-primary-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-heading font-semibold text-sm text-gray-900 truncate">{customer.company_name}</h3>
-                    {customer.city && (
-                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        {customer.city}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className={`badge ${customer.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
-                        {customer.status === 'active' ? 'פעיל' : 'לא פעיל'}
-                      </span>
-                      <span className="text-xs text-gray-400">{customer.sites_count} אתרים</span>
-                    </div>
-                  </div>
-                </Link>
-                {can('customers:delete') && (
-                  <button
-                    onClick={() => {
-                      if (confirm('האם אתה בטוח שברצונך למחוק לקוח זה?')) {
-                        deleteMutation.mutate(customer.id);
-                      }
-                    }}
-                    className="p-1.5 rounded-lg text-gray-300 hover:text-danger-500 hover:bg-danger-50 transition-colors"
-                    title="מחק"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
+      ) : customers.length === 0 ? (
         <div className="card text-center py-16">
           <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Building2 className="w-7 h-7 text-gray-400" />
           </div>
           <p className="text-gray-500 font-medium mb-1">לא נמצאו לקוחות</p>
           <p className="text-sm text-gray-400 mb-6">הוסף לקוח חדש כדי להתחיל לנהל את העסק</p>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary">
-            הוסף לקוח ראשון
-          </button>
+          {can('customers:create') && (
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+              הוסף לקוח ראשון
+            </button>
+          )}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="card text-center py-10">
+          <p className="text-gray-500 font-medium mb-3">אין לקוחות שמתאימים לחיפוש ולסינון</p>
+          <button onClick={clearFilters} className="btn-secondary">נקה סינון</button>
+        </div>
+      ) : (
+        <div className="table-container bg-white">
+          <table className="table">
+            <thead>
+              <tr>
+                {th('name', 'שם')}
+                {canPriority && th('no', 'מספר Priority')}
+                {canPriority && th('to_chase', (
+                  <>
+                    לגבות
+                    {overviewQ.data?.bank_through && (
+                      <span className="font-normal normal-case tracking-normal text-gray-400">
+                        (עד {fmtDate(overviewQ.data.bank_through)})
+                      </span>
+                    )}
+                  </>
+                ))}
+                {canPriority && th('last_doc', 'מסמך אחרון')}
+                {th('city', 'עיר')}
+                {th('status', 'סטטוס')}
+                {can('customers:delete') && <th><span className="sr-only">פעולות</span></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => {
+                const o = byCustomer.get(c.id);
+                const linked = !!c.priority_customer_no;
+                return (
+                  <tr key={c.id} onClick={() => navigate(`/customers/${c.id}`)} className="cursor-pointer">
+                    <td className="whitespace-normal min-w-[10rem]">
+                      <Link
+                        to={`/customers/${c.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-medium text-gray-900 hover:text-primary-700"
+                      >
+                        {c.company_name}
+                      </Link>
+                    </td>
+                    {canPriority && (
+                      <td className="tabular-nums">
+                        {linked ? c.priority_customer_no : <span className="text-xs text-gray-400">לא מקושר</span>}
+                      </td>
+                    )}
+                    {canPriority && (
+                      <td className="tabular-nums">
+                        {!linked || !overviewOk ? ''
+                          : !o?.status ? <span className="text-xs text-gray-400" title="מתעדכן בכל לילה">לא חושב</span>
+                          : o.status.to_chase > 0 ? <span className="font-semibold text-danger-700">{shekel(o.status.to_chase)}</span>
+                          : '—'}
+                      </td>
+                    )}
+                    {canPriority && (
+                      <td className="text-xs">
+                        {o?.last_doc ? (
+                          <>
+                            <span className="text-gray-700">{docTypeLabel(o.last_doc.doc_type)}</span>
+                            <span className="text-gray-400 tabular-nums"> · {fmtDate(o.last_doc.date)}</span>
+                          </>
+                        ) : linked && overviewOk ? <span className="text-gray-400">אין</span> : ''}
+                      </td>
+                    )}
+                    <td>{c.city || ''}</td>
+                    <td>
+                      <span className={`badge ${c.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
+                        {STATUS_LABELS[c.status] || c.status}
+                      </span>
+                    </td>
+                    {can('customers:delete') && (
+                      <td>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('האם אתה בטוח שברצונך למחוק לקוח זה?')) {
+                              deleteMutation.mutate(c.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-danger-500 hover:bg-danger-50 transition-colors"
+                          title="מחק"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

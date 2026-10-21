@@ -208,6 +208,30 @@ function documentStats(docs) {
 }
 
 /**
+ * המסמך האחרון של כל party_key — אותו כלל בכרטיס הלקוח וברשימת הלקוחות, כדי ששניהם יראו אותו מסמך.
+ * רק מסמכי לקוח (DOC_TYPES, לא 700 של ספקים) שלא בוטלו. תאריך = issue_date, ואם אין — doc_date;
+ * בתיקו: id גבוה יותר. לא סומכים על סדר השורות מהמראה (דפדוף ב-pmAll).
+ * מחזיר Map: party_key (מחרוזת) → { id, doc_type, doc_no, date, total_incl_vat }.
+ */
+function lastDocuments(docs) {
+  const out = new Map();
+  for (const d of docs) {
+    if (d.cancelled || !DOC_TYPES[Number(d.doc_type)] || d.party_key == null) continue;
+    const date = d.issue_date || d.doc_date || null;
+    if (!date) continue;
+    const key = String(d.party_key);
+    const cur = out.get(key);
+    const day = String(date).slice(0, 10);
+    if (cur && (day < cur.date || (day === cur.date && Number(d.id) <= Number(cur.id)))) continue;
+    out.set(key, {
+      id: d.id, doc_type: Number(d.doc_type), doc_no: d.doc_no ?? null, date: day,
+      total_incl_vat: d.total_incl_vat == null ? null : Number(d.total_incl_vat),
+    });
+  }
+  return out;
+}
+
+/**
  * לקוח CRM קיים שחשבון Priority היה משכפל. אותם כללים כמו proposeMatches, אבל מול **כל** הלקוחות
  * הפעילים — גם מקושרים: חשבון כפול ב-Priority שהח.פ. שלו שייך ללקוח שכבר קושר נוחת ב-unmatched.
  * customers: לקוחות פעילים בלבד. מחזיר { reason: vat_exists|name_exists, customer_id, ... } או null.
@@ -359,5 +383,5 @@ function buildImportQueue(matches, accounts, customers, docs) {
 
 module.exports = {
   DOC_TYPES, CREDIT_NOTE, CUSTOMER_NO_RE, normVat, normName, proposeMatches, documentTotals,
-  documentStats, findExisting, importDecision, runImport, buildImportQueue,
+  documentStats, lastDocuments, findExisting, importDecision, runImport, buildImportQueue,
 };

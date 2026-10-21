@@ -88,7 +88,8 @@ export default function PriorityCollections() {
                 <td className="py-2">
                   {r.customer_id
                     ? <Link to={`/customers/${r.customer_id}`} className="text-primary-600 hover:underline">{r.name || r.party_key}</Link>
-                    : <span>{r.name || r.party_key} <span className="text-xs text-gray-400">(בלי כרטיס)</span></span>}
+                    // אין קישור — אבל ייתכן שיש כרטיס CRM שלא קושר (כמו 200035), ולכן לא "בלי כרטיס"
+                    : <span>{r.name || r.party_key} <span className="text-xs text-gray-400">(לא מקושר)</span></span>}
                   <span className="text-xs text-gray-400 mr-1">{r.party_key}</span>
                 </td>
                 <td className="py-2 tabular-nums font-medium">{r.to_chase ? shekel(r.to_chase) : '—'}</td>

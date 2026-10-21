@@ -58,10 +58,14 @@ function errorMessage(e: unknown): string {
   return data?.error || 'שליחת הבקשה נכשלה';
 }
 
-export default function PriorityIssueRequests({ customerId }: { customerId: string }) {
+export default function PriorityIssueRequests({ customerId, startOpen = false }: {
+  customerId: string;
+  /** פתיחת הטופס מיד (כפתור "הפקת מסמך" בראש הכרטיס). */
+  startOpen?: boolean;
+}) {
   const qc = useQueryClient();
   const key = ['priority-requests', customerId];
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [kind, setKind] = useState<Kind>('invoice');
   const [date, setDate] = useState('');
   const [details, setDetails] = useState('');

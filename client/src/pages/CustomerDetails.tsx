@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
@@ -26,6 +26,7 @@ import DocumentManager from '../components/DocumentManager';
 import PriorityCustomerDocs from '../components/PriorityCustomerDocs';
 import PriorityLinkControl from '../components/PriorityLinkControl';
 import PriorityIssueRequests from '../components/PriorityIssueRequests';
+import PriorityCustomerSummary, { PriorityCustomerPayment } from '../components/PriorityCustomerSummary';
 import { usePermissions } from '../hooks/usePermissions';
 
 const SERVICE_TYPE_OPTIONS = [
@@ -46,6 +47,8 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: 'לא פעיל' },
   { value: 'suspended', label: 'מושהה' },
 ];
+
+type Tab = 'overview' | 'docs' | 'payment' | 'requests' | 'people';
 
 interface EditForm {
   company_name: string;
@@ -99,6 +102,23 @@ export default function CustomerDetails() {
   const { can } = usePermissions();
   const canPriority = can('page:priority');
   const priorityLinked = canPriority && !!customer?.priority_customer_no;
+
+  // לשוניות. ?tab=… — רענון וחזרה נשארים באותה לשונית. לשוניות Priority רק למנהל וללקוח מקושר
+  // (אחרת המסלולים מחזירים 403 והמיירט הגלובלי מקפיץ הודעה).
+  const [params, setParams] = useSearchParams();
+  const tabs: [Tab, string][] = [
+    ['overview', 'סקירה'],
+    ...(priorityLinked ? [['docs', 'מסמכים'], ['payment', 'תשלום'], ['requests', 'בקשות הפקה']] as [Tab, string][] : []),
+    ['people', `אנשי קשר, אתרים וחוזים${data ? ` (${(data.contacts?.length || 0) + (data.sites?.length || 0) + (data.contracts?.length || 0)})` : ''}`],
+  ];
+  const tab: Tab = tabs.some(([k]) => k === params.get('tab')) ? params.get('tab') as Tab : 'overview';
+  // "הפקת מסמך" — פותח את טופס הבקשה. המונה מרכיב מחדש את רכיב הבקשות גם כשכבר נמצאים בלשונית
+  const [issueNonce, setIssueNonce] = useState(0);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const goTab = (t: Tab) => {
+    if (t !== 'requests') setIssueOpen(false);
+    setParams(t === 'overview' ? {} : { tab: t }, { replace: true });
+  };
 
   // Sync edit form when customer data loads or changes
   useEffect(() => {
@@ -221,12 +241,12 @@ export default function CustomerDetails() {
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-50 rounded-xl flex items-center justify-center">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="w-16 h-16 shrink-0 bg-gradient-to-br from-primary-100 to-primary-50 rounded-xl flex items-center justify-center">
             <Building2 className="w-8 h-8 text-primary-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             {isEditing ? (
               <div className="space-y-2">
                 <div>
@@ -241,7 +261,7 @@ export default function CustomerDetails() {
               </div>
             ) : (
               <>
-                <h1 className="text-2xl font-bold text-gray-900 font-heading">{customer?.company_name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900 font-heading break-words">{customer?.company_name}</h1>
                 {customer?.city && (
                   <p className="text-gray-500 flex items-center gap-2">
                     <MapPin className="w-4 h-4" />
@@ -276,7 +296,7 @@ export default function CustomerDetails() {
           ) : (
             <>
               <button
-                onClick={() => setIsEditing(true)}
+                onClick={() => { setIsEditing(true); goTab('overview'); }}
                 className="btn-primary text-sm flex items-center gap-1 px-3 py-2"
               >
                 <Edit3 className="w-4 h-4" />
@@ -331,9 +351,223 @@ export default function CustomerDetails() {
         </div>
       )}
 
-      {/* Main content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      {/* Priority summary — manager + linked customer only */}
+      {priorityLinked && id && (
+        <PriorityCustomerSummary
+          customerId={id}
+          onIssue={() => { setIssueNonce((n) => n + 1); setIssueOpen(true); goTab('requests'); }}
+          onShowPayment={() => goTab('payment')}
+        />
+      )}
+      {canPriority && customer && !customer.priority_customer_no && (
+        <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+          הלקוח לא מקושר ל-Priority — אין כאן מסמכים או מצב תשלום. קישור: "קישור ל-Priority" בלשונית סקירה.
+        </p>
+      )}
+
+      {/* Tabs — scroll sideways on narrow screens */}
+      <div className="flex gap-1 border-b border-gray-100 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => goTab(key)}
+            className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === key
+                ? 'border-primary-600 text-primary-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="card">
+              <h2 className="text-lg font-semibold mb-4 font-heading">פרטים</h2>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="label">ח.פ</label>
+                    <input
+                      value={editForm.business_id}
+                      onChange={(e) => setEditForm({ ...editForm, business_id: e.target.value })}
+                      className="input"
+                      dir="ltr"
+                      placeholder="מספר ח.פ"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">כתובת</label>
+                    <input
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                      className="input"
+                      placeholder="כתובת"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">עיר</label>
+                    <input
+                      value={editForm.city}
+                      onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                      className="input"
+                      placeholder="עיר"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">סוג שירות</label>
+                    <select
+                      value={editForm.service_type}
+                      onChange={(e) => setEditForm({ ...editForm, service_type: e.target.value })}
+                      className="input"
+                    >
+                      <option value="">בחר סוג שירות</option>
+                      {SERVICE_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">תנאי תשלום</label>
+                    <select
+                      value={editForm.payment_terms}
+                      onChange={(e) => setEditForm({ ...editForm, payment_terms: e.target.value })}
+                      className="input"
+                    >
+                      <option value="">בחר תנאי תשלום</option>
+                      {PAYMENT_TERMS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">סטטוס</label>
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                      className="input"
+                    >
+                      {STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">הערות</label>
+                    <textarea
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                      className="input"
+                      rows={3}
+                      placeholder="הערות..."
+                    />
+                  </div>
+                </div>
+              ) : (
+                <dl className="space-y-3">
+                  <div>
+                    <dt className="text-sm text-gray-500">ח.פ</dt>
+                    <dd className="font-medium">{customer?.business_id || '-'}</dd>
+                  </div>
+                  {customer?.address && (
+                    <div>
+                      <dt className="text-sm text-gray-500">כתובת</dt>
+                      <dd className="font-medium">{customer.address}{customer.city ? `, ${customer.city}` : ''}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-sm text-gray-500">סוג שירות</dt>
+                    <dd className="font-medium">
+                      {SERVICE_TYPE_OPTIONS.find((o) => o.value === customer?.service_type)?.label || customer?.service_type || '-'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-gray-500">תנאי תשלום</dt>
+                    <dd className="font-medium">
+                      {PAYMENT_TERMS_OPTIONS.find((o) => o.value === customer?.payment_terms)?.label || customer?.payment_terms || '-'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-gray-500">סטטוס</dt>
+                    <dd>
+                      <span className={`badge ${customer?.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
+                        {STATUS_OPTIONS.find((o) => o.value === customer?.status)?.label || customer?.status}
+                      </span>
+                    </dd>
+                  </div>
+                  {customer?.notes && (
+                    <div>
+                      <dt className="text-sm text-gray-500">הערות</dt>
+                      <dd className="font-medium text-sm whitespace-pre-wrap">{customer.notes}</dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+            </div>
+
+            {/* Attached files (CRM) — not Priority documents */}
+            {id && (
+              <div className="card">
+                <h2 className="text-lg font-semibold mb-4 font-heading">קבצים מצורפים</h2>
+                <DocumentManager entityType="customer" entityId={id} />
+              </div>
+            )}
+
+            {/* Activity Log */}
+            {id && <ActivityLog entityType="customer" entityId={id} />}
+          </div>
+
+          <div className="space-y-6">
+            {/* Priority link */}
+            {canPriority && id && customer && (
+              <PriorityLinkControl customerId={id} customer={customer} />
+            )}
+
+            {/* Recent invoices (Green Invoice) — hidden once the customer is linked to Priority */}
+            {!priorityLinked && data?.invoices?.length > 0 && (
+              <div className="card">
+                <h2 className="text-lg font-semibold mb-4 font-heading">חשבוניות אחרונות</h2>
+                <div className="space-y-2">
+                  {data.invoices.slice(0, 5).map((invoice: {
+                    id: string;
+                    invoice_number: string;
+                    total_amount: number;
+                    status: string;
+                  }) => (
+                    <div key={invoice.id} className="flex items-center justify-between text-sm">
+                      <span>#{invoice.invoice_number}</span>
+                      <span className={invoice.status === 'paid' ? 'text-green-600' : 'text-yellow-600'}>
+                        ₪{invoice.total_amount?.toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'docs' && priorityLinked && id && <PriorityCustomerDocs customerId={id} />}
+
+      {tab === 'payment' && priorityLinked && id && <PriorityCustomerPayment customerId={id} />}
+
+      {/* Issue requests — issuing needs Reem's approval in HERMES */}
+      {tab === 'requests' && priorityLinked && id && (
+        <PriorityIssueRequests key={issueNonce} customerId={id} startOpen={issueOpen} />
+      )}
+
+      {tab === 'people' && (
+        <div className="space-y-6">
           {/* Contacts */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
@@ -555,183 +789,8 @@ export default function CustomerDetails() {
             )}
           </div>
 
-          {/* Priority documents (linked customers only) */}
-          {priorityLinked && id && <PriorityCustomerDocs customerId={id} />}
-
-          {/* Priority issue requests (linked customers only; issuing needs Reem's approval in HERMES) */}
-          {priorityLinked && id && <PriorityIssueRequests customerId={id} />}
-
-          {/* Documents */}
-          {id && (
-            <div className="card">
-              <h2 className="text-lg font-semibold mb-4 font-heading">מסמכים</h2>
-              <DocumentManager entityType="customer" entityId={id} />
-            </div>
-          )}
-
-          {/* Activity Log */}
-          {id && <ActivityLog entityType="customer" entityId={id} />}
         </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <div className="card">
-            <h2 className="text-lg font-semibold mb-4 font-heading">פרטים</h2>
-            {isEditing ? (
-              <div className="space-y-3">
-                <div>
-                  <label className="label">ח.פ</label>
-                  <input
-                    value={editForm.business_id}
-                    onChange={(e) => setEditForm({ ...editForm, business_id: e.target.value })}
-                    className="input"
-                    dir="ltr"
-                    placeholder="מספר ח.פ"
-                  />
-                </div>
-                <div>
-                  <label className="label">כתובת</label>
-                  <input
-                    value={editForm.address}
-                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                    className="input"
-                    placeholder="כתובת"
-                  />
-                </div>
-                <div>
-                  <label className="label">עיר</label>
-                  <input
-                    value={editForm.city}
-                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                    className="input"
-                    placeholder="עיר"
-                  />
-                </div>
-                <div>
-                  <label className="label">סוג שירות</label>
-                  <select
-                    value={editForm.service_type}
-                    onChange={(e) => setEditForm({ ...editForm, service_type: e.target.value })}
-                    className="input"
-                  >
-                    <option value="">בחר סוג שירות</option>
-                    {SERVICE_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">תנאי תשלום</label>
-                  <select
-                    value={editForm.payment_terms}
-                    onChange={(e) => setEditForm({ ...editForm, payment_terms: e.target.value })}
-                    className="input"
-                  >
-                    <option value="">בחר תנאי תשלום</option>
-                    {PAYMENT_TERMS_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">סטטוס</label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="input"
-                  >
-                    {STATUS_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">הערות</label>
-                  <textarea
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    className="input"
-                    rows={3}
-                    placeholder="הערות..."
-                  />
-                </div>
-              </div>
-            ) : (
-              <dl className="space-y-3">
-                <div>
-                  <dt className="text-sm text-gray-500">ח.פ</dt>
-                  <dd className="font-medium">{customer?.business_id || '-'}</dd>
-                </div>
-                {customer?.address && (
-                  <div>
-                    <dt className="text-sm text-gray-500">כתובת</dt>
-                    <dd className="font-medium">{customer.address}{customer.city ? `, ${customer.city}` : ''}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt className="text-sm text-gray-500">סוג שירות</dt>
-                  <dd className="font-medium">
-                    {SERVICE_TYPE_OPTIONS.find((o) => o.value === customer?.service_type)?.label || customer?.service_type || '-'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-500">תנאי תשלום</dt>
-                  <dd className="font-medium">
-                    {PAYMENT_TERMS_OPTIONS.find((o) => o.value === customer?.payment_terms)?.label || customer?.payment_terms || '-'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-500">סטטוס</dt>
-                  <dd>
-                    <span className={`badge ${customer?.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
-                      {STATUS_OPTIONS.find((o) => o.value === customer?.status)?.label || customer?.status}
-                    </span>
-                  </dd>
-                </div>
-                {customer?.notes && (
-                  <div>
-                    <dt className="text-sm text-gray-500">הערות</dt>
-                    <dd className="font-medium text-sm whitespace-pre-wrap">{customer.notes}</dd>
-                  </div>
-                )}
-              </dl>
-            )}
-          </div>
-
-          {/* Priority link */}
-          {canPriority && id && customer && (
-            <PriorityLinkControl customerId={id} customer={customer} />
-          )}
-
-          {/* Recent invoices (Green Invoice) — hidden once the customer is linked to Priority */}
-          {!priorityLinked && data?.invoices?.length > 0 && (
-            <div className="card">
-              <h2 className="text-lg font-semibold mb-4 font-heading">חשבוניות אחרונות</h2>
-              <div className="space-y-2">
-                {data.invoices.slice(0, 5).map((invoice: {
-                  id: string;
-                  invoice_number: string;
-                  total_amount: number;
-                  status: string;
-                }) => (
-                  <div key={invoice.id} className="flex items-center justify-between text-sm">
-                    <span>#{invoice.invoice_number}</span>
-                    <span className={invoice.status === 'paid' ? 'text-green-600' : 'text-yellow-600'}>
-                      ₪{invoice.total_amount?.toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Email Compose Modal */}
       <EmailComposeModal
