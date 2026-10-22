@@ -499,6 +499,9 @@ export const priorityApi = {
   getDocuments: (params?: Record<string, unknown>) => api.get('/priority/documents', { params }),
   // מסמך אחד: כותרת + שורות + לקוח מקושר + מצב פתוח משוער
   getDocument: (id: number) => api.get(`/priority/documents/${id}`),
+  // PDF של מסמך: מצב הבקשה / קישור חתום, ובקשה חדשה (העובד ב-VPS מפיק מ-Priority)
+  getDocumentPdf: (id: number) => api.get(`/priority/documents/${id}/pdf`),
+  requestDocumentPdf: (id: number) => api.post(`/priority/documents/${id}/pdf`),
   // חשבוניות מס שהופקו לפי חודש (לפני מע"מ) — לדשבורד העסקי
   getRevenueMonthly: (months = 6) => api.get('/priority/revenue-monthly', { params: { months } }),
   // דוח כספים שנתי (מסך הדוחות): הופק / נגבה לפי חודש + לקוחות מובילים
