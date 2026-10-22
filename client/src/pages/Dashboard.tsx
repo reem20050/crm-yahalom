@@ -523,7 +523,7 @@ function EmployeeView({ data }: { data: DashboardEmployeeData }) {
                 >
                   <p className="font-medium text-sm text-gray-900">{event.event_name}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {event.event_date} | {event.start_time} | {event.location || event.company_name}
+                    {fmtDate(event.event_date)} | {event.start_time} | {event.location || event.company_name}
                   </p>
                   {event.role && (
                     <p className="text-xs text-amber-600 mt-1.5 font-medium">תפקיד: {event.role}</p>
@@ -585,7 +585,7 @@ function EmployeeView({ data }: { data: DashboardEmployeeData }) {
                   <div>
                     <span className="font-medium text-gray-900">{shift.site_name || shift.company_name}</span>
                     <span className="text-gray-300 mx-2">·</span>
-                    <span className="text-gray-500">{shift.date}</span>
+                    <span className="text-gray-500">{fmtDate(shift.date)}</span>
                   </div>
                   <span className="text-gray-500 font-mono text-xs">
                     {shift.start_time} - {shift.end_time}
@@ -1071,7 +1071,7 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
                     <div>
                       <p className="font-medium text-sm text-gray-900">{event.event_name}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {event.event_date} · {event.start_time} · {event.company_name}
+                        {fmtDate(event.event_date)} · {event.start_time} · {event.company_name}
                       </p>
                     </div>
                     <span

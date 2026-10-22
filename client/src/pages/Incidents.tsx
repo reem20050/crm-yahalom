@@ -517,7 +517,7 @@ export default function Incidents() {
                   <p className="text-sm text-green-700 font-medium mb-1">פתרון:</p>
                   <p>{detailData.incident.resolution}</p>
                   {detailData.incident.resolution_date && (
-                    <p className="text-xs text-green-600 mt-2">נסגר: {detailData.incident.resolution_date}</p>
+                    <p className="text-xs text-green-600 mt-2">נסגר: {fmtDate(detailData.incident.resolution_date)}</p>
                   )}
                 </div>
               )}

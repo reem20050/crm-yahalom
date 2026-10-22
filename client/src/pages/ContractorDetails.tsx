@@ -23,7 +23,7 @@ import {
 import toast from 'react-hot-toast';
 import { contractorsApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
-import { distinct, humanizeNotes } from '../utils/display';
+import { distinct, humanizeNotes, fmtDate } from '../utils/display';
 
 // --- Types ---
 
@@ -991,7 +991,7 @@ export default function ContractorDetails() {
                       <td className="py-3 px-4">
                         <span className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                          {event.event_date}
+                          {fmtDate(event.event_date)}
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -1116,7 +1116,7 @@ export default function ContractorDetails() {
                   <div key={event.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium text-sm">{event.event_name}</p>
-                      <p className="text-xs text-gray-500">{event.event_date}</p>
+                      <p className="text-xs text-gray-500">{fmtDate(event.event_date)}</p>
                     </div>
                     <div className="text-left">
                       <p className="font-bold text-sm">{event.cost ? `₪${event.cost.toLocaleString()}` : '-'}</p>

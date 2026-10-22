@@ -17,6 +17,7 @@ import { openWhatsApp, formatPhoneForWhatsApp } from '../components/WhatsAppButt
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
 import CustomerPicker from '../components/CustomerPicker';
+import { fmtDayDate } from '../utils/display';
 
 // תפקיד בשיבוץ (ברירת המחדל בשרת: guard) — בתצוגה בעברית
 const ASSIGNMENT_ROLES: Record<string, string> = { guard: 'מאבטח', supervisor: 'אחראי משמרת', driver: 'נהג', officer: 'קב"ט' };
@@ -182,7 +183,7 @@ function ShiftDetailModal({
 
   // WhatsApp reminder - opens WhatsApp Web with pre-filled message
   const sendReminder = (phone: string, name: string) => {
-    const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${shift?.date}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}\n\nצוות יהלום`;
+    const msg = `שלום ${name}, תזכורת למשמרת:\n📍 ${shift?.company_name} - ${shift?.site_name}\n📅 ${fmtDayDate(shift?.date)}\n⏰ ${shift?.start_time} - ${shift?.end_time}${shift?.site_address ? `\n🗺️ ${shift.site_address}` : ''}\n\nצוות יהלום`;
     openWhatsApp(phone, msg);
   };
 

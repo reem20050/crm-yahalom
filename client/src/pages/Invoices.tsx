@@ -12,7 +12,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { exportInvoiceToPDF } from '../utils/pdfExport';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
-import { localIsoDate } from '../utils/display';
+import { localIsoDate, fmtDate } from '../utils/display';
 
 const statusLabels: Record<string, { label: string; class: string; dot?: string }> = {
   draft: { label: 'טיוטה', class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700', dot: 'bg-gray-400' },
@@ -382,10 +382,10 @@ export default function Invoices() {
                           )}
                         </div>
                       </td>
-                      <td>{invoice.issue_date}</td>
+                      <td>{fmtDate(invoice.issue_date)}</td>
                       <td>
                         <span className="flex items-center gap-1">
-                          {invoice.due_date}
+                          {fmtDate(invoice.due_date)}
                           {invoice.days_overdue > 0 && (
                             <span className="text-danger-600 text-xs font-medium">({invoice.days_overdue} ימים)</span>
                           )}
