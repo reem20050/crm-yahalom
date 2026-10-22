@@ -28,7 +28,7 @@ import {
   Line,
   Legend,
 } from 'recharts';
-import { reportsApi, performanceApi, incidentsApi, priorityApi } from '../services/api';
+import { reportsApi, performanceApi, incidentsApi, priorityApi, customersApi } from '../services/api';
 import { fmtDate, shekel } from '../components/PriorityCustomerDocs';
 import { FileText } from 'lucide-react';
 import { exportTableToPDF } from '../utils/pdfExport';
@@ -77,12 +77,6 @@ export default function Reports() {
     enabled: activeTab === 'sales',
   });
 
-  const { data: customersData } = useQuery({
-    queryKey: ['reports', 'customers'],
-    queryFn: () => reportsApi.customers().then((res) => res.data),
-    enabled: activeTab === 'customers',
-  });
-
   const { data: employeesData } = useQuery({
     queryKey: ['reports', 'employees'],
     queryFn: () => reportsApi.employees().then((res) => res.data),
@@ -93,10 +87,34 @@ export default function Reports() {
   const financialQ = useQuery({
     queryKey: ['reports', 'priority-finance', finYear],
     queryFn: () => priorityApi.getFinanceReport(finYear).then((res) => res.data as FinanceReport),
-    enabled: activeTab === 'financial',
+    enabled: activeTab === 'financial' || activeTab === 'customers',
     retry: false,
   });
   const financialData = financialQ.data;
+  // לשונית לקוחות: "לא פעילים" לפי המסמך האחרון ב-Priority (לא לפי משמרות/אירועים ב-CRM, שלא מנוהלים כאן)
+  const overviewQ = useQuery({
+    queryKey: ['priority', 'customer-overview'],
+    queryFn: () => priorityApi.getCustomerOverview().then((r) => r.data as {
+      rows: { customer_id: string; last_doc: { date: string } | null }[];
+    }),
+    enabled: activeTab === 'customers',
+    retry: false,
+  });
+  const allCustomersQ = useQuery({
+    queryKey: ['customers', 'all-names'],
+    queryFn: () => customersApi.getAll({ limit: 1000 }).then((r) => r.data as {
+      customers: { id: string; company_name: string }[];
+    }),
+    enabled: activeTab === 'customers',
+  });
+  const inactive = (() => {
+    const names = new Map((allCustomersQ.data?.customers ?? []).map((c) => [c.id, c.company_name]));
+    const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    return (overviewQ.data?.rows ?? [])
+      .filter((r) => r.last_doc && r.last_doc.date < cutoff)
+      .sort((a, b) => (b.last_doc!.date).localeCompare(a.last_doc!.date))
+      .map((r) => ({ id: r.customer_id, name: names.get(r.customer_id) || '—', last: r.last_doc!.date }));
+  })();
   const collectionsQ = useQuery({
     queryKey: ['priority-collections'],
     queryFn: () => priorityApi.getCollections().then((res) => res.data as {
@@ -141,8 +159,8 @@ export default function Reports() {
         }
         break;
       case 'customers':
-        if (customersData?.revenueByCustomer) {
-          exportToCSV(customersData.revenueByCustomer, { company_name: 'חברה', total_revenue: 'הכנסות' }, 'customers-revenue.csv');
+        if (financialData?.top_customers) {
+          exportToCSV(financialData.top_customers, { name: 'לקוח', party_key: 'מספר Priority', invoiced: 'הופק לפני מע"מ', count: 'מסמכים' }, `customers-revenue-${financialData.year}.csv`);
         }
         break;
       case 'employees':
@@ -192,16 +210,17 @@ export default function Reports() {
         }
         break;
       case 'customers':
-        if (customersData?.revenueByCustomer) {
+        if (financialData?.top_customers) {
           exportTableToPDF({
-            title: 'Yahalom CRM - Customers Revenue',
+            title: `Yahalom CRM - Customers Revenue ${financialData.year}`,
             subtitle: today,
             columns: [
-              { header: 'Company', dataKey: 'company_name' },
-              { header: 'Revenue', dataKey: 'total_revenue' },
+              { header: 'Customer', dataKey: 'name' },
+              { header: 'Priority #', dataKey: 'party_key' },
+              { header: 'Invoiced (ex VAT)', dataKey: 'invoiced' },
             ],
-            data: customersData.revenueByCustomer,
-            filename: 'customers-revenue.pdf',
+            data: financialData.top_customers,
+            filename: `customers-revenue-${financialData.year}.pdf`,
           });
         }
         break;
@@ -386,35 +405,46 @@ export default function Reports() {
       )}
 
       {/* Customers Report */}
-      {activeTab === 'customers' && customersData && (
+      {activeTab === 'customers' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4 font-heading">הכנסות לפי לקוח (Top 10)</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={customersData.revenueByCustomer || []} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="company_name" type="category" width={100} />
-                  <Tooltip formatter={(value: number) => `₪${value.toLocaleString()}`} />
-                  <Bar dataKey="total_revenue" fill="#0ea5e9" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <h3 className="text-lg font-semibold mb-1 font-heading">הכנסות לפי לקוח — {finYear} (Top 10)</h3>
+            <p className="text-xs text-gray-500 mb-4">חשבוניות מס ב-Priority, לפני מע"מ, בניכוי זיכויים</p>
+            {financialQ.isError ? (
+              <p className="text-sm text-danger-700">לא ניתן לקרוא מ-Priority.</p>
+            ) : (
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={(financialData?.top_customers ?? []).slice(0, 10)} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" tickFormatter={(v: number) => `${Math.round(v / 1000)}K`} />
+                    <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(value: number) => shekel(value)} />
+                    <Bar dataKey="invoiced" fill="#0ea5e9" name="הופק (לפני מע״מ)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           <div className="card">
-            <h3 className="text-lg font-semibold mb-4 font-heading">לקוחות בסיכון (90 יום ללא פעילות)</h3>
-            {customersData.churnRisk?.length > 0 ? (
-              <div className="space-y-2">
-                {customersData.churnRisk.map((customer: { id: string; company_name: string }) => (
-                  <div key={customer.id} className="p-3 bg-red-50 rounded-lg">
-                    <p className="font-medium text-red-800">{customer.company_name}</p>
-                  </div>
+            <h3 className="text-lg font-semibold mb-1 font-heading">לקוחות בלי מסמך 90+ יום</h3>
+            <p className="text-xs text-gray-500 mb-4">לקוחות מקושרים שהמסמך האחרון שלהם ב-Priority ישן מ-90 יום — אולי שווה ליצור קשר</p>
+            {overviewQ.isLoading || allCustomersQ.isLoading ? (
+              <p className="text-gray-500 text-center py-8">טוען…</p>
+            ) : overviewQ.isError ? (
+              <p className="text-sm text-danger-700">לא ניתן לקרוא מ-Priority.</p>
+            ) : inactive.length > 0 ? (
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {inactive.map((c) => (
+                  <Link key={c.id} to={`/customers/${c.id}`} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                    <span className="font-medium text-gray-900 truncate">{c.name}</span>
+                    <span className="text-xs text-gray-500 tabular-nums shrink-0">מסמך אחרון {fmtDate(c.last)}</span>
+                  </Link>
                 ))}
               </div>
             ) : (
-              <p className="text-green-600 text-center py-8">אין לקוחות בסיכון</p>
+              <p className="text-green-600 text-center py-8">לכל הלקוחות המקושרים יש מסמך מ-90 הימים האחרונים</p>
             )}
           </div>
         </div>
@@ -548,6 +578,14 @@ export default function Reports() {
       {/* Profit & Loss Report */}
       {activeTab === 'profitloss' && profitLossData && (
         <div className="space-y-6">
+          {/* הדוח הזה עדיין על נתוני ה-CRM: הכנסות מטבלת החשבוניות הישנה, עלויות משעות משמרות ב-CRM — שניהם לא בשימוש */}
+          <div className="card border-r-4 border-warning-500">
+            <p className="font-semibold text-warning-700">הדוח הזה לא משקף את המצב האמיתי</p>
+            <p className="text-sm text-gray-600 mt-1">
+              ההכנסות כאן מחושבות מטבלת החשבוניות הישנה של ה-CRM, והעלויות משעות משמרות שמוזנות ב-CRM — שניהם לא בשימוש.
+              הכנסות אמיתיות: לשונית <b>כספים</b> (מ-Priority).
+            </p>
+          </div>
           {/* Totals KPI */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="card text-center">
