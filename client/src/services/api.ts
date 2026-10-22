@@ -9,14 +9,18 @@ const api = axios.create({
   },
 });
 
-// השרת ב-Render (תוכנית חינמית) נרדם אחרי חוסר פעילות, והבקשה הראשונה יכולה לקחת עד דקה. בלי הסבר זה נראה
-// כמו מערכת תקועה. בקשה שלוקחת יותר מ-4 שניות מציגה הודעה אחת, שנסגרת כשכל הבקשות האיטיות הסתיימו.
+// השרת ב-Render (תוכנית חינמית) נרדם אחרי ~15 דקות בלי פעילות, והבקשה הראשונה יכולה לקחת עד דקה. בלי הסבר זה
+// נראה כמו מערכת תקועה. בקשה שלוקחת יותר מ-4 שניות מציגה הודעה אחת — רק אם עוד לא הייתה תשובה, או שהאחרונה
+// הייתה לפני יותר מ-10 דקות (אחרת זו סתם בקשה כבדה על שרת ער, כמו דוח שעובר על המראה).
 const WAKE_TOAST = 'server-wakeup';
 const SLOW_MS = 4000;
+const IDLE_MS = 10 * 60 * 1000;
 let slowPending = 0;
+let lastOkAt = 0;
 type Tracked = { _slowTimer?: ReturnType<typeof setTimeout>; _slow?: boolean };
 function trackSlow(config: object) {
   const c = config as Tracked;
+  if (lastOkAt && Date.now() - lastOkAt < IDLE_MS) return;   // השרת ער
   c._slowTimer = setTimeout(() => {
     c._slow = true;
     slowPending += 1;
@@ -47,6 +51,7 @@ api.interceptors.request.use((config) => {
 // Handle auth errors and global error toasts
 api.interceptors.response.use(
   (response) => {
+    lastOkAt = Date.now();
     doneSlow(response.config);
     return response;
   },

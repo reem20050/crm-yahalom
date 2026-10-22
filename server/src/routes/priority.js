@@ -397,8 +397,9 @@ function priorityContact(docs, account) {
 }
 
 // ── GET /api/priority/finance-report ─────────────────────────────────────────
-// דוח כספים שנתי מ-Priority (מסך הדוחות): לכל חודש — חשבוניות מס שהופקו (לפני מע"מ, בניכוי זיכויים) ו"נגבה"
-// (קבלות + חשבוניות מס קבלה, כולל מע"מ — חשבונית מס קבלה היא מסמך ששולם בהפקתו); ולקוחות מובילים לפי הופק.
+// דוח כספים שנתי מ-Priority (מסך הדוחות): לכל חודש — חשבוניות מס שהופקו ו"נגבה" (קבלות + חשבוניות מס קבלה —
+// חשבונית מס קבלה היא מסמך ששולם בהפקתו); ולקוחות מובילים לפי הופק.
+// השוואת הופק/נגבה רק על אותו בסיס — **כולל מע"מ** (invoiced_incl), כי קבלה כוללת מע"מ. invoiced (לפני מע"מ) = ההכנסה.
 // "נגבה" כאן = מה שתועד ב-Priority, לא ספר הבנק (לזה — "מי חייב").
 router.get('/finance-report', async (req, res, next) => {
   try {
@@ -409,10 +410,11 @@ router.get('/finance-report', async (req, res, next) => {
       + `&issue_date=gte.${year}-01-01&issue_date=lte.${year}-12-31&cancelled=is.false`
       + '&doc_type=in.(305,310,320,330,400)&order=id', 'finance');
     const months = Array.from({ length: 12 }, (_, i) => ({
-      month: `${year}-${String(i + 1).padStart(2, '0')}`, invoiced: 0, collected: 0, count: 0,
+      month: `${year}-${String(i + 1).padStart(2, '0')}`, invoiced: 0, invoiced_incl: 0, collected: 0, count: 0,
     }));
     const byParty = new Map();
     let invoiced = 0;
+    let invoicedIncl = 0;
     let collected = 0;
     for (const d of docs) {
       const m = months[Number(String(d.issue_date).slice(5, 7)) - 1];
@@ -421,9 +423,13 @@ router.get('/finance-report', async (req, res, next) => {
       if (t !== 400) {
         const net = Number(d.total_after_discount_ex_vat || 0);
         const v = t === 330 ? -Math.abs(net) : net;
+        const gross = Number(d.total_incl_vat || 0);
+        const vi = t === 330 ? -Math.abs(gross) : gross;
         m.invoiced += v;
+        m.invoiced_incl += vi;
         m.count += 1;
         invoiced += v;
+        invoicedIncl += vi;
         const key = String(d.party_key ?? '');
         const p = byParty.get(key) || { party_key: key, name: d.party_name, invoiced: 0, count: 0 };
         p.invoiced += v;
@@ -441,8 +447,10 @@ router.get('/finance-report', async (req, res, next) => {
     const r2 = (n) => Math.round(n * 100) / 100;
     res.json({
       year,
-      totals: { invoiced: r2(invoiced), collected: r2(collected) },
-      months: months.map((m) => ({ ...m, invoiced: r2(m.invoiced), collected: r2(m.collected) })),
+      totals: { invoiced: r2(invoiced), invoiced_incl: r2(invoicedIncl), collected: r2(collected) },
+      months: months.map((m) => ({
+        ...m, invoiced: r2(m.invoiced), invoiced_incl: r2(m.invoiced_incl), collected: r2(m.collected),
+      })),
       top_customers: top.map((p) => ({
         ...p,
         invoiced: r2(p.invoiced),

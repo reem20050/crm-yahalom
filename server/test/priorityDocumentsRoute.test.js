@@ -241,10 +241,12 @@ test('GET /finance-report: הופק לפני מע"מ בניכוי זיכוי, נ
   assert.equal(body.months.length, 12);
   const m0 = body.months.find((m) => m.month === month(0).slice(0, 7));
   assert.equal(m0.invoiced, 1000, 'IN1 בלבד — לא חשבון עסקה, לא מבוטל');
+  assert.equal(m0.invoiced_incl, 1180, 'אותו IN1 כולל מע"מ — הבסיס להשוואה מול נגבה');
   assert.equal(m0.collected, 500, 'RC1 (קבלה) כולל מע"מ');
   const m1 = body.months.find((m) => m.month === month(-1).slice(0, 7));
   if (m1) {   // בינואר החודש הקודם בשנה אחרת
     assert.equal(m1.invoiced, 1700);
+    assert.equal(m1.invoiced_incl, 2006, 'OV1 2360 פחות זיכוי CR1 354');
     assert.equal(m1.collected, 2360, 'OV1 — חשבונית מס קבלה נחשבת נגבתה');
   }
   assert.equal(body.top_customers[0].party_key, '200100');
