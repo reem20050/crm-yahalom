@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Navigation } from 'lucide-react';
 import { shiftsApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { localIsoDate } from '../utils/display';
 
 export default function LocationReporter() {
   const user = useAuthStore((s) => s.user);
@@ -14,7 +15,7 @@ export default function LocationReporter() {
     queryKey: ['my-active-assignment'],
     queryFn: async () => {
       // Get today's shifts for the current user
-      const today = new Date().toISOString().split('T')[0];
+      const today = localIsoDate();
       const res = await shiftsApi.getAll({ start_date: today, end_date: today });
       const shifts = res.data?.shifts || res.data || [];
       // Find a checked-in assignment for the current user

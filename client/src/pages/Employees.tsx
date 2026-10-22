@@ -11,7 +11,7 @@ import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { WhatsAppIcon } from '../components/WhatsAppButton';
 import type { MutationError } from '../types';
-import { realPhone } from '../utils/display';
+import { realPhone, localIsoDate } from '../utils/display';
 
 const employeeSchema = z.object({
   first_name: z.string().min(1, 'נדרש שם פרטי'),
@@ -82,7 +82,7 @@ export default function Employees() {
   } = useForm<EmployeeForm>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
-      hire_date: new Date().toISOString().split('T')[0],
+      hire_date: localIsoDate(),
       employment_type: 'hourly',
       has_weapon_license: false,
       has_driving_license: false,

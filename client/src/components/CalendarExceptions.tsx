@@ -14,6 +14,7 @@ import {
   Ban,
 } from 'lucide-react';
 import { calendarExceptionsApi } from '../services/api';
+import { localIsoDate } from '../utils/display';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -264,7 +265,7 @@ export default function CalendarExceptions() {
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
   const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = localIsoDate(today);
 
   const calendarDays: Array<{ day: number; dateStr: string } | null> = [];
   // Fill leading empty cells

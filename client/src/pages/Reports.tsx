@@ -32,6 +32,7 @@ import { reportsApi, performanceApi, incidentsApi, priorityApi, customersApi } f
 import { fmtDate, shekel } from '../components/PriorityCustomerDocs';
 import { FileText } from 'lucide-react';
 import { exportTableToPDF } from '../utils/pdfExport';
+import { localIsoDate } from '../utils/display';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -109,7 +110,7 @@ export default function Reports() {
   });
   const inactive = (() => {
     const names = new Map((allCustomersQ.data?.customers ?? []).map((c) => [c.id, c.company_name]));
-    const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    const cutoff = localIsoDate(new Date(Date.now() - 90 * 86400000));
     return (overviewQ.data?.rows ?? [])
       .filter((r) => r.last_doc && r.last_doc.date < cutoff)
       .sort((a, b) => (b.last_doc!.date).localeCompare(a.last_doc!.date))

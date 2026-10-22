@@ -42,3 +42,9 @@ export function fmtDate(d: string | null | undefined): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
 }
+
+/** תאריך מקומי "YYYY-MM-DD". לא toISOString — הוא לפי UTC, ובין חצות ל-03:00 (שעון ישראל) נותן את התאריך של אתמול. */
+export function localIsoDate(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
