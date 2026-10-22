@@ -53,6 +53,7 @@ interface Summary {
 interface JournalRow {
   id: number; entry_no: string | null; line_no: number | null;
   account_key: string | null; counter_account: string | null;
+  account_name?: string | null; counter_name?: string | null;
   entry_date: string | null; reference: string | null;
   details: string | null; debit_credit: string | null; amount: number | null;
 }
@@ -328,8 +329,14 @@ export default function Priority() {
                     <tr key={j.id}>
                       <td className="tabular-nums">{j.entry_date ?? '—'}</td>
                       <td className="tabular-nums">{j.entry_no ?? '—'}</td>
-                      <td className="tabular-nums">{j.account_key ?? '—'}</td>
-                      <td className="tabular-nums">{j.counter_account ?? '—'}</td>
+                      <td>
+                        <span className="tabular-nums">{j.account_key ?? '—'}</span>
+                        {j.account_name && <span className="block text-xs text-gray-500 max-w-[12rem] truncate">{j.account_name}</span>}
+                      </td>
+                      <td>
+                        <span className="tabular-nums">{j.counter_account ?? '—'}</span>
+                        {j.counter_name && <span className="block text-xs text-gray-500 max-w-[12rem] truncate">{j.counter_name}</span>}
+                      </td>
                       <td>{j.reference ?? '—'}</td>
                       <td className="max-w-xs truncate">{j.details ?? '—'}</td>
                       <td className="tabular-nums">{j.debit_credit === '1' ? shekel(j.amount) : ''}</td>
