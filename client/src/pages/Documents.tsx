@@ -72,6 +72,7 @@ function useDebounced<T>(value: T, ms = 350) {
 }
 
 function PriorityDocumentsList() {
+  const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const q = useDebounced(search.trim());
   const [types, setTypes] = useState<number[]>([]);
@@ -80,7 +81,18 @@ function PriorityDocumentsList() {
   const [to, setTo] = useState('');
   const [withCancelled, setWithCancelled] = useState(false);
   const [page, setPage] = useState(0);
-  const [openId, setOpenId] = useState<number | null>(null);
+  // ?doc=<id> (למשל מהחיפוש הגלובלי) פותח את המסמך
+  const docParam = Number(params.get('doc')) || null;
+  const [openId, setOpenId] = useState<number | null>(docParam);
+  useEffect(() => { if (docParam) setOpenId(docParam); }, [docParam]);
+  const closeDoc = () => {
+    setOpenId(null);
+    if (params.has('doc')) {
+      const next = new URLSearchParams(params);
+      next.delete('doc');
+      setParams(next, { replace: true });
+    }
+  };
 
   const range = useMemo(() => periodRange(period, from, to), [period, from, to]);
   useEffect(() => { setPage(0); }, [q, types, range.from, range.to, withCancelled]);
@@ -267,7 +279,7 @@ function PriorityDocumentsList() {
         טיוטות שלא הופקו ב-Priority לא מוצגות.
       </p>
 
-      <PriorityDocumentDrawer docId={openId} onClose={() => setOpenId(null)} />
+      <PriorityDocumentDrawer docId={openId} onClose={closeDoc} />
     </div>
   );
 }

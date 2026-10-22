@@ -57,6 +57,14 @@ const navigationGroups = [
     ],
   },
   {
+    label: 'כספים',
+    items: [
+      { name: 'מסמכים', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
+      { name: 'דוחות', href: '/reports', icon: BarChart3, permission: 'page:reports' },
+      { name: 'Priority', href: '/priority', icon: Database, permission: 'page:priority' },
+    ],
+  },
+  {
     label: 'תפעול',
     items: [
       { name: 'עובדים', href: '/employees', icon: UserCircle, permission: 'page:employees' },
@@ -75,14 +83,6 @@ const navigationGroups = [
       { name: 'מפת אתרים', href: '/sites-map', icon: MapIcon, permission: 'page:sites-map' },
       { name: 'מעקב שומרים', href: '/guard-tracking', icon: Navigation, permission: 'page:guard-tracking' },
       { name: 'נשק וציוד', href: '/weapons', icon: Crosshair, permission: 'page:weapons' },
-    ],
-  },
-  {
-    label: 'כספים',
-    items: [
-      { name: 'מסמכים', href: '/invoices', icon: Receipt, permission: 'page:invoices' },
-      { name: 'דוחות', href: '/reports', icon: BarChart3, permission: 'page:reports' },
-      { name: 'Priority', href: '/priority', icon: Database, permission: 'page:priority' },
     ],
   },
   {

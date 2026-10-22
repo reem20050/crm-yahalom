@@ -385,6 +385,74 @@ router.get('/documents/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** טלפון / עיר / ח.פ. מ-Priority: המסמך האחרון שיש בו ערך (השורות כבר ממוינות מהחדש), ואחר כך החשבון. */
+function priorityContact(docs, account) {
+  const first = (k) => docs.find((d) => d[k] && String(d[k]).trim())?.[k] ?? null;
+  const out = {
+    phone: first('party_phone'),
+    city: first('party_city') ?? account?.city ?? null,
+    vat_id: first('party_vat_id') ?? account?.party_vat_id ?? null,
+  };
+  return out.phone || out.city || out.vat_id ? out : null;
+}
+
+// ── GET /api/priority/finance-report ─────────────────────────────────────────
+// דוח כספים שנתי מ-Priority (מסך הדוחות): לכל חודש — חשבוניות מס שהופקו (לפני מע"מ, בניכוי זיכויים) ו"נגבה"
+// (קבלות + חשבוניות מס קבלה, כולל מע"מ — חשבונית מס קבלה היא מסמך ששולם בהפקתו); ולקוחות מובילים לפי הופק.
+// "נגבה" כאן = מה שתועד ב-Priority, לא ספר הבנק (לזה — "מי חייב").
+router.get('/finance-report', async (req, res, next) => {
+  try {
+    const year = parseInt(req.query.year, 10) || new Date().getUTCFullYear();
+    if (year < 2020 || year > 2100) return res.status(400).json({ error: 'שנה לא תקינה' });
+    const docs = await pmAll('p_documents?select=id,doc_type,issue_date,party_key,party_name,'
+      + 'total_after_discount_ex_vat,total_incl_vat'
+      + `&issue_date=gte.${year}-01-01&issue_date=lte.${year}-12-31&cancelled=is.false`
+      + '&doc_type=in.(305,310,320,330,400)&order=id', 'finance');
+    const months = Array.from({ length: 12 }, (_, i) => ({
+      month: `${year}-${String(i + 1).padStart(2, '0')}`, invoiced: 0, collected: 0, count: 0,
+    }));
+    const byParty = new Map();
+    let invoiced = 0;
+    let collected = 0;
+    for (const d of docs) {
+      const m = months[Number(String(d.issue_date).slice(5, 7)) - 1];
+      if (!m) continue;
+      const t = Number(d.doc_type);
+      if (t !== 400) {
+        const net = Number(d.total_after_discount_ex_vat || 0);
+        const v = t === 330 ? -Math.abs(net) : net;
+        m.invoiced += v;
+        m.count += 1;
+        invoiced += v;
+        const key = String(d.party_key ?? '');
+        const p = byParty.get(key) || { party_key: key, name: d.party_name, invoiced: 0, count: 0 };
+        p.invoiced += v;
+        p.count += 1;
+        byParty.set(key, p);
+      }
+      if (t === 400 || t === 320) {
+        const v = Number(d.total_incl_vat || 0);
+        m.collected += v;
+        collected += v;
+      }
+    }
+    const top = [...byParty.values()].sort((a, b) => b.invoiced - a.invoiced).slice(0, 15);
+    const links = await crmCustomersByNo(top.map((p) => p.party_key));
+    const r2 = (n) => Math.round(n * 100) / 100;
+    res.json({
+      year,
+      totals: { invoiced: r2(invoiced), collected: r2(collected) },
+      months: months.map((m) => ({ ...m, invoiced: r2(m.invoiced), collected: r2(m.collected) })),
+      top_customers: top.map((p) => ({
+        ...p,
+        invoiced: r2(p.invoiced),
+        customer_id: links.get(p.party_key)?.id ?? null,
+        name: links.get(p.party_key)?.company_name || p.name,
+      })),
+    });
+  } catch (e) { next(e); }
+});
+
 // ── GET /api/priority/revenue-monthly ────────────────────────────────────────
 // חשבוניות מס שהופקו לפי חודש (305/310/320 פחות זיכויים 330, בלי מבוטלים), **לפני מע"מ**.
 // זה "הופק", לא "נגבה". חשבון עסקה (300) לא נספר — הוא לא הכנסה עד שמופקת חשבונית.
@@ -634,12 +702,12 @@ router.get('/customer/:customerId', async (req, res, next) => {
       return res.status(422).json({ error: 'מספר לקוח Priority השמור אינו תקין' });
     }
 
-    const cols = 'id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,party_vat_id,'
+    const cols = 'id,doc_type,doc_no,issue_date,doc_date,party_key,party_name,party_vat_id,party_phone,party_city,'
                + 'total_after_discount_ex_vat,vat_amount,total_incl_vat,withholding_amount,cancelled';
     const [docs, acc, st, lastEntry] = await Promise.all([
       pm(`p_documents?select=${cols}&party_key=eq.${no}`
          + '&order=issue_date.desc.nullslast,doc_no.desc&limit=500', { count: true }),
-      pm(`p_accounts?select=account_key,account_name,party_vat_id,balance&account_key=eq.${no}&limit=1`),
+      pm(`p_accounts?select=account_key,account_name,party_vat_id,city,balance&account_key=eq.${no}&limit=1`),
       // סטטוס תשלום — נגזר (אותו חישוב כמו paid-check ב-VPS). כשל כאן לא מפיל את הכרטיס
       pm(`p_customer_status?select=${STATUS_COLS},items&party_key=eq.${no}&limit=1`).catch(() => ({ rows: [], failed: true })),
       // עד מתי הכרטסת נכונה (התנועה האחרונה, כמו dataAsOf ב-/summary) — ליד "יתרה בכרטסת"
@@ -659,6 +727,8 @@ router.get('/customer/:customerId', async (req, res, next) => {
       kartesset_as_of: lastEntry.rows[0]?.entry_date ?? null,
       // אותו כלל כמו ברשימת הלקוחות (GET /customer-overview)
       last_doc: lastDocuments(docs.rows).get(no) ?? null,
+      // פרטי קשר כפי שמופיעים במסמכים ב-Priority (הטלפון/העיר מהמסמך האחרון שיש בו) — לכרטיס בלי אנשי קשר
+      contact: priorityContact(docs.rows, acc.rows[0]),
       status: statusRow(st.rows[0]),
       status_unavailable: st.failed === true,   // תקלת קריאה ≠ "עוד לא חושב"
       rows: docs.rows,

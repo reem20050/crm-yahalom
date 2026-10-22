@@ -9,7 +9,7 @@
  * הנתונים מאותה בקשה כמו לשונית המסמכים (usePriorityCustomer) — react-query מאחד.
  */
 import { useState } from 'react';
-import { FilePlus2, Info } from 'lucide-react';
+import { FilePlus2, Info, Phone } from 'lucide-react';
 import PriorityPaymentStatus from './PriorityPaymentStatus';
 import PriorityDocumentDrawer from './PriorityDocumentDrawer';
 import { docTypeLabel, fmtDate, priorityLoadState, shekel, signedTotal, usePriorityCustomer } from './PriorityCustomerDocs';
@@ -37,7 +37,7 @@ export default function PriorityCustomerSummary({ customerId, onIssue, onShowPay
   if (blocked) return <div className="card">{blocked}</div>;
   if (!q.data?.linked) return null;
 
-  const { link, status, status_unavailable: unavailable, last_doc: last } = q.data;
+  const { link, status, status_unavailable: unavailable, last_doc: last, contact } = q.data;
   const open = status ? status.maybe + status.short : 0;
   let toChase: { value: string; hint: string; tone?: string };
   let paidNoReceipt: { value: string; hint: string; tone?: string };
@@ -63,9 +63,16 @@ export default function PriorityCustomerSummary({ customerId, onIssue, onShowPay
   return (
     <div className="card">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <p className="text-sm text-gray-600">
-          לקוח Priority <b className="tabular-nums text-gray-900">{link.priority_customer_no}</b>
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
+          <span>לקוח Priority <b className="tabular-nums text-gray-900">{link.priority_customer_no}</b></span>
+          {contact?.phone && (
+            <a href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`} className="flex items-center gap-1 text-primary-700 hover:underline tabular-nums">
+              <Phone className="w-3.5 h-3.5" /> {contact.phone}
+            </a>
+          )}
+          {contact?.vat_id && <span className="tabular-nums">ח.פ {contact.vat_id}</span>}
+          {contact?.city && <span>{contact.city}</span>}
+        </div>
         <button onClick={onIssue} className="btn-primary text-sm flex items-center gap-1 px-3 py-1.5">
           <FilePlus2 className="w-4 h-4" /> הפקת מסמך
         </button>

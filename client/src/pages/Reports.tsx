@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
@@ -27,13 +28,21 @@ import {
   Line,
   Legend,
 } from 'recharts';
-import { reportsApi, performanceApi, incidentsApi } from '../services/api';
+import { reportsApi, performanceApi, incidentsApi, priorityApi } from '../services/api';
+import { fmtDate, shekel } from '../components/PriorityCustomerDocs';
 import { FileText } from 'lucide-react';
 import { exportTableToPDF } from '../utils/pdfExport';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 type ReportTab = 'sales' | 'customers' | 'employees' | 'financial' | 'profitloss' | 'performance';
+
+interface FinanceReport {
+  year: number;
+  totals: { invoiced: number; collected: number };
+  months: { month: string; invoiced: number; collected: number; count: number }[];
+  top_customers: { party_key: string; name: string | null; customer_id: string | null; invoiced: number; count: number }[];
+}
 
 function exportToCSV(data: Record<string, unknown>[], headers: Record<string, string>, filename: string) {
   if (!data || data.length === 0) return;
@@ -59,7 +68,8 @@ function exportToCSV(data: Record<string, unknown>[], headers: Record<string, st
 }
 
 export default function Reports() {
-  const [activeTab, setActiveTab] = useState<ReportTab>('sales');
+  const [activeTab, setActiveTab] = useState<ReportTab>('financial');
+  const [finYear, setFinYear] = useState(new Date().getFullYear());
 
   const { data: salesData } = useQuery({
     queryKey: ['reports', 'sales'],
@@ -79,10 +89,21 @@ export default function Reports() {
     enabled: activeTab === 'employees',
   });
 
-  const { data: financialData } = useQuery({
-    queryKey: ['reports', 'financial'],
-    queryFn: () => reportsApi.financial().then((res) => res.data),
+  // כספים — מ-Priority (המסמכים הרשמיים), לא מטבלת החשבוניות הישנה של ה-CRM
+  const financialQ = useQuery({
+    queryKey: ['reports', 'priority-finance', finYear],
+    queryFn: () => priorityApi.getFinanceReport(finYear).then((res) => res.data as FinanceReport),
     enabled: activeTab === 'financial',
+    retry: false,
+  });
+  const financialData = financialQ.data;
+  const collectionsQ = useQuery({
+    queryKey: ['priority-collections'],
+    queryFn: () => priorityApi.getCollections().then((res) => res.data as {
+      bank_through: string | null; totals: { to_chase: number; paid_no_receipt: number };
+    }),
+    enabled: activeTab === 'financial',
+    retry: false,
   });
 
   const { data: profitLossData } = useQuery({
@@ -104,10 +125,10 @@ export default function Reports() {
   });
 
   const tabs = [
+    { id: 'financial' as const, label: 'כספים', icon: DollarSign },
     { id: 'sales' as const, label: 'מכירות', icon: TrendingUp },
     { id: 'customers' as const, label: 'לקוחות', icon: Building2 },
     { id: 'employees' as const, label: 'עובדים', icon: Users },
-    { id: 'financial' as const, label: 'כספים', icon: DollarSign },
     { id: 'profitloss' as const, label: 'רווח והפסד', icon: BarChart3 },
     { id: 'performance' as const, label: 'ביצועי מאבטחים', icon: Shield },
   ];
@@ -130,8 +151,8 @@ export default function Reports() {
         }
         break;
       case 'financial':
-        if (financialData?.revenueByCustomer) {
-          exportToCSV(financialData.revenueByCustomer, { company_name: 'לקוח', paid: 'שולם', pending: 'ממתין' }, 'financial-revenue.csv');
+        if (financialData?.top_customers) {
+          exportToCSV(financialData.top_customers, { name: 'לקוח', party_key: 'מספר Priority', invoiced: 'הופק לפני מע"מ', count: 'מסמכים' }, `priority-revenue-${financialData.year}.csv`);
         }
         break;
       case 'profitloss':
@@ -202,17 +223,18 @@ export default function Reports() {
         }
         break;
       case 'financial':
-        if (financialData?.revenueByCustomer) {
+        if (financialData?.top_customers) {
           exportTableToPDF({
-            title: 'Yahalom CRM - Financial Report',
+            title: `Yahalom CRM - Priority revenue ${financialData.year}`,
             subtitle: today,
             columns: [
-              { header: 'Customer', dataKey: 'company_name' },
-              { header: 'Paid', dataKey: 'paid' },
-              { header: 'Pending', dataKey: 'pending' },
+              { header: 'Customer', dataKey: 'name' },
+              { header: 'Priority #', dataKey: 'party_key' },
+              { header: 'Invoiced (ex VAT)', dataKey: 'invoiced' },
+              { header: 'Documents', dataKey: 'count' },
             ],
-            data: financialData.revenueByCustomer,
-            filename: 'financial-report.pdf',
+            data: financialData.top_customers,
+            filename: `priority-revenue-${financialData.year}.pdf`,
           });
         }
         break;
@@ -436,57 +458,90 @@ export default function Reports() {
       )}
 
       {/* Financial Report */}
-      {activeTab === 'financial' && financialData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="card lg:col-span-2">
-            <h3 className="text-lg font-semibold mb-4 font-heading">הכנסות חודשיות</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={financialData.monthlyRevenue || []}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => `₪${value?.toLocaleString()}`} />
-                  <Bar dataKey="collected" fill="#22c55e" name="נגבה" />
-                  <Bar dataKey="invoiced" fill="#0ea5e9" name="הופק" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+      {activeTab === 'financial' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-600">
+              לפי המסמכים ב-Priority (מתעדכן כל לילה). "הופק" = חשבוניות מס לפני מע"מ בניכוי זיכויים;
+              "נגבה" = קבלות וחשבוניות מס קבלה, כולל מע"מ.
+            </p>
+            <select value={finYear} onChange={(e) => setFinYear(Number(e.target.value))} className="input w-auto">
+              {[0, 1, 2].map((i) => {
+                const y = new Date().getFullYear() - i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
           </div>
 
-          <div className="card">
-            <h3 className="text-lg font-semibold mb-4 font-heading">תשלומים פתוחים</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                <span>ממתין לתשלום</span>
-                <span className="font-bold">₪{(financialData.outstandingPayments?.pending || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                <span>באיחור</span>
-                <span className="font-bold text-red-600">₪{(financialData.outstandingPayments?.overdue || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-red-100 rounded-lg">
-                <span>באיחור 60+ יום</span>
-                <span className="font-bold text-red-700">₪{(financialData.outstandingPayments?.overdue_60 || 0).toLocaleString()}</span>
-              </div>
+          {financialQ.isLoading ? (
+            <div className="card text-center py-10 text-gray-500">טוען…</div>
+          ) : financialQ.isError || !financialData ? (
+            <div className="card border-r-4 border-danger-500">
+              <p className="font-semibold text-danger-700">לא ניתן לקרוא את הנתונים מ-Priority</p>
+              <p className="text-sm text-gray-600 mt-1">זו תקלת קריאה מהמראה — לא "אין הכנסות".</p>
             </div>
-          </div>
-
-          <div className="card">
-            <h3 className="text-lg font-semibold mb-4 font-heading">הכנסות לפי לקוח</h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {(financialData.revenueByCustomer || []).map((customer: {
-                company_name: string;
-                paid: number;
-                pending: number;
-              }) => (
-                <div key={customer.company_name} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
-                  <span className="truncate">{customer.company_name}</span>
-                  <span className="font-medium text-green-600">₪{(customer.paid || 0).toLocaleString()}</span>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="card">
+                  <p className="text-sm text-gray-500">הופק ב-{financialData.year}</p>
+                  <p className="text-2xl font-bold tabular-nums mt-1">{shekel(financialData.totals.invoiced)}</p>
+                  <p className="text-xs text-gray-400 mt-1">חשבוניות מס לפני מע"מ, בניכוי זיכויים</p>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="card">
+                  <p className="text-sm text-gray-500">נגבה ב-{financialData.year}</p>
+                  <p className="text-2xl font-bold tabular-nums mt-1">{shekel(financialData.totals.collected)}</p>
+                  <p className="text-xs text-gray-400 mt-1">קבלות + חשבוניות מס קבלה, כולל מע"מ</p>
+                </div>
+                <Link to="/priority?tab=collections" className="card hover:shadow-elevated transition-shadow">
+                  <p className="text-sm text-gray-500">לגבות עכשיו</p>
+                  <p className="text-2xl font-bold tabular-nums mt-1 text-danger-700">
+                    {collectionsQ.data ? shekel(collectionsQ.data.totals.to_chase) : collectionsQ.isError ? '?' : '…'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {collectionsQ.data ? `אין ראיה לתשלום עד ${fmtDate(collectionsQ.data.bank_through)} · "מי חייב" ←` : 'מ"מי חייב"'}
+                  </p>
+                </Link>
+              </div>
+
+              <div className="card">
+                <h3 className="text-lg font-semibold mb-4 font-heading">הופק ונגבה לפי חודש — {financialData.year}</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={financialData.months.map((m) => ({ ...m, label: m.month.slice(5) }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="label" />
+                      <YAxis tickFormatter={(v: number) => `${Math.round(v / 1000)}K`} />
+                      <Tooltip formatter={(value: number) => shekel(value)} />
+                      <Bar dataKey="invoiced" fill="#0ea5e9" name="הופק (לפני מע״מ)" />
+                      <Bar dataKey="collected" fill="#22c55e" name="נגבה (כולל מע״מ)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="card">
+                <h3 className="text-lg font-semibold mb-4 font-heading">לקוחות מובילים — {financialData.year}</h3>
+                {financialData.top_customers.length === 0 ? (
+                  <p className="text-sm text-gray-500">אין חשבוניות מס בשנה הזו.</p>
+                ) : (
+                  <div className="divide-y">
+                    {financialData.top_customers.map((c) => (
+                      <div key={c.party_key} className="flex items-center justify-between gap-3 py-2">
+                        <span className="min-w-0 truncate">
+                          {c.customer_id
+                            ? <Link to={`/customers/${c.customer_id}`} className="text-primary-600 hover:underline">{c.name || c.party_key}</Link>
+                            : <span>{c.name || c.party_key}</span>}
+                          <span className="text-xs text-gray-400 mr-2 tabular-nums">{c.party_key} · {c.count} מסמכים</span>
+                        </span>
+                        <span className="font-medium tabular-nums shrink-0">{shekel(c.invoiced)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 

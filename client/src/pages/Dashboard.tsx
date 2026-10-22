@@ -131,8 +131,20 @@ interface DashboardBusinessData {
   contractsExpiring?: ExpiringContract[];
 }
 
+const VIEW_KEY = 'yahalom-dashboard-view';
+
 export default function Dashboard() {
-  const [viewMode, setViewMode] = useState<ViewMode>('operations');
+  // התצוגה האחרונה שנבחרה נשמרת לדפדפן; ברירת המחדל "עסקי" — שם הכספים מ-Priority
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      return v === 'operations' || v === 'business' ? v : 'business';
+    } catch { return 'business'; }
+  });
+  const setViewMode = (v: ViewMode) => {
+    setViewModeState(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* מצב פרטי — לא נשמר */ }
+  };
   const [quickModal, setQuickModal] = useState<string | null>(null);
   const { isEmployee } = usePermissions();
 
