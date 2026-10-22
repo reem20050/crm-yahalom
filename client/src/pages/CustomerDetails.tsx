@@ -304,9 +304,10 @@ export default function CustomerDetails() {
                 <Edit3 className="w-4 h-4" />
                 עריכה
               </button>
+              {/* פעולה הרסנית — לא באותו משקל כמו "עריכה"; האישור נשאר בחלון נפרד */}
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="btn-danger text-sm flex items-center gap-1 px-3 py-2"
+                className="text-sm flex items-center gap-1 px-3 py-2 rounded-lg text-gray-500 hover:text-danger-700 hover:bg-danger-50 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
                 מחק לקוח

@@ -9,8 +9,34 @@ const api = axios.create({
   },
 });
 
+// השרת ב-Render (תוכנית חינמית) נרדם אחרי חוסר פעילות, והבקשה הראשונה יכולה לקחת עד דקה. בלי הסבר זה נראה
+// כמו מערכת תקועה. בקשה שלוקחת יותר מ-4 שניות מציגה הודעה אחת, שנסגרת כשכל הבקשות האיטיות הסתיימו.
+const WAKE_TOAST = 'server-wakeup';
+const SLOW_MS = 4000;
+let slowPending = 0;
+type Tracked = { _slowTimer?: ReturnType<typeof setTimeout>; _slow?: boolean };
+function trackSlow(config: object) {
+  const c = config as Tracked;
+  c._slowTimer = setTimeout(() => {
+    c._slow = true;
+    slowPending += 1;
+    toast.loading('השרת מתעורר — הטעינה הראשונה יכולה לקחת עד דקה…', { id: WAKE_TOAST });
+  }, SLOW_MS);
+}
+function doneSlow(config: object | undefined) {
+  const c = config as Tracked | undefined;
+  if (!c) return;
+  clearTimeout(c._slowTimer);
+  if (c._slow) {
+    c._slow = false;
+    slowPending = Math.max(0, slowPending - 1);
+    if (slowPending === 0) toast.dismiss(WAKE_TOAST);
+  }
+}
+
 // Add auth token to requests
 api.interceptors.request.use((config) => {
+  trackSlow(config);
   const token = useAuthStore.getState().token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -20,8 +46,12 @@ api.interceptors.request.use((config) => {
 
 // Handle auth errors and global error toasts
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    doneSlow(response.config);
+    return response;
+  },
   (error) => {
+    doneSlow(error.config);
     const status = error.response?.status;
 
     if (status === 401) {
