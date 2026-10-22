@@ -52,6 +52,7 @@ const sitesRoutes = require('./routes/sites');
 const automationRoutes = require('./routes/automation');
 const contractorsRoutes = require('./routes/contractors');
 const priorityRoutes = require('./routes/priority');
+const publicLeadsRoutes = require('./routes/publicLeads');
 
 // Import scheduler
 const scheduler = require('./services/scheduler');
@@ -131,6 +132,9 @@ try {
   app.use(compression());
 } catch (e) { /* compression not installed, skip */ }
 
+// Render מעביר את הבקשה דרך proxy אחד — בלי זה req.ip הוא של ה-proxy, וכל מגבלות הקצב סופרות את כולם יחד
+app.set('trust proxy', 1);
+
 // Rate limiting
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -155,6 +159,8 @@ app.use('/api/auth/google', authLimiter);
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadsRoutes);
+// טופס לידים ציבורי (בלי התחברות) — מגבלת קצב ובדיקות משלו
+app.use('/api/public/leads', publicLeadsRoutes);
 app.use('/api/customers', customersRoutes);
 app.use('/api/employees', employeesRoutes);
 app.use('/api/shifts', shiftsRoutes);

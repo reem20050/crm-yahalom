@@ -20,16 +20,23 @@ const statusOptions = [
 ];
 
 const sourceOptions = [
-  { value: 'website', label: 'אתר אינטרנט' },
+  { value: 'website', label: 'אתר / טופס' },
+  { value: 'facebook', label: 'פייסבוק' },
+  { value: 'instagram', label: 'אינסטגרם' },
+  { value: 'google', label: 'גוגל' },
   { value: 'whatsapp', label: 'וואטסאפ' },
   { value: 'phone', label: 'טלפון' },
   { value: 'referral', label: 'הפניה' },
+  { value: 'other', label: 'אחר' },
 ];
 
 const serviceTypeOptions = [
   { value: 'regular', label: 'שמירה רגילה' },
   { value: 'event', label: 'אירועים' },
   { value: 'both', label: 'שניהם' },
+  { value: 'patrol', label: 'סיור ומוקד' },
+  { value: 'armed', label: 'מאבטח חמוש' },
+  { value: 'other', label: 'אחר' },
 ];
 
 interface EditForm {
