@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDate, fmtStamp, localIsoDate } from './display';
+import { fmtDate, fmtStamp, humanizeNotes, localIsoDate, paymentTermsLabel } from './display';
 
 describe('fmtStamp', () => {
   it('חותמת זמן → 22/10/2026 בשעון מקומי (לא 22.10.2026)', () => {
@@ -28,5 +28,23 @@ describe('fmtDate', () => {
   it('"2026-10-21" → "21/10/2026"', () => {
     expect(fmtDate('2026-10-21')).toBe('21/10/2026');
     expect(fmtDate(null)).toBe('—');
+  });
+});
+
+describe('paymentTermsLabel', () => {
+  it('קודים מהייבוא ומהטפסים → עברית', () => {
+    expect(paymentTermsLabel('eom')).toBe('שוטף');
+    expect(paymentTermsLabel('eom10')).toBe('שוטף + 10');
+    expect(paymentTermsLabel('net30')).toBe('שוטף + 30');
+    expect(paymentTermsLabel('net15')).toBe('שוטף + 15');
+    expect(paymentTermsLabel('immediate')).toBe('מיידי');
+    expect(paymentTermsLabel(null)).toBe('-');
+  });
+});
+
+describe('humanizeNotes', () => {
+  it('הערת הייבוא בעברית', () => {
+    expect(humanizeNotes('Imported from Green Invoice archive; documents=0')).toBe('יובא מארכיון חשבונית ירוקה; מסמכים: 0');
+    expect(humanizeNotes('חמוש: True')).toBe('חמוש: כן');
   });
 });

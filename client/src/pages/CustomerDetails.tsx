@@ -28,7 +28,7 @@ import PriorityLinkControl from '../components/PriorityLinkControl';
 import PriorityIssueRequests from '../components/PriorityIssueRequests';
 import PriorityCustomerSummary, { PriorityCustomerPayment } from '../components/PriorityCustomerSummary';
 import { usePermissions } from '../hooks/usePermissions';
-import { fmtDate } from '../utils/display';
+import { fmtDate, humanizeNotes, PAYMENT_TERMS, paymentTermsLabel } from '../utils/display';
 
 const SERVICE_TYPE_OPTIONS = [
   { value: 'regular', label: 'שמירה רגילה' },
@@ -36,12 +36,6 @@ const SERVICE_TYPE_OPTIONS = [
   { value: 'both', label: 'שניהם' },
 ];
 
-const PAYMENT_TERMS_OPTIONS = [
-  { value: 'net30', label: 'שוטף + 30' },
-  { value: 'net60', label: 'שוטף + 60' },
-  { value: 'net90', label: 'שוטף + 90' },
-  { value: 'immediate', label: 'מיידי' },
-];
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'פעיל' },
@@ -449,7 +443,7 @@ export default function CustomerDetails() {
                       className="input"
                     >
                       <option value="">בחר תנאי תשלום</option>
-                      {PAYMENT_TERMS_OPTIONS.map((opt) => (
+                      {PAYMENT_TERMS.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}
                         </option>
@@ -502,7 +496,7 @@ export default function CustomerDetails() {
                   <div>
                     <dt className="text-sm text-gray-500">תנאי תשלום</dt>
                     <dd className="font-medium">
-                      {PAYMENT_TERMS_OPTIONS.find((o) => o.value === customer?.payment_terms)?.label || customer?.payment_terms || '-'}
+                      {paymentTermsLabel(customer?.payment_terms)}
                     </dd>
                   </div>
                   <div>
@@ -516,7 +510,7 @@ export default function CustomerDetails() {
                   {customer?.notes && (
                     <div>
                       <dt className="text-sm text-gray-500">הערות</dt>
-                      <dd className="font-medium text-sm whitespace-pre-wrap">{customer.notes}</dd>
+                      <dd className="font-medium text-sm whitespace-pre-wrap">{humanizeNotes(customer.notes)}</dd>
                     </div>
                   )}
                 </dl>

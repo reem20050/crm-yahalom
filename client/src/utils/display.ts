@@ -33,7 +33,11 @@ export function fmtDayDate(d: string | null | undefined): string {
 
 /** הערות שנכתבו אוטומטית (סנכרון ממערכת הסריקה) כוללות True/False — בתצוגה: כן/לא. */
 export function humanizeNotes(notes: string | null | undefined): string {
-  return String(notes ?? '').replace(/\bTrue\b/g, 'כן').replace(/\bFalse\b/g, 'לא');
+  return String(notes ?? '')
+    .replace(/\bTrue\b/g, 'כן').replace(/\bFalse\b/g, 'לא')
+    // הערת הייבוא של הלקוחות (239 לקוחות): "Imported from Green Invoice archive; documents=0"
+    .replace(/Imported from Green Invoice archive/g, 'יובא מארכיון חשבונית ירוקה')
+    .replace(/\bdocuments=(\d+)/g, 'מסמכים: $1');
 }
 
 /** "2026-06-05" → "05/06/2026" (בלי המרת אזור זמן). */
@@ -65,4 +69,24 @@ export function fmtStampTime(v: string | number | Date | null | undefined): stri
   if (Number.isNaN(d.getTime())) return String(v);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${fmtStamp(d)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** תנאי תשלום: הקודים שבנתונים (כולל הייבוא מחשבונית ירוקה — eom, eom10…) עם תווית בעברית. */
+export const PAYMENT_TERMS: { value: string; label: string }[] = [
+  { value: 'immediate', label: 'מיידי' },
+  { value: 'eom', label: 'שוטף' },
+  { value: 'eom10', label: 'שוטף + 10' },
+  { value: 'eom15', label: 'שוטף + 15' },
+  { value: 'net30', label: 'שוטף + 30' },
+  { value: 'net45', label: 'שוטף + 45' },
+  { value: 'net60', label: 'שוטף + 60' },
+  { value: 'net90', label: 'שוטף + 90' },
+];
+
+export function paymentTermsLabel(v: string | null | undefined): string {
+  if (!v) return '-';
+  const known = PAYMENT_TERMS.find((o) => o.value === v);
+  if (known) return known.label;
+  const m = /^(?:net|eom)(\d+)$/.exec(v);
+  return m ? `שוטף + ${m[1]}` : v;
 }

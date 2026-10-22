@@ -13,6 +13,7 @@ import { customersApi, priorityApi } from '../services/api';
 import { SkeletonPulse } from '../components/Skeleton';
 import { docTypeLabel, fmtDate, shekel, type LastDoc } from '../components/PriorityCustomerDocs';
 import { usePermissions } from '../hooks/usePermissions';
+import { PAYMENT_TERMS } from '../utils/display';
 
 const customerSchema = z.object({
   company_name: z.string().min(1, 'נדרש שם חברה'),
@@ -474,11 +475,7 @@ export default function Customers() {
                 <div>
                   <label className="label">תנאי תשלום</label>
                   <select {...register('payment_terms')} className="input">
-                    <option value="immediate">מיידי</option>
-                    <option value="net15">שוטף + 15</option>
-                    <option value="net30">שוטף + 30</option>
-                    <option value="net45">שוטף + 45</option>
-                    <option value="net60">שוטף + 60</option>
+                    {PAYMENT_TERMS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
 
