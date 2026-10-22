@@ -70,10 +70,10 @@ function SitesMapContent() {
   }, []);
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex">
+    <div className="h-[calc(100vh-4rem)] flex flex-col md:flex-row">
       {/* Sidebar */}
       {sidebarOpen && (
-        <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0">
+        <div className="w-full md:w-80 max-h-[40vh] md:max-h-none bg-white border-b md:border-b-0 md:border-l border-gray-200 overflow-y-auto flex-shrink-0">
           <div className="p-4 border-b border-gray-200">
             <h2 className="text-lg font-bold text-gray-900 mb-3 font-heading">אתרים ({sites.length})</h2>
             <div className="relative">
@@ -135,7 +135,7 @@ function SitesMapContent() {
       )}
 
       {/* Map */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-[50vh] md:min-h-0">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="absolute top-3 right-3 z-10 bg-white shadow-lg rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
