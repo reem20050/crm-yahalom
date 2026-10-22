@@ -48,3 +48,21 @@ export function localIsoDate(d: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+/** תאריך מחותמת זמן (created_at וכד') בשעון מקומי, "22/10/2026" — כמו fmtDate (toLocaleDateString נותן 22.10.2026). */
+export function fmtStamp(v: string | number | Date | null | undefined): string {
+  if (v == null || v === '') return '—';
+  const d = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(d.getTime())) return typeof v === 'string' ? fmtDate(v) : '—';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/** "22/10/2026 15:29" — תאריך ושעה מקומיים. */
+export function fmtStampTime(v: string | number | Date | null | undefined): string {
+  if (v == null || v === '') return '—';
+  const d = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${fmtStamp(d)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}

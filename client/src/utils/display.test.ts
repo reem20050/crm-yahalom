@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDate, localIsoDate } from './display';
+import { fmtDate, fmtStamp, localIsoDate } from './display';
+
+describe('fmtStamp', () => {
+  it('חותמת זמן → 22/10/2026 בשעון מקומי (לא 22.10.2026)', () => {
+    expect(fmtStamp(new Date(2026, 9, 22, 15, 29))).toBe('22/10/2026');
+    expect(fmtStamp(new Date(2026, 9, 22, 15, 29).toISOString())).toBe('22/10/2026');
+  });
+
+  it('ריק / לא תקין', () => {
+    expect(fmtStamp(null)).toBe('—');
+    expect(fmtStamp('')).toBe('—');
+    expect(fmtStamp('לא תאריך')).toBe('לא תאריך');
+  });
+});
 
 describe('localIsoDate', () => {
   it('אחרי חצות — התאריך של היום, לא של אתמול (toISOString נותן את אתמול בשעון ישראל)', () => {

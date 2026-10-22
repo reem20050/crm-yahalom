@@ -15,6 +15,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import api from '../services/api';
+import { fmtStamp } from '../utils/display';
 
 interface ActivityLog {
   id: string;
@@ -123,7 +124,7 @@ export default function AuditTrail({ entityType, entityId }: AuditTrailProps) {
                     </span>
                     <span className="text-xs text-gray-300">•</span>
                     <span className="text-xs text-gray-400">
-                      {new Date(activity.created_at).toLocaleDateString('he-IL')}{' '}
+                      {fmtStamp(activity.created_at)}{' '}
                       {new Date(activity.created_at).toLocaleTimeString('he-IL', {
                         hour: '2-digit',
                         minute: '2-digit',

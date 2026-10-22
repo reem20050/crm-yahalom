@@ -5,6 +5,7 @@ import { usersApi } from '../services/api';
 import { Shield, Plus, Pencil, KeyRound, UserX, UserCheck, X, Link2, Unlink, Loader2 } from 'lucide-react';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import type { MutationError } from '../types';
+import { fmtStampTime } from '../utils/display';
 
 interface User {
   id: string;
@@ -223,16 +224,7 @@ export default function Users() {
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('he-IL', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const formatDate = (dateStr: string | null) => (dateStr ? fmtStampTime(dateStr) : '-');
 
   // Available employees for linking (unlinked + current linked employee of this user)
   const getAvailableEmployees = (forUserId: string) => {

@@ -14,6 +14,7 @@ import {
 import { priorityApi, searchApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { docTypeLabel } from './PriorityCustomerDocs';
+import { fmtStamp } from '../utils/display';
 
 interface SearchResult {
   id: string;
@@ -105,7 +106,7 @@ function getResultSubtitle(result: SearchResult): string {
     case 'document':
       return [
         result.party_name,
-        result.issue_date ? new Date(result.issue_date).toLocaleDateString('he-IL') : '',
+        result.issue_date ? fmtStamp(result.issue_date) : '',
       ].filter(Boolean).join(' | ');
     case 'employee':
       return result.phone || '';
@@ -113,7 +114,7 @@ function getResultSubtitle(result: SearchResult): string {
       return [
         result.company_name,
         result.event_date
-          ? new Date(result.event_date).toLocaleDateString('he-IL')
+          ? fmtStamp(result.event_date)
           : '',
       ]
         .filter(Boolean)

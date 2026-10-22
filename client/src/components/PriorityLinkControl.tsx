@@ -21,6 +21,7 @@ import {
   priorityCustomerKey,
   usePriorityCustomer,
 } from './PriorityCustomerDocs';
+import { fmtStamp } from '../utils/display';
 
 interface CustomerLinkFields {
   priority_customer_no?: string | number | null;
@@ -73,7 +74,7 @@ const isMatchedBy = (v: unknown): v is MatchedBy => v === 'vat' || v === 'name' 
 /** confirmed_at היא חותמת זמן אמיתית (לא תאריך בלבד) — מציגים לפי שעון ישראל, לא לפי התאריך ב-UTC. */
 function fmtTimestamp(v: string) {
   const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? fmtDate(v) : d.toLocaleDateString('he-IL');
+  return Number.isNaN(d.getTime()) ? fmtDate(v) : fmtStamp(d);
 }
 
 /** הודעה לשגיאת קישור. null = המיירט הגלובלי כבר הציג הודעה (403 / 5xx כללי). */
