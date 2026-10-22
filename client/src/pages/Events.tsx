@@ -230,7 +230,7 @@ export default function Events() {
                         {event.contractor_count} קבלנים
                       </span>
                     )}
-                    {event.price && (
+                    {!!event.price && (
                       <span className="font-medium text-gray-900">
                         ₪{event.price.toLocaleString()}
                       </span>

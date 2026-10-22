@@ -583,13 +583,13 @@ export default function EventDetails() {
                     <Users className="w-5 h-5 text-gray-400" />
                     <span>{event?.required_guards} מאבטחים</span>
                   </div>
-                  {event?.requires_weapon && (
+                  {!!event?.requires_weapon && (
                     <div className="flex items-center gap-2 text-yellow-600">
                       <Shield className="w-5 h-5" />
                       <span>דורש נשק</span>
                     </div>
                   )}
-                  {event?.requires_vehicle && (
+                  {!!event?.requires_vehicle && (
                     <div className="flex items-center gap-2 text-blue-600">
                       <Car className="w-5 h-5" />
                       <span>דורש רכב</span>
@@ -795,7 +795,7 @@ export default function EventDetails() {
                   <dd className="font-medium">{event.expected_attendance} אנשים</dd>
                 </div>
               )}
-              {event?.price && (
+              {!!event?.price && (
                 <div>
                   <dt className="text-sm text-gray-500">מחיר</dt>
                   <dd className="font-bold text-lg font-heading">₪{event.price.toLocaleString()}</dd>

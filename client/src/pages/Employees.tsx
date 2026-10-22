@@ -171,7 +171,7 @@ export default function Employees() {
                       <span className={`badge ${employee.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
                         {employee.status === 'active' ? 'פעיל' : 'לא פעיל'}
                       </span>
-                      {employee.has_weapon_license && (
+                      {!!employee.has_weapon_license && (
                         <span className="badge badge-info flex items-center gap-1">
                           <Shield className="w-3 h-3" />
                           נשק
