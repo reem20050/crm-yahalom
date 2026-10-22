@@ -9,6 +9,7 @@ import { Briefcase, Search, Plus, Phone, Star, Users, Trash2, Building2, X } fro
 import { contractorsApi } from '../services/api';
 import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
+import { distinct } from '../utils/display';
 
 const contractorSchema = z.object({
   company_name: z.string().min(1, 'נדרש שם חברה'),
@@ -171,7 +172,9 @@ export default function Contractors() {
                       <h3 className="font-heading font-semibold text-gray-900 text-sm truncate">
                         {contractor.company_name}
                       </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{contractor.contact_name}</p>
+                      {distinct(contractor.contact_name, contractor.company_name) && (
+                        <p className="text-xs text-gray-500 mt-0.5">{contractor.contact_name}</p>
+                      )}
                       {contractor.phone && (
                         <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1">
                           <Phone className="w-3 h-3 flex-shrink-0" />

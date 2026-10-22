@@ -9,6 +9,19 @@ import { Search, PartyPopper, Calendar, MapPin, Users, Plus, X, Shield, Car, Bui
 import { eventsApi, customersApi, leadsApi } from '../services/api';
 import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
+import { distinct } from '../utils/display';
+
+// סטטוסים שאחרי תאריך האירוע אמורים היו להתעדכן (הושלם / חשבונית הופקה / בוטל)
+const OPEN_STATUSES = ['quote', 'approved', 'staffed'];
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const isPast = (d: string | null | undefined) => !!d && String(d).slice(0, 10) < todayIso();
+function fmtEventDate(d: string | null | undefined) {
+  if (!d) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('he-IL', { weekday: 'short' });
+  return `${day} ${m[3]}/${m[2]}/${m[1]}`;
+}
 
 const eventSchema = z.object({
   event_name: z.string().min(1, 'נדרש שם אירוע'),
@@ -53,6 +66,7 @@ const eventTypes = [
 
 export default function Events() {
   const [statusFilter, setStatusFilter] = useState('');
+  const [when, setWhen] = useState<'all' | 'upcoming' | 'past'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sourceType, setSourceType] = useState<'customer' | 'lead' | 'new'>('new');
   const queryClient = useQueryClient();
@@ -108,6 +122,11 @@ export default function Events() {
     createMutation.mutate(data);
   };
 
+  // סינון לפי תאריך — בצד הלקוח, על הרשימה שכבר נטענה
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const shownEvents: any[] = ((data?.events ?? []) as { event_date: string }[]).filter((e) =>
+    when === 'all' ? true : when === 'past' ? isPast(e.event_date) : !isPast(e.event_date));
+
   return (
     <div className="space-y-6">
       <div className="page-header">
@@ -123,7 +142,12 @@ export default function Events() {
         )}
       </div>
 
-      <div className="card">
+      <div className="card flex flex-wrap gap-3">
+        <select value={when} onChange={(e) => setWhen(e.target.value as typeof when)} className="input w-auto">
+          <option value="all">כל התאריכים</option>
+          <option value="upcoming">היום והלאה</option>
+          <option value="past">עברו</option>
+        </select>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -138,9 +162,9 @@ export default function Events() {
 
       {isLoading ? (
         <SkeletonGrid count={6} />
-      ) : data?.events?.length > 0 ? (
+      ) : shownEvents.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {data.events.map((event: {
+          {shownEvents.map((event: {
             id: string;
             event_name: string;
             event_date: string;
@@ -169,28 +193,43 @@ export default function Events() {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-heading font-semibold text-gray-900">{event.event_name}</h3>
-                      <p className="text-sm text-gray-500">{event.company_name}</p>
+                      {distinct(event.company_name, event.event_name) && (
+                        <p className="text-sm text-gray-500">{event.company_name}</p>
+                      )}
                     </div>
-                    <span className={statusLabels[event.status]?.class || 'badge-gray'}>
-                      {statusLabels[event.status]?.label || event.status}
-                    </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className={statusLabels[event.status]?.class || 'badge-gray'}>
+                        {statusLabels[event.status]?.label || event.status}
+                      </span>
+                      {/* תאריך שעבר בסטטוס פתוח — כנראה לא עודכן אחרי האירוע */}
+                      {isPast(event.event_date) && OPEN_STATUSES.includes(event.status) && (
+                        <span className="badge badge-gray text-xs">עבר</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 whitespace-nowrap">
                       <Calendar className="w-4 h-4" />
-                      {event.event_date}
+                      {fmtEventDate(event.event_date)}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      {event.location}
-                    </span>
+                    {distinct(event.location, event.event_name, event.company_name) && (
+                      <span className="flex items-center gap-1 min-w-0">
+                        <MapPin className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{event.location}</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between mt-3">
-                    <span className="flex items-center gap-1 text-sm">
+                    <span
+                      className={`flex items-center gap-1 text-sm ${
+                        Number(event.assigned_count) < Number(event.required_guards) ? 'text-warning-700' : 'text-success-700'
+                      }`}
+                      title={`שובצו ${event.assigned_count}, נדרשו ${event.required_guards}`}
+                    >
                       <Users className="w-4 h-4" />
-                      {event.assigned_count}/{event.required_guards} מאבטחים
+                      שובצו {event.assigned_count} מתוך {event.required_guards}
                     </span>
                     {Number(event.contractor_count) > 0 && (
                       <span className="flex items-center gap-1 text-sm text-orange-600">

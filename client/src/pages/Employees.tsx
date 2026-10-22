@@ -11,6 +11,7 @@ import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { WhatsAppIcon } from '../components/WhatsAppButton';
 import type { MutationError } from '../types';
+import { realPhone } from '../utils/display';
 
 const employeeSchema = z.object({
   first_name: z.string().min(1, 'נדרש שם פרטי'),
@@ -155,11 +156,17 @@ export default function Employees() {
                     <h3 className="font-heading font-semibold text-gray-900 text-sm">
                       {employee.first_name} {employee.last_name}
                     </h3>
-                    <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1">
-                      <Phone className="w-3 h-3 flex-shrink-0" />
-                      <span dir="ltr">{employee.phone}</span>
-                      <WhatsAppIcon phone={employee.phone} message={`שלום ${employee.first_name}, \n\nצוות יהלום`} />
-                    </p>
+                    {realPhone(employee.phone) ? (
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1">
+                        <Phone className="w-3 h-3 flex-shrink-0" />
+                        <span dir="ltr">{employee.phone}</span>
+                        <WhatsAppIcon phone={employee.phone} message={`שלום ${employee.first_name}, \n\nצוות יהלום`} />
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-400 flex items-center gap-1.5 mt-1">
+                        <Phone className="w-3 h-3 flex-shrink-0" /> אין טלפון
+                      </p>
+                    )}
                     <div className="flex items-center gap-1.5 mt-2">
                       <span className={`badge ${employee.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
                         {employee.status === 'active' ? 'פעיל' : 'לא פעיל'}
