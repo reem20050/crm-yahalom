@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import GoogleMapProvider from '../components/GoogleMapProvider';
 import { sitesGlobalApi } from '../services/api';
+import { distinct } from '../utils/display';
 
 interface Site {
   id: string;
@@ -116,8 +117,12 @@ function SitesMapContent() {
                 }`}
               >
                 <p className="font-medium text-sm text-gray-900">{site.name}</p>
-                <p className="text-xs text-gray-500">{site.company_name}</p>
-                <p className="text-xs text-gray-400 mt-1">{site.address}, {site.city}</p>
+                {distinct(site.company_name, site.name) && (
+                  <p className="text-xs text-gray-500">{site.company_name}</p>
+                )}
+                {distinct([site.address, site.city].filter(Boolean).join(', '), site.name, site.company_name) && (
+                  <p className="text-xs text-gray-400 mt-1">{[site.address, site.city].filter(Boolean).join(', ')}</p>
+                )}
                 {site.requires_weapon === 1 && (
                   <span className="inline-flex items-center gap-1 mt-1 text-xs text-red-600">
                     <Shield className="w-3 h-3" /> דורש נשק
