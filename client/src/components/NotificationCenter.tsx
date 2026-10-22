@@ -146,7 +146,7 @@ function MuteDropdown({
         }}
         disabled={isMuting}
         className="p-1 rounded hover:bg-gray-200 transition-colors text-gray-400 hover:text-gray-600"
-        title="השתק התראה"
+        title="השתק התראה" aria-label="השתק התראה"
       >
         <VolumeX className="w-3.5 h-3.5" />
       </button>
@@ -408,7 +408,7 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
               <span>סמן הכל כנקרא</span>
             </button>
           )}
-          <button
+          <button aria-label="סגירה"
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-gray-200 transition-colors"
           >

@@ -280,7 +280,7 @@ export default function Incidents() {
                     </td>
                     <td>
                       <div className="flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); setShowDetail(inc.id); }} className="p-1.5 rounded-lg hover:bg-white/60 transition-colors" title="צפה">
+                        <button onClick={(e) => { e.stopPropagation(); setShowDetail(inc.id); }} className="p-1.5 rounded-lg hover:bg-white/60 transition-colors" title="צפה" aria-label="צפה">
                           <Eye className="w-4 h-4 text-gray-500" />
                         </button>
                       </div>
@@ -299,7 +299,7 @@ export default function Incidents() {
           <div className="modal-content w-full max-w-2xl">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-lg font-bold font-heading">{editingId ? 'עריכת אירוע' : 'דיווח אירוע אבטחה'}</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button aria-label="סגירה" onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -402,7 +402,7 @@ export default function Incidents() {
                 </span>
                 <h2 className="text-lg font-bold font-heading">{detailData.incident?.title}</h2>
               </div>
-              <button onClick={() => setShowDetail(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button aria-label="סגירה" onClick={() => setShowDetail(null)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>

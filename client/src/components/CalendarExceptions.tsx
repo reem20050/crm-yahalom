@@ -323,13 +323,13 @@ export default function CalendarExceptions() {
 
         {/* Month navigation */}
         <div className="flex items-center justify-between mb-4">
-          <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={prevMonth} aria-label="חודש קודם" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ChevronRight className="w-5 h-5 text-gray-600" />
           </button>
           <h4 className="text-lg font-medium text-gray-900">
             {HEBREW_MONTHS[currentMonth]} {currentYear}
           </h4>
-          <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={nextMonth} aria-label="חודש הבא" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
         </div>
@@ -472,7 +472,7 @@ export default function CalendarExceptions() {
                         <button
                           onClick={() => openEditModal(ex)}
                           className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors text-blue-600"
-                          title="ערוך"
+                          title="ערוך" aria-label="ערוך"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
@@ -483,7 +483,7 @@ export default function CalendarExceptions() {
                             }
                           }}
                           className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-600"
-                          title="מחק"
+                          title="מחק" aria-label="מחק"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -505,7 +505,7 @@ export default function CalendarExceptions() {
               <h3 className="text-lg font-bold font-heading">
                 {editingId ? 'עריכת חריג' : 'חריג חדש'}
               </h3>
-              <button
+              <button aria-label="סגירה"
                 onClick={closeModal}
                 className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"
               >

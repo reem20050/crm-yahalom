@@ -398,7 +398,7 @@ export default function WeaponsEquipment() {
                         <ArrowLeftRight className="w-3.5 h-3.5" />
                         העבר
                       </button>
-                      <button
+                      <button aria-label="מחיקה"
                         onClick={async () => { if (await confirmDialog('למחוק נשק זה?')) deleteWeaponMutation.mutate(w.id); }}
                         className="text-red-400 hover:text-red-600 p-1"
                       >
@@ -466,7 +466,7 @@ export default function WeaponsEquipment() {
                             החזר
                           </button>
                         )}
-                        <button
+                        <button aria-label="מחיקה"
                           onClick={async () => { if (await confirmDialog('למחוק ציוד זה?')) deleteEquipMutation.mutate(e.id); }}
                           className="text-red-400 hover:text-red-600 p-1"
                         >

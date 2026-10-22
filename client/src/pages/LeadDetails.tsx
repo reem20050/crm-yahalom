@@ -373,7 +373,7 @@ export default function LeadDetails() {
                         <button
                           onClick={() => setShowEmailModal(true)}
                           className="text-blue-500 hover:text-blue-700 p-1 rounded hover:bg-blue-50 transition-colors"
-                          title="שלח אימייל"
+                          title="שלח אימייל" aria-label="שלח אימייל"
                         >
                           <Send className="w-4 h-4" />
                         </button>

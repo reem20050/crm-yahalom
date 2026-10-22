@@ -645,7 +645,7 @@ export default function CustomerDetails() {
                           <button
                             onClick={() => { setEmailTo(contact.email); setShowEmailModal(true); }}
                             className="text-blue-500 hover:text-blue-700 p-0.5 rounded hover:bg-blue-50 transition-colors"
-                            title="שלח אימייל"
+                            title="שלח אימייל" aria-label="שלח אימייל"
                           >
                             <Send className="w-3.5 h-3.5" />
                           </button>

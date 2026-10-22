@@ -181,7 +181,7 @@ export default function PriorityIssueRequests({ customerId, startOpen = false }:
                     <input className="input" inputMode="decimal" value={l.price}
                       onChange={(e) => setLine(i, { price: e.target.value })} />
                   </label>
-                  <button type="button" disabled={lines.length === 1} title="הסר שורה"
+                  <button type="button" disabled={lines.length === 1} title="הסר שורה" aria-label="הסר שורה"
                     onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
                     className="col-span-1 p-2 text-gray-400 hover:text-danger-600 disabled:opacity-30">
                     <Trash2 className="w-4 h-4" />

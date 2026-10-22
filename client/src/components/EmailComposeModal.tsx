@@ -111,7 +111,7 @@ export default function EmailComposeModal({
             </div>
             <h2 className="text-xl font-bold font-heading">שליחת אימייל</h2>
           </div>
-          <button
+          <button aria-label="סגירה"
             onClick={handleClose}
             className="btn-icon"
           >

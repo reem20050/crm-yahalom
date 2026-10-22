@@ -264,14 +264,14 @@ export default function Users() {
               ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
               : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
         }`}
-        title={user.employee_id ? 'שנה שיוך עובד' : 'שייך עובד'}
+        title={user.employee_id ? 'שנה שיוך עובד' : 'שייך עובד'} aria-label={user.employee_id ? 'שנה שיוך עובד' : 'שייך עובד'}
       >
         <Link2 className="h-4 w-4" />
       </button>
       <button
         onClick={() => openEdit(user)}
         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-        title="ערוך"
+        title="ערוך" aria-label="ערוך"
       >
         <Pencil className="h-4 w-4" />
       </button>
@@ -282,7 +282,7 @@ export default function Users() {
           setError('');
         }}
         className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded"
-        title="איפוס סיסמה"
+        title="איפוס סיסמה" aria-label="איפוס סיסמה"
       >
         <KeyRound className="h-4 w-4" />
       </button>
@@ -290,7 +290,7 @@ export default function Users() {
         <button
           onClick={() => toggleActiveMutation.mutate({ id: user.id, is_active: 0 })}
           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-          title="השבת משתמש"
+          title="השבת משתמש" aria-label="השבת משתמש"
         >
           <UserX className="h-4 w-4" />
         </button>
@@ -298,7 +298,7 @@ export default function Users() {
         <button
           onClick={() => toggleActiveMutation.mutate({ id: user.id, is_active: 1 })}
           className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
-          title="הפעל משתמש"
+          title="הפעל משתמש" aria-label="הפעל משתמש"
         >
           <UserCheck className="h-4 w-4" />
         </button>
@@ -443,7 +443,7 @@ export default function Users() {
               <h2 className="text-lg font-bold font-heading">
                 {editingUser ? 'עריכת משתמש' : 'הוספת משתמש חדש'}
               </h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
+              <button aria-label="סגירה" onClick={closeModal} className="text-gray-400 hover:text-gray-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -602,7 +602,7 @@ export default function Users() {
                 <Link2 className="w-5 h-5 text-primary-600" />
                 שיוך עובד למשתמש
               </h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => { setLinkModal(null); setSelectedEmployeeId(''); }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -684,7 +684,7 @@ export default function Users() {
           <div className="modal-content max-w-md w-full">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-lg font-bold font-heading">איפוס סיסמה</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => { setResetPasswordModal(null); setError(''); }}
                 className="text-gray-400 hover:text-gray-600"
               >

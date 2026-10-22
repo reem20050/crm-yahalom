@@ -267,7 +267,7 @@ function ShiftDetailModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-bold font-heading">פרטי משמרת</h2>
-          <button
+          <button aria-label="סגירה"
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg"
           >
@@ -426,7 +426,7 @@ function ShiftDetailModal({
                           <button
                             onClick={() => sendReminder(assignment.employee_phone!, assignment.employee_name)}
                             className="text-green-500 hover:text-green-700 hover:bg-green-50 p-1.5 rounded-lg transition-colors"
-                            title="שלח תזכורת WhatsApp"
+                            title="שלח תזכורת WhatsApp" aria-label="שלח תזכורת WhatsApp"
                           >
                             <MessageCircle className="w-4 h-4" />
                           </button>
@@ -756,7 +756,7 @@ export default function Shifts() {
                         <Copy className="w-3.5 h-3.5" />
                         צור משמרות
                       </button>
-                      <button
+                      <button aria-label="מחיקה"
                         onClick={() => deleteTemplateMutation.mutate(tmpl.id)}
                         className="text-red-400 hover:text-red-600 p-1"
                       >
@@ -790,6 +790,7 @@ export default function Shifts() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setCurrentDate(addDays(currentDate, -7))}
+            aria-label="שבוע קודם"
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
@@ -800,6 +801,7 @@ export default function Shifts() {
           </h2>
           <button
             onClick={() => setCurrentDate(addDays(currentDate, 7))}
+            aria-label="שבוע הבא"
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -946,7 +948,7 @@ export default function Shifts() {
           <div className="modal-content w-full max-w-lg">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold font-heading">משמרת חדשה</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => {
                   setIsModalOpen(false);
                   reset();

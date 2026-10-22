@@ -926,7 +926,7 @@ export default function ContractorDetails() {
                               <button
                                 onClick={() => startEditWorker(worker)}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                                title="ערוך"
+                                title="ערוך" aria-label="ערוך"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
@@ -939,7 +939,7 @@ export default function ContractorDetails() {
                                   }
                                 }}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-danger-500 hover:bg-danger-50 transition-colors"
-                                title="מחק"
+                                title="מחק" aria-label="מחק"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>

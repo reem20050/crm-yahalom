@@ -103,7 +103,7 @@ export default function WhatsAppButton({ phone, name, size = 'md', defaultMessag
       {/* WhatsApp Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        title="שלח הודעת WhatsApp"
+        title="שלח הודעת WhatsApp" aria-label="שלח הודעת WhatsApp"
         className={`${buttonSize} flex items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-sm hover:shadow-md transition-all duration-200`}
       >
         <MessageCircle className={iconSize} />
@@ -125,7 +125,7 @@ export default function WhatsAppButton({ phone, name, size = 'md', defaultMessag
                 שלח הודעה ל-{name}
               </h3>
             </div>
-            <button
+            <button aria-label="סגירה"
               onClick={() => setIsOpen(false)}
               className="btn-icon w-7 h-7"
             >
@@ -176,7 +176,7 @@ export function WhatsAppIcon({ phone, message, size = 14 }: { phone: string; mes
   return (
     <button
       onClick={(e) => { e.stopPropagation(); openWhatsApp(phone, message); }}
-      title="שלח WhatsApp"
+      title="שלח WhatsApp" aria-label="שלח WhatsApp"
       className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-sm transition-all duration-200"
     >
       <MessageCircle size={size} />
