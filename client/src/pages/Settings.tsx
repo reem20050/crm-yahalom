@@ -25,6 +25,9 @@ import api, { priorityApi } from '../services/api';
 import { Link as RouterLink } from 'react-router-dom';
 import type { MutationError } from '../types';
 
+// חשבונית ירוקה לא בשימוש — המסמכים הרשמיים מופקים רק ב-Priority. true מחזיר את הכרטיס.
+const SHOW_GREEN_INVOICE = false;
+
 // Types
 interface IntegrationSettings {
   google: {
@@ -657,7 +660,8 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Green Invoice */}
+        {/* Green Invoice — מוסתר (החלטת רעם 22/10: המסמכים הרשמיים רק ב-Priority). הקוד והחיבור נשארים. */}
+        {SHOW_GREEN_INVOICE && (
         <div className="card">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center">
@@ -768,6 +772,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Help Section */}
@@ -783,10 +788,6 @@ export default function Settings() {
           </a>
           <a href="https://waha.devlike.pro/" target="_blank" rel="noopener noreferrer" className="text-primary-600 text-sm hover:underline flex items-center gap-1">
             מדריך WhatsApp (WAHA)
-            <ExternalLink className="w-3 h-3" />
-          </a>
-          <a href="#" className="text-primary-600 text-sm hover:underline flex items-center gap-1">
-            מדריך חשבונית ירוקה
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
