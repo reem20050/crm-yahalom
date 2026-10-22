@@ -300,13 +300,13 @@ function ShiftDetailModal({
                   <Users className="w-5 h-5 text-gray-400" />
                   <span>נדרשים: {shift.required_employees} עובדים</span>
                 </div>
-                {shift.requires_weapon && (
+                {!!shift.requires_weapon && (
                   <div className="flex items-center gap-1 text-orange-600">
                     <Shield className="w-4 h-4" />
                     <span className="text-sm">נדרש נשק</span>
                   </div>
                 )}
-                {shift.requires_vehicle && (
+                {!!shift.requires_vehicle && (
                   <div className="flex items-center gap-1 text-blue-600">
                     <Car className="w-4 h-4" />
                     <span className="text-sm">נדרש רכב</span>

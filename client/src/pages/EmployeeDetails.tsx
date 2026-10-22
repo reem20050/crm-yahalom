@@ -338,13 +338,13 @@ export default function EmployeeDetails() {
               <span className={`badge ${employee?.status === 'active' ? 'badge-success' : 'badge-gray'}`}>
                 {employee?.status === 'active' ? 'פעיל' : 'לא פעיל'}
               </span>
-              {employee?.has_weapon_license && (
+              {!!employee?.has_weapon_license && (
                 <span className="badge badge-info flex items-center gap-1">
                   <Shield className="w-3 h-3" />
                   רישיון נשק
                 </span>
               )}
-              {employee?.has_driving_license && (
+              {!!employee?.has_driving_license && (
                 <span className="badge badge-gray flex items-center gap-1">
                   <Car className="w-3 h-3" />
                   רישיון {employee.driving_license_type}
@@ -900,7 +900,7 @@ export default function EmployeeDetails() {
                     />
                     <span>רישיון נהיגה</span>
                   </label>
-                  {editForm.has_driving_license && (
+                  {!!editForm.has_driving_license && (
                     <select
                       value={editForm.driving_license_type}
                       onChange={(e) => setEditForm({ ...editForm, driving_license_type: e.target.value })}
@@ -966,7 +966,7 @@ export default function EmployeeDetails() {
                       <p className="font-medium">{shift.company_name} - {shift.site_name}</p>
                       <p className="text-sm text-gray-500">{shift.date} | {shift.start_time} - {shift.end_time}</p>
                     </div>
-                    {shift.actual_hours && (
+                    {!!shift.actual_hours && (
                       <span className="text-sm text-gray-500">{shift.actual_hours} שעות</span>
                     )}
                   </div>

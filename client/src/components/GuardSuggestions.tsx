@@ -296,7 +296,7 @@ export default function GuardSuggestions({
                 <p className="font-medium font-heading text-gray-900 text-sm truncate">
                   {suggestion.employee_name}
                 </p>
-                {suggestion.is_preferred && (
+                {!!suggestion.is_preferred && (
                   <Shield className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
                 )}
               </div>

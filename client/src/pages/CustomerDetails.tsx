@@ -717,7 +717,7 @@ export default function CustomerDetails() {
                         <p className="font-medium">{site.name}</p>
                         <p className="text-sm text-gray-500">{site.address}</p>
                       </div>
-                      {site.requires_weapon && (
+                      {!!site.requires_weapon && (
                         <span className="badge badge-warning">דורש נשק</span>
                       )}
                     </div>
