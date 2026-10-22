@@ -14,6 +14,7 @@ import {
 import { weaponsApi, equipmentApi, employeesApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuthStore } from '../stores/authStore';
+import { fmtDate } from '../utils/display';
 
 type TabType = 'weapons' | 'equipment';
 
@@ -374,7 +375,7 @@ export default function WeaponsEquipment() {
                       <p className="text-sm text-success-600">מוקצה ל: {w.employee_name}</p>
                     )}
                     {w.license_expiry && (
-                      <p className="text-xs text-gray-400">תפוגת רישיון: {w.license_expiry}</p>
+                      <p className="text-xs text-gray-400">תפוגת רישיון: {fmtDate(w.license_expiry)}</p>
                     )}
                   </div>
                 </div>
@@ -446,7 +447,7 @@ export default function WeaponsEquipment() {
                         <p className="text-sm text-primary-600">מוקצה ל: {e.employee_name}</p>
                       )}
                       {e.return_date && (
-                        <p className="text-xs text-gray-400">הוחזר: {e.return_date}</p>
+                        <p className="text-xs text-gray-400">הוחזר: {fmtDate(e.return_date)}</p>
                       )}
                     </div>
                   </div>

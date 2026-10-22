@@ -28,6 +28,7 @@ import PriorityLinkControl from '../components/PriorityLinkControl';
 import PriorityIssueRequests from '../components/PriorityIssueRequests';
 import PriorityCustomerSummary, { PriorityCustomerPayment } from '../components/PriorityCustomerSummary';
 import { usePermissions } from '../hooks/usePermissions';
+import { fmtDate } from '../utils/display';
 
 const SERVICE_TYPE_OPTIONS = [
   { value: 'regular', label: 'שמירה רגילה' },
@@ -778,7 +779,7 @@ export default function CustomerDetails() {
                         <FileText className="w-5 h-5 text-gray-400" />
                         <div>
                           <p className="font-medium">
-                            {contract.start_date} - {contract.end_date || 'ללא הגבלה'}
+                            {fmtDate(contract.start_date)} - {contract.end_date ? fmtDate(contract.end_date) : 'ללא הגבלה'}
                           </p>
                           <p className="text-sm text-gray-500">
                             ₪{contract.monthly_value?.toLocaleString()}/חודש

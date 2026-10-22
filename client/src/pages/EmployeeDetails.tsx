@@ -566,7 +566,7 @@ export default function EmployeeDetails() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium">{expiryLabel[cert.expiry_status || 'valid']}</span>
-                        {cert.expiry_date && <span className="text-xs opacity-70">{cert.expiry_date}</span>}
+                        {cert.expiry_date && <span className="text-xs opacity-70">{fmtDate(cert.expiry_date)}</span>}
                         <button onClick={() => deleteCertMutation.mutate(cert.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -609,7 +609,7 @@ export default function EmployeeDetails() {
                         {w.status === 'assigned' ? 'מוקצה' : w.status === 'maintenance' ? 'בתחזוקה' : 'במחסן'}
                       </span>
                       {w.license_expiry && (
-                        <p className="text-xs text-gray-500 mt-1">רישיון: {w.license_expiry}</p>
+                        <p className="text-xs text-gray-500 mt-1">רישיון: {fmtDate(w.license_expiry)}</p>
                       )}
                     </div>
                   </div>
@@ -647,7 +647,7 @@ export default function EmployeeDetails() {
                             {e.serial_number && ` | מס"ס: ${e.serial_number}`}
                           </p>
                           {e.assigned_date && (
-                            <p className="text-xs text-gray-400">מאז: {e.assigned_date}</p>
+                            <p className="text-xs text-gray-400">מאז: {fmtDate(e.assigned_date)}</p>
                           )}
                         </div>
                       </div>
@@ -968,7 +968,7 @@ export default function EmployeeDetails() {
                   <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium">{shift.company_name} - {shift.site_name}</p>
-                      <p className="text-sm text-gray-500">{shift.date} | {shift.start_time} - {shift.end_time}</p>
+                      <p className="text-sm text-gray-500">{fmtDate(shift.date)} | {shift.start_time} - {shift.end_time}</p>
                     </div>
                     {!!shift.actual_hours && (
                       <span className="text-sm text-gray-500">{shift.actual_hours} שעות</span>
@@ -1083,7 +1083,7 @@ export default function EmployeeDetails() {
                     </div>
                     <div className="flex items-center gap-2">
                       {doc.expiry_date && (
-                        <span className="text-gray-500">{doc.expiry_date}</span>
+                        <span className="text-gray-500">{fmtDate(doc.expiry_date)}</span>
                       )}
                       <button
                         onClick={async () => { if (await confirmDialog('למחוק מסמך זה?')) deleteDocumentMutation.mutate(doc.id); }}
