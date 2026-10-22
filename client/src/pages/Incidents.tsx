@@ -97,7 +97,7 @@ export default function Incidents() {
 
   const { data: customersData } = useQuery({
     queryKey: ['customers-list'],
-    queryFn: () => customersApi.getAll().then(r => r.data),
+    queryFn: () => customersApi.getAll({ limit: 1000 }).then(r => r.data),
   });
 
   const { data: sitesData } = useQuery({

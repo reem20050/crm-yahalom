@@ -10,6 +10,7 @@ import { eventsApi, customersApi, leadsApi } from '../services/api';
 import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { distinct, fmtDayDate } from '../utils/display';
+import CustomerPicker from '../components/CustomerPicker';
 
 // סטטוסים שאחרי תאריך האירוע אמורים היו להתעדכן (הושלם / חשבונית הופקה / בוטל)
 const OPEN_STATUSES = ['quote', 'approved', 'staffed'];
@@ -73,7 +74,7 @@ export default function Events() {
   // Fetch customers for dropdown
   const { data: customersData } = useQuery({
     queryKey: ['customers-list'],
-    queryFn: () => customersApi.getAll({ limit: 100, status: 'active' }).then((res) => res.data),
+    queryFn: () => customersApi.getAll({ limit: 1000, status: 'active' }).then((res) => res.data),
   });
 
   // Fetch leads for dropdown
@@ -99,6 +100,7 @@ export default function Events() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<EventForm>({
     resolver: zodResolver(eventSchema),
@@ -310,14 +312,11 @@ export default function Events() {
               {sourceType === 'customer' && (
                 <div>
                   <label className="label">לקוח</label>
-                  <select {...register('customer_id')} className="input">
-                    <option value="">בחר לקוח...</option>
-                    {customersData?.customers?.map((customer: { id: string; company_name: string }) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.company_name}
-                      </option>
-                    ))}
-                  </select>
+                  <CustomerPicker
+                    customers={customersData?.customers}
+                    value={watch('customer_id')}
+                    selectProps={register('customer_id')}
+                  />
                 </div>
               )}
 

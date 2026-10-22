@@ -15,6 +15,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { openWhatsApp, formatPhoneForWhatsApp } from '../components/WhatsAppButton';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
+import CustomerPicker from '../components/CustomerPicker';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -584,7 +585,7 @@ export default function Shifts() {
   // Fetch customers for dropdown
   const { data: customersData } = useQuery({
     queryKey: ['customers-list'],
-    queryFn: () => customersApi.getAll({ limit: 100, status: 'active' }).then((res) => res.data),
+    queryFn: () => customersApi.getAll({ limit: 1000, status: 'active' }).then((res) => res.data),
   });
 
   // Fetch sites based on selected customer
@@ -956,21 +957,14 @@ export default function Shifts() {
               {/* Customer Selection */}
               <div>
                 <label className="label">לקוח *</label>
-                <select
+                <CustomerPicker
+                  customers={customersData?.customers}
                   value={selectedCustomer}
-                  onChange={(e) => {
-                    setSelectedCustomer(e.target.value);
+                  onChange={(id) => {
+                    setSelectedCustomer(id);
                     setValue('site_id', ''); // Reset site when customer changes
                   }}
-                  className="input"
-                >
-                  <option value="">בחר לקוח...</option>
-                  {customersData?.customers?.map((customer: { id: string; company_name: string }) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.company_name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               {/* Site Selection */}
