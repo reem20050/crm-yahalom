@@ -241,6 +241,79 @@ export default function Users() {
     );
   };
 
+  // תא "עובד משויך" והפעולות — משותפים לטבלה (מחשב) ולכרטיסים (נייד)
+  const employeeCell = (user: User) => (
+    <>
+      {user.employee_id ? (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
+          <Link2 className="w-3.5 h-3.5" />
+          {user.employee_first_name} {user.employee_last_name}
+        </span>
+      ) : user.role === 'employee' ? (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-sm">
+          <Unlink className="w-3.5 h-3.5" />
+          לא משויך
+        </span>
+      ) : (
+        // רק משתמש מסוג "עובד" צריך רשומת עובד (צ'ק-אין, משמרות) — אצל מנהל זו לא אזהרה
+        <span className="text-sm text-gray-400">לא נדרש</span>
+      )}
+    </>
+  );
+
+  const userActions = (user: User) => (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => openLinkModal(user)}
+        className={`p-1.5 rounded ${
+          user.employee_id
+            ? 'text-green-600 hover:text-green-700 hover:bg-green-50'
+            : user.role === 'employee'
+              ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
+              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+        }`}
+        title={user.employee_id ? 'שנה שיוך עובד' : 'שייך עובד'}
+      >
+        <Link2 className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => openEdit(user)}
+        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+        title="ערוך"
+      >
+        <Pencil className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => {
+          setResetPasswordModal({ userId: user.id, userName: `${user.first_name} ${user.last_name}` });
+          setNewPassword('');
+          setError('');
+        }}
+        className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded"
+        title="איפוס סיסמה"
+      >
+        <KeyRound className="h-4 w-4" />
+      </button>
+      {user.is_active ? (
+        <button
+          onClick={() => toggleActiveMutation.mutate({ id: user.id, is_active: 0 })}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+          title="השבת משתמש"
+        >
+          <UserX className="h-4 w-4" />
+        </button>
+      ) : (
+        <button
+          onClick={() => toggleActiveMutation.mutate({ id: user.id, is_active: 1 })}
+          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+          title="הפעל משתמש"
+        >
+          <UserCheck className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -281,7 +354,32 @@ export default function Users() {
 
       {/* Users table */}
       <div className="card overflow-hidden">
-        <div className="table-container">
+        {/* בנייד: כרטיס לכל משתמש — הטבלה רחבה פי 3 מהמסך ודורשת גלילה לצדדים */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {users.map((user) => (
+            <div key={user.id} className={`p-3 space-y-2 ${!user.is_active ? 'bg-gray-50 opacity-60' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900">{user.first_name} {user.last_name}</p>
+                  <p className="text-xs text-gray-500 truncate text-right" dir="ltr">{user.email}</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeColors[user.role] || 'bg-gray-100 text-gray-800'}`}>
+                    {roleLabels[user.role] || user.role}
+                  </span>
+                  {!user.is_active && <span className="badge-danger">מושבת</span>}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">{employeeCell(user)}</div>
+                {userActions(user)}
+              </div>
+              <p className="text-xs text-gray-400">התחברות אחרונה: {formatDate(user.last_login)}</p>
+            </div>
+          ))}
+          {users.length === 0 && <p className="p-6 text-center text-gray-500">אין משתמשים במערכת</p>}
+        </div>
+        <div className="table-container hidden md:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -316,20 +414,7 @@ export default function Users() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {user.employee_id ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
-                        <Link2 className="w-3.5 h-3.5" />
-                        {user.employee_first_name} {user.employee_last_name}
-                      </span>
-                    ) : user.role === 'employee' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-sm">
-                        <Unlink className="w-3.5 h-3.5" />
-                        לא משויך
-                      </span>
-                    ) : (
-                      // רק משתמש מסוג "עובד" צריך רשומת עובד (צ'ק-אין, משמרות) — אצל מנהל זו לא אזהרה
-                      <span className="text-sm text-gray-400">לא נדרש</span>
-                    )}
+                    {employeeCell(user)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {user.is_active ? (
@@ -342,56 +427,7 @@ export default function Users() {
                     {formatDate(user.last_login)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openLinkModal(user)}
-                        className={`p-1.5 rounded ${
-                          user.employee_id
-                            ? 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                            : user.role === 'employee'
-                              ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
-                        }`}
-                        title={user.employee_id ? 'שנה שיוך עובד' : 'שייך עובד'}
-                      >
-                        <Link2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(user)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                        title="ערוך"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setResetPasswordModal({ userId: user.id, userName: `${user.first_name} ${user.last_name}` });
-                          setNewPassword('');
-                          setError('');
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded"
-                        title="איפוס סיסמה"
-                      >
-                        <KeyRound className="h-4 w-4" />
-                      </button>
-                      {user.is_active ? (
-                        <button
-                          onClick={() => toggleActiveMutation.mutate({ id: user.id, is_active: 0 })}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          title="השבת משתמש"
-                        >
-                          <UserX className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => toggleActiveMutation.mutate({ id: user.id, is_active: 1 })}
-                          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
-                          title="הפעל משתמש"
-                        >
-                          <UserCheck className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    {userActions(user)}
                   </td>
                 </tr>
               ))}

@@ -22,6 +22,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
 import LeadFormLink from '../components/LeadFormLink';
+import { distinct } from '../utils/display';
 
 const leadSchema = z.object({
   company_name: z.string().optional(),
@@ -36,6 +37,17 @@ const leadSchema = z.object({
 });
 
 type LeadForm = z.infer<typeof leadSchema>;
+
+type LeadRow = {
+  id: string;
+  contact_name: string;
+  company_name: string;
+  phone: string;
+  email: string;
+  source: string;
+  status: string;
+  created_at: string;
+};
 
 const statusLabels: Record<string, { label: string; class: string }> = {
   new: { label: 'חדש', class: 'badge-info' },
@@ -187,7 +199,30 @@ export default function Leads() {
         {isLoading ? (
           <SkeletonTableRows columns={7} rows={5} />
         ) : data?.leads?.length > 0 ? (
-          <div className="table-container">
+          <>
+          {/* בנייד: רשימה במקום טבלה — הטבלה רחבה פי 1.6 מהמסך ודורשת גלילה לצדדים */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {data.leads.map((lead: LeadRow) => (
+              <Link key={lead.id} to={`/leads/${lead.id}`} className="block p-3 active:bg-gray-50">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900">{lead.contact_name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {[distinct(lead.company_name, lead.contact_name), lead.phone].filter(Boolean).join(' · ')}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {[sourceLabels[lead.source] || lead.source, new Date(lead.created_at).toLocaleDateString('he-IL')]
+                        .filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                  <span className={`${statusLabels[lead.status]?.class || 'badge-gray'} shrink-0`}>
+                    {statusLabels[lead.status]?.label || lead.status}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div className="table-container hidden md:block">
             <table className="table">
               <thead>
                 <tr>
@@ -208,16 +243,7 @@ export default function Leads() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {data.leads.map((lead: {
-                  id: string;
-                  contact_name: string;
-                  company_name: string;
-                  phone: string;
-                  email: string;
-                  source: string;
-                  status: string;
-                  created_at: string;
-                }) => (
+                {data.leads.map((lead: LeadRow) => (
                   <tr key={lead.id} className={isSelected(lead.id) ? 'bg-primary-50' : ''}>
                     <td>
                       <input
@@ -286,6 +312,7 @@ export default function Leads() {
               </tbody>
             </table>
           </div>
+          </>
         ) : (
           <div className="text-center py-16">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
