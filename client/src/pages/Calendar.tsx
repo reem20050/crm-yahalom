@@ -155,9 +155,18 @@ export default function Calendar() {
     queryKey: ['calendar-events', start_date, end_date],
     queryFn: () =>
       eventsApi
-        .getAll({ start_date, end_date })
+        // ברירת המחדל בשרת היא 20 — ביולי/אוגוסט היו יותר, והלוח הציג רק חלק
+        .getAll({ start_date, end_date, limit: 500 })
         .then((res) => res.data),
   });
+
+  // האירוע האחרון במערכת — כדי להציע מעבר כשהחודש המוצג ריק
+  const { data: latestData } = useQuery({
+    queryKey: ['calendar-latest-event'],
+    queryFn: () => eventsApi.getAll({ limit: 1 }).then((res) => res.data),
+    staleTime: 5 * 60 * 1000,
+  });
+  const latestDate: string | null = latestData?.events?.[0]?.event_date ?? null;
 
   // Fetch Google Calendar events for the displayed month (managers/admins only)
   const { data: googleData } = useQuery({
@@ -338,7 +347,7 @@ export default function Calendar() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="page-header">
           <h1 className="page-title">לוח שנה</h1>
           <p className="page-subtitle">{isEmployee ? 'המשמרות והאירועים שלי' : 'תצוגה חודשית של משמרות ואירועים'}</p>
@@ -363,6 +372,22 @@ export default function Calendar() {
           </div>
         </div>
       </div>
+
+      {/* חודש ריק — הצעה לעבור לחודש של האירוע האחרון */}
+      {!isLoading && shifts.length === 0 && events.length === 0 && latestDate
+        && latestDate.slice(0, 7) !== `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}` && (
+        <div className="card flex flex-wrap items-center justify-between gap-3 bg-gray-50">
+          <p className="text-sm text-gray-600">
+            אין משמרות או אירועים בחודש הזה. האירוע האחרון במערכת: {latestDate.slice(8, 10)}/{latestDate.slice(5, 7)}/{latestDate.slice(0, 4)}
+          </p>
+          <button
+            onClick={() => { setCurrentYear(Number(latestDate.slice(0, 4))); setCurrentMonth(Number(latestDate.slice(5, 7)) - 1); }}
+            className="btn-secondary text-sm px-3 py-1.5"
+          >
+            מעבר לחודש הזה
+          </button>
+        </div>
+      )}
 
       {/* Controls: Navigation + Filter */}
       <div className="card">

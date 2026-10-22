@@ -67,7 +67,7 @@ export default function Events() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['events', { status: statusFilter }],
-    queryFn: () => eventsApi.getAll({ status: statusFilter, limit: 50 }).then((res) => res.data),
+    queryFn: () => eventsApi.getAll({ status: statusFilter, limit: 500 }).then((res) => res.data),
   });
 
   // Fetch customers for dropdown
