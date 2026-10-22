@@ -251,7 +251,24 @@ export default function PriorityDocumentDrawer({ docId, onClose }: { docId: numb
                       : 'השורות של המסמך הזה לא נטענו למראה — הפירוט המלא נמצא ב-Priority.'}
                   </p>
                 ) : (
-                  <div className="table-container">
+                  <>
+                  {/* בנייד: שורה לכל פריט (תיאור + סכום, ומתחת כמות × מחיר) — הטבלה רחבה מהחלונית */}
+                  <ul className="sm:hidden divide-y divide-gray-100 text-sm">
+                    {data.lines.map((l) => (
+                      <li key={l.line_no} className="py-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">{l.description || '—'}</span>
+                          <span className="tabular-nums font-medium shrink-0">{shekel(l.line_total)}</span>
+                        </div>
+                        <p className="text-xs text-gray-400 tabular-nums">
+                          {num(l.quantity)}{l.unit ? ` ${l.unit}` : ''} × {shekel(l.unit_price)}
+                          {l.internal_sku ? ` · מק"ט ${l.internal_sku}` : ''}
+                          {l.line_discount ? ` · הנחה ${num(l.line_discount)}%` : ''}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="table-container hidden sm:block">
                     <table className="table text-sm">
                       <thead>
                         <tr><th>#</th><th>תיאור</th><th>כמות</th><th>מחיר</th><th>סה"כ</th></tr>
@@ -277,6 +294,7 @@ export default function PriorityDocumentDrawer({ docId, onClose }: { docId: numb
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
               </section>
 
