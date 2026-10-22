@@ -1,18 +1,29 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, AlertTriangle, CalendarDays, Menu } from 'lucide-react';
+import { LayoutDashboard, Calendar, AlertTriangle, CalendarDays, Menu, Building2, Receipt, Landmark } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface BottomNavProps {
   onMenuClick: () => void;
 }
 
-const navItems = [
+const opsItems = [
   { name: 'דשבורד', href: '/', icon: LayoutDashboard },
   { name: 'משמרות', href: '/shifts', icon: Calendar },
   { name: 'אבטחה', href: '/incidents', icon: AlertTriangle },
   { name: 'לוח שנה', href: '/calendar', icon: CalendarDays },
 ];
 
+// מנהלים עובדים בעיקר מול לקוחות וכספים; השאר תחת "עוד"
+const managerItems = [
+  { name: 'דשבורד', href: '/', icon: LayoutDashboard },
+  { name: 'לקוחות', href: '/customers', icon: Building2 },
+  { name: 'מסמכים', href: '/invoices', icon: Receipt },
+  { name: 'מי חייב', href: '/priority', icon: Landmark },
+];
+
 export default function BottomNav({ onMenuClick }: BottomNavProps) {
+  const { can } = usePermissions();
+  const navItems = can('page:priority') ? managerItems : opsItems;
   return (
     <nav className="fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-xl border-t border-gray-200/60 z-40 lg:hidden safe-area-pb">
       <div className="flex items-center justify-around h-[72px] max-w-lg mx-auto">
