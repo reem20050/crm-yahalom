@@ -276,7 +276,24 @@ router.get('/journal', async (req, res, next) => {
             + `account_key.ilike.${like},counter_account.ilike.${like})`;
     }
     const { rows, total } = await pm(path, { count: true });
-    res.json({ rows, total, limit, offset });
+    // שמות החשבונות ליד הקודים (400-0 / 200142 לבדם לא אומרים כלום). כשל כאן — בלי שמות, לא שגיאה
+    const keys = [...new Set(rows.flatMap((r) => [r.account_key, r.counter_account]).filter(Boolean).map(String))];
+    let names = new Map();
+    if (keys.length) {
+      try {
+        const list = keys.map((k) => `"${k.replace(/"/g, '')}"`).join(',');
+        const acc = await pm(`p_accounts?select=account_key,account_name&account_key=in.(${encodeURIComponent(list)})`);
+        names = new Map(acc.rows.map((a) => [String(a.account_key), a.account_name]));
+      } catch (e) { /* בלי שמות */ }
+    }
+    res.json({
+      rows: rows.map((r) => ({
+        ...r,
+        account_name: names.get(String(r.account_key)) ?? null,
+        counter_name: names.get(String(r.counter_account)) ?? null,
+      })),
+      total, limit, offset,
+    });
   } catch (e) { next(e); }
 });
 
