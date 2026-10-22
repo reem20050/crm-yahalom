@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { confirmDialog } from '../components/confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -266,9 +267,9 @@ export default function Leads() {
                         </Link>
                         {can('leads:delete') && (
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.preventDefault();
-                              if (confirm('האם אתה בטוח שברצונך למחוק ליד זה?')) {
+                              if (await confirmDialog('האם אתה בטוח שברצונך למחוק ליד זה?')) {
                                 deleteMutation.mutate(lead.id);
                               }
                             }}
@@ -451,8 +452,8 @@ export default function Leads() {
           },
           {
             label: 'מחק נבחרים',
-            onClick: () => {
-              if (confirm('האם למחוק את הלידים הנבחרים?')) {
+            onClick: async () => {
+              if (await confirmDialog('האם למחוק את הלידים הנבחרים?')) {
                 bulkDeleteMutation.mutate([...selectedIds]);
               }
             },

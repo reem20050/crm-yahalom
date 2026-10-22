@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { confirmDialog } from '../components/confirmDialog';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -1085,7 +1086,7 @@ export default function EmployeeDetails() {
                         <span className="text-gray-500">{doc.expiry_date}</span>
                       )}
                       <button
-                        onClick={() => { if (confirm('למחוק מסמך זה?')) deleteDocumentMutation.mutate(doc.id); }}
+                        onClick={async () => { if (await confirmDialog('למחוק מסמך זה?')) deleteDocumentMutation.mutate(doc.id); }}
                         className="text-red-400 hover:text-red-600 p-1"
                         title="מחק מסמך"
                       >

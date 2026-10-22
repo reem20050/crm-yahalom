@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { confirmDialog } from '../components/confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -202,8 +203,8 @@ export default function Contractors() {
                   </Link>
                   {can('contractors:delete') && (
                     <button
-                      onClick={() => {
-                        if (confirm('האם אתה בטוח שברצונך למחוק קבלן זה?')) {
+                      onClick={async () => {
+                        if (await confirmDialog('האם אתה בטוח שברצונך למחוק קבלן זה?')) {
                           deleteMutation.mutate(contractor.id);
                         }
                       }}

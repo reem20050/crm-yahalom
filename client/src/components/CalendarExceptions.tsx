@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { confirmDialog } from './confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
@@ -476,8 +477,8 @@ export default function CalendarExceptions() {
                           <Edit3 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`למחוק את "${ex.name}"?`)) {
+                          onClick={async () => {
+                            if (await confirmDialog(`למחוק את "${ex.name}"?`)) {
                               deleteMutation.mutate(ex.id);
                             }
                           }}
