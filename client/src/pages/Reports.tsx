@@ -521,7 +521,7 @@ export default function Reports() {
               </div>
 
               <div className="card">
-                <h3 className="text-lg font-semibold mb-4 font-heading">לקוחות מובילים — {financialData.year}</h3>
+                <h3 className="text-lg font-semibold mb-4 font-heading">לקוחות מובילים — {financialData.year} <span className="text-sm font-normal text-gray-500">(הופק, לפני מע"מ)</span></h3>
                 {financialData.top_customers.length === 0 ? (
                   <p className="text-sm text-gray-500">אין חשבוניות מס בשנה הזו.</p>
                 ) : (
