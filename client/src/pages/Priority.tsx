@@ -116,7 +116,7 @@ function Freshness({ asOf, days }: { asOf: string | null; days: number | null })
       <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${tone.text}`} />
       <div className="min-w-0">
         <p className={`font-semibold ${tone.text}`}>
-          תנועות היומן והיתרות (כרטסת) נכונות עד {asOf} — לפני {days} ימים
+          תנועות היומן והיתרות (כרטסת) נכונות עד {fmtDate(asOf)} — לפני {days} ימים
         </p>
         <p className="text-sm text-gray-600 mt-0.5 hidden sm:block">
           המסמכים ו"מי חייב" מתעדכנים כל לילה. הכרטסת מתעדכנת ידנית
@@ -246,7 +246,7 @@ export default function Priority() {
             <Stat
               label="יתרת לקוחות"
               value={shekel(s?.summary?.receivable)}
-              hint={`לפי הכרטסת${s?.dataAsOf ? ` עד ${s.dataAsOf}` : ''} — אינו כולל חשבון עסקה, 2024 והעוסק המורשה. לגבייה: "מי חייב"`}
+              hint={`לפי הכרטסת${s?.dataAsOf ? ` עד ${fmtDate(s.dataAsOf)}` : ''} — אינו כולל חשבון עסקה, 2024 והעוסק המורשה. לגבייה: "מי חייב"`}
             />
             <Stat label="יתרת ספקים" value={shekel(s?.summary?.payable)} />
             <Stat
