@@ -22,30 +22,30 @@ router.get('/', async (req, res) => {
     let params = [];
     let paramCount = 0;
 
-    // Always exclude soft-deleted
-    whereClause.push(`deleted_at IS NULL`);
+    // Always exclude soft-deleted. כל העמודות עם l. — השאילתה מצרפת את users, שגם לו יש status / phone / deleted_at
+    whereClause.push(`l.deleted_at IS NULL`);
 
     if (status) {
       paramCount++;
-      whereClause.push(`status = $${paramCount}`);
+      whereClause.push(`l.status = $${paramCount}`);
       params.push(status);
     }
 
     if (source) {
       paramCount++;
-      whereClause.push(`source = $${paramCount}`);
+      whereClause.push(`l.source = $${paramCount}`);
       params.push(source);
     }
 
     if (assigned_to) {
       paramCount++;
-      whereClause.push(`assigned_to = $${paramCount}`);
+      whereClause.push(`l.assigned_to = $${paramCount}`);
       params.push(assigned_to);
     }
 
     if (search) {
       paramCount++;
-      whereClause.push(`(company_name LIKE $${paramCount} OR contact_name LIKE $${paramCount} OR phone LIKE $${paramCount})`);
+      whereClause.push(`(l.company_name LIKE $${paramCount} OR l.contact_name LIKE $${paramCount} OR l.phone LIKE $${paramCount})`);
       params.push(`%${search}%`);
     }
 
@@ -53,7 +53,7 @@ router.get('/', async (req, res) => {
 
     // Get total count
     const countResult = await db.query(
-      `SELECT COUNT(*) as count FROM leads ${whereString}`,
+      `SELECT COUNT(*) as count FROM leads l ${whereString}`,
       params
     );
     const total = parseInt(countResult.rows[0].count || 0);
