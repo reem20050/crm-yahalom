@@ -24,7 +24,7 @@ import { SkeletonGrid } from '../components/Skeleton';
 import { AmbiguousTab, LINK_QUEUE_KEY, UnmatchedTab } from '../components/PriorityLinkQueue';
 import PriorityCollections from '../components/PriorityCollections';
 import PriorityDocumentDrawer from '../components/PriorityDocumentDrawer';
-import { fmtDate } from '../utils/display';
+import { fmtDate, fmtStamp } from '../utils/display';
 
 type DataTab = 'journal' | 'accounts' | 'documents';
 // לשוניות תור הקישור: נטענות מ-/priority/unmatched, עם סינון מקומי משלהן
@@ -260,7 +260,7 @@ export default function Priority() {
               label="תנועות יומן"
               value={(s?.journalRows ?? 0).toLocaleString('he-IL')}
               hint={s?.lastRun?.started_at
-                ? `הטעינה האחרונה: ${new Date(s.lastRun.started_at).toLocaleDateString('he-IL')}`
+                ? `הטעינה האחרונה: ${fmtStamp(s.lastRun.started_at)}`
                 : undefined}
             />
           </div>

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Upload, Trash2, ExternalLink, File, Image, FileSpreadsheet, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { documentsApi } from '../services/api';
+import { fmtStamp } from '../utils/display';
 
 interface Document {
   id: string;
@@ -143,7 +144,7 @@ export default function DocumentManager({ entityType, entityId }: DocumentManage
                 <div className="min-w-0">
                   <p className="text-sm font-medium font-heading text-gray-900 truncate">{doc.file_name}</p>
                   <p className="text-xs text-gray-500">
-                    {formatFileSize(doc.file_size)} • {doc.uploaded_by_name || 'מערכת'} • {new Date(doc.created_at).toLocaleDateString('he-IL')}
+                    {formatFileSize(doc.file_size)} • {doc.uploaded_by_name || 'מערכת'} • {fmtStamp(doc.created_at)}
                   </p>
                 </div>
               </div>

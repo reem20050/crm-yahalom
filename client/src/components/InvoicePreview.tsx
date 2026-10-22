@@ -15,6 +15,7 @@ import {
   Calculator,
 } from 'lucide-react';
 import { invoiceAutomationApi, automationApi } from '../services/api';
+import { fmtStamp } from '../utils/display';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ function formatCurrency(val: number | undefined): string {
 function formatDate(dateStr: string | undefined): string {
   if (!dateStr) return '-';
   try {
-    return new Date(dateStr).toLocaleDateString('he-IL');
+    return fmtStamp(dateStr);
   } catch {
     return dateStr;
   }

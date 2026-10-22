@@ -32,7 +32,7 @@ import { reportsApi, performanceApi, incidentsApi, priorityApi, customersApi } f
 import { fmtDate, shekel } from '../components/PriorityCustomerDocs';
 import { FileText } from 'lucide-react';
 import { exportTableToPDF } from '../utils/pdfExport';
-import { localIsoDate } from '../utils/display';
+import { localIsoDate, fmtStamp } from '../utils/display';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -194,7 +194,7 @@ export default function Reports() {
   };
 
   const handlePDFExport = () => {
-    const today = new Date().toLocaleDateString('he-IL');
+    const today = fmtStamp(new Date());
     switch (activeTab) {
       case 'sales':
         if (salesData?.leadsBySource) {

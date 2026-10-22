@@ -31,7 +31,7 @@ import { employeesApi, certificationsApi, weaponsApi, performanceApi, equipmentA
 import WhatsAppButton from '../components/WhatsAppButton';
 import GuardRatingModal from '../components/GuardRatingModal';
 import DocumentManager from '../components/DocumentManager';
-import { fmtDate, realPhone } from '../utils/display';
+import { fmtDate, realPhone, fmtStamp } from '../utils/display';
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'id_card', label: 'תעודת זהות' },
@@ -742,7 +742,7 @@ export default function EmployeeDetails() {
                               {r.rating_type === 'manager_review' ? 'מנהל' : r.rating_type === 'customer_feedback' ? 'לקוח' : 'אירוע'}
                             </span>
                           </div>
-                          <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString('he-IL')}</span>
+                          <span className="text-xs text-gray-400">{fmtStamp(r.created_at)}</span>
                         </div>
                       ))}
                     </div>

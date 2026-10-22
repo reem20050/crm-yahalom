@@ -8,6 +8,7 @@ import WhatsAppButton from '../components/WhatsAppButton';
 import ActivityLog from '../components/ActivityLog';
 import EmailComposeModal from '../components/EmailComposeModal';
 import LeadConversionWizard from '../components/LeadConversionWizard';
+import { fmtStamp } from '../utils/display';
 
 const statusOptions = [
   { value: 'new', label: 'חדש' },
@@ -472,7 +473,7 @@ export default function LeadDetails() {
                 <div>
                   <dt className="text-sm text-gray-500">תאריך יצירה</dt>
                   <dd className="font-medium">
-                    {lead?.created_at && new Date(lead.created_at).toLocaleDateString('he-IL')}
+                    {lead?.created_at && fmtStamp(lead.created_at)}
                   </dd>
                 </div>
               </div>
@@ -493,7 +494,7 @@ export default function LeadDetails() {
                 <div>
                   <dt className="text-sm text-gray-500">תאריך יצירה</dt>
                   <dd className="font-medium">
-                    {lead?.created_at && new Date(lead.created_at).toLocaleDateString('he-IL')}
+                    {lead?.created_at && fmtStamp(lead.created_at)}
                   </dd>
                 </div>
               </dl>

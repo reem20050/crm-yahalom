@@ -36,6 +36,7 @@ import {
 import { automationApi } from '../services/api';
 import { SkeletonPulse } from '../components/Skeleton';
 import type { MutationError } from '../types';
+import { fmtStampTime } from '../utils/display';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -90,19 +91,7 @@ type TabType = 'jobs' | 'history' | 'stats';
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('he-IL', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
+  return dateStr ? fmtStampTime(dateStr) : '-';
 }
 
 function formatShortDate(dateStr: string): string {

@@ -22,7 +22,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
 import LeadFormLink from '../components/LeadFormLink';
-import { distinct } from '../utils/display';
+import { distinct, fmtStamp } from '../utils/display';
 
 const leadSchema = z.object({
   company_name: z.string().optional(),
@@ -211,7 +211,7 @@ export default function Leads() {
                       {[distinct(lead.company_name, lead.contact_name), lead.phone].filter(Boolean).join(' · ')}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {[sourceLabels[lead.source] || lead.source, new Date(lead.created_at).toLocaleDateString('he-IL')]
+                      {[sourceLabels[lead.source] || lead.source, fmtStamp(lead.created_at)]
                         .filter(Boolean).join(' · ')}
                     </p>
                   </div>
@@ -280,7 +280,7 @@ export default function Leads() {
                     <td>
                       <span className="flex items-center gap-1 text-gray-500">
                         <Calendar className="w-4 h-4" />
-                        {new Date(lead.created_at).toLocaleDateString('he-IL')}
+                        {fmtStamp(lead.created_at)}
                       </span>
                     </td>
                     <td>
