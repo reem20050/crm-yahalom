@@ -17,6 +17,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import { dashboardApi, alertsApi } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 interface Notification {
   id: string;
@@ -33,6 +34,8 @@ interface NotificationCenterProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const ENTITY_PATHS: Record<string, string> = { lead: '/leads', customer: '/customers', event: '/events', employee: '/employees' };
 
 type NotificationType = 'shift_reminder' | 'invoice_overdue' | 'contract_expiry' | 'lead_new' | 'general';
 
@@ -206,6 +209,7 @@ function SeverityBadge({ severity }: { severity: 'critical' | 'warning' | null }
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export default function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
+  const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
@@ -355,6 +359,12 @@ export default function NotificationCenter({ isOpen, onClose }: NotificationCent
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       markReadMutation.mutate(notification.id);
+    }
+    // התראה שקשורה לרשומה (ליד חדש וכו') — לחיצה פותחת אותה
+    const path = ENTITY_PATHS[notification.related_entity_type || ''];
+    if (path && notification.related_entity_id) {
+      onClose();
+      navigate(`${path}/${notification.related_entity_id}`);
     }
   };
 

@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy load all pages for code splitting
 const Login = lazy(() => import('./pages/Login'));
+const LeadForm = lazy(() => import('./pages/LeadForm'));
 const GoogleCallback = lazy(() => import('./pages/GoogleCallback'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Leads = lazy(() => import('./pages/Leads'));
@@ -82,6 +83,8 @@ function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* טופס פנייה ציבורי — בלי התחברות (לאתר / לפרסום) */}
+          <Route path="/join" element={<LeadForm />} />
           <Route path="/auth/google/callback" element={<GoogleCallback />} />
           <Route
             path="/"

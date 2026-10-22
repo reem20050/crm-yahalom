@@ -46,10 +46,14 @@ const statusLabels: Record<string, { label: string; class: string }> = {
 };
 
 const sourceLabels: Record<string, string> = {
-  website: 'אתר אינטרנט',
+  website: 'אתר / טופס',
+  facebook: 'פייסבוק',
+  instagram: 'אינסטגרם',
+  google: 'גוגל',
   whatsapp: 'וואטסאפ',
   phone: 'טלפון',
   referral: 'המלצה',
+  other: 'אחר',
 };
 
 export default function Leads() {
@@ -340,7 +344,10 @@ export default function Leads() {
                   <label className="label">מקור</label>
                   <select {...register('source')} className="input">
                     <option value="">בחר מקור</option>
-                    <option value="website">אתר אינטרנט</option>
+                    <option value="website">אתר / טופס</option>
+                    <option value="facebook">פייסבוק</option>
+                    <option value="instagram">אינסטגרם</option>
+                    <option value="google">גוגל</option>
                     <option value="whatsapp">וואטסאפ</option>
                     <option value="phone">טלפון</option>
                     <option value="referral">המלצה</option>
@@ -354,6 +361,9 @@ export default function Leads() {
                     <option value="regular">אבטחה קבועה</option>
                     <option value="event">אירוע חד-פעמי</option>
                     <option value="both">שניהם</option>
+                    <option value="patrol">סיור ומוקד</option>
+                    <option value="armed">מאבטח חמוש</option>
+                    <option value="other">אחר</option>
                   </select>
                 </div>
 
