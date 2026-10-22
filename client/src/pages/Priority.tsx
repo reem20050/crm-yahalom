@@ -263,7 +263,7 @@ export default function Priority() {
       )}
 
       {/* לשוניות */}
-      <div className="flex gap-2 border-b border-gray-100">
+      <div className="flex gap-2 border-b border-gray-100 overflow-x-auto">
         {([
           ['collections', 'מי חייב'],
           ['documents', 'מסמכים'],
@@ -275,7 +275,7 @@ export default function Priority() {
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0 ${
               tab === key
                 ? 'border-primary-600 text-primary-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700'

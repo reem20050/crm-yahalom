@@ -299,7 +299,7 @@ export default function EventDetails() {
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-orange-50 rounded-xl flex items-center justify-center">
             <PartyPopper className="w-8 h-8 text-orange-600" />
@@ -317,7 +317,7 @@ export default function EventDetails() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {!isEditing && (
             <button
               onClick={() => setIsEditing(true)}
@@ -359,7 +359,7 @@ export default function EventDetails() {
           {!isEditing && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="btn-danger flex items-center gap-2"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-danger-700 hover:bg-danger-50 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               מחק אירוע

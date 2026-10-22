@@ -22,6 +22,7 @@ import {
 import toast from 'react-hot-toast';
 import { contractorsApi } from '../services/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { distinct, humanizeNotes } from '../utils/display';
 
 // --- Types ---
 
@@ -414,7 +415,9 @@ export default function ContractorDetails() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 font-heading">{contractor.company_name}</h1>
-            <p className="text-gray-500">{contractor.contact_name}</p>
+            {distinct(contractor.contact_name, contractor.company_name) && (
+              <p className="text-gray-500">{contractor.contact_name}</p>
+            )}
             {contractor.rating > 0 && (
               <div className="mt-1">
                 <StarRatingDisplay rating={contractor.rating} />
@@ -591,7 +594,7 @@ export default function ContractorDetails() {
                   {contractor.notes && (
                     <div className="col-span-1 sm:col-span-2">
                       <dt className="text-sm text-gray-500">הערות</dt>
-                      <dd className="font-medium text-sm whitespace-pre-wrap">{contractor.notes}</dd>
+                      <dd className="font-medium text-sm whitespace-pre-wrap">{humanizeNotes(contractor.notes)}</dd>
                     </div>
                   )}
                 </dl>

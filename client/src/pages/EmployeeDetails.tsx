@@ -309,7 +309,7 @@ export default function EmployeeDetails() {
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-4">
           <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-50 rounded-full flex items-center justify-center">
             <UserCircle className="w-12 h-12 text-gray-400" />
@@ -356,7 +356,7 @@ export default function EmployeeDetails() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isEditing ? (
             <>
               <button
@@ -403,7 +403,7 @@ export default function EmployeeDetails() {
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="btn-danger text-sm flex items-center gap-1 px-3 py-2"
+                className="text-sm flex items-center gap-1 px-3 py-2 rounded-lg text-gray-500 hover:text-danger-700 hover:bg-danger-50 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
                 מחק עובד
@@ -450,9 +450,9 @@ export default function EmployeeDetails() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="border-b">
-        <nav className="flex gap-4">
+      {/* Tabs — נגללות בתוך השורה במובייל, לא כל הדף */}
+      <div className="border-b overflow-x-auto">
+        <nav className="flex gap-4 w-max min-w-full">
           {[
             { id: 'info' as const, label: 'מידע כללי', icon: UserCircle },
             { id: 'certifications' as const, label: 'הסמכות', icon: Award },
@@ -463,7 +463,7 @@ export default function EmployeeDetails() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors text-sm ${
+              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors text-sm whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
