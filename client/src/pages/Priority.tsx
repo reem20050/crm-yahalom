@@ -24,6 +24,7 @@ import { SkeletonGrid } from '../components/Skeleton';
 import { AmbiguousTab, LINK_QUEUE_KEY, UnmatchedTab } from '../components/PriorityLinkQueue';
 import PriorityCollections from '../components/PriorityCollections';
 import PriorityDocumentDrawer from '../components/PriorityDocumentDrawer';
+import { fmtDate } from '../utils/display';
 
 type DataTab = 'journal' | 'accounts' | 'documents';
 // לשוניות תור הקישור: נטענות מ-/priority/unmatched, עם סינון מקומי משלהן
@@ -319,7 +320,51 @@ export default function Priority() {
           לא נמצאו רשומות{search ? ` עבור "${search}"` : ''}.
         </div>
       ) : (
-        <div className="table-container">
+        <>
+        {/* בנייד: רשימה במקום טבלה — טבלת היומן רחבה פי 2.8 מהמסך */}
+        <ul className="md:hidden card p-0 divide-y divide-gray-100 text-sm">
+          {tab === 'journal' && (rows as JournalRow[]).map((j) => (
+            <li key={j.id} className="p-3">
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0">{j.details || j.reference || '—'}</span>
+                <span className="tabular-nums font-medium shrink-0">
+                  {shekel(j.amount)} <span className="text-xs text-gray-400">{j.debit_credit === '1' ? 'חובה' : j.debit_credit === '2' ? 'זכות' : ''}</span>
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {[fmtDate(j.entry_date), j.entry_no && `תנועה ${j.entry_no}`, j.reference && `אסמכתא ${j.reference}`].filter(Boolean).join(' · ')}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5 truncate">
+                {j.account_name || j.account_key || '—'} ← {j.counter_name || j.counter_account || '—'}
+              </p>
+            </li>
+          ))}
+          {tab === 'accounts' && (rows as AccountRow[]).map((a) => (
+            <li key={a.account_key} className="p-3">
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0 font-medium text-gray-900">{a.account_name ?? '—'}</span>
+                <span className="tabular-nums shrink-0">{shekel(a.balance)}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {[a.account_key, a.kind && (ACCOUNT_KINDS[a.kind] ?? a.kind), a.city].filter(Boolean).join(' · ')}
+              </p>
+            </li>
+          ))}
+          {tab === 'documents' && (rows as DocRow[]).map((d) => (
+            <li key={d.id}>
+              <button type="button" onClick={() => setOpenDoc(d.id)} className="w-full text-right p-3 active:bg-gray-50">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="min-w-0 font-medium text-gray-900">{d.party_name ?? '—'}</span>
+                  <span className="tabular-nums shrink-0">{shekel(d.total_incl_vat)}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {[DOC_TYPES[d.doc_type] ?? d.doc_type, d.doc_no, fmtDate(d.issue_date)].filter(Boolean).join(' · ')}
+                </p>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="table-container hidden md:block">
           <table className="table">
             {tab === 'journal' && (
               <>
@@ -330,7 +375,7 @@ export default function Priority() {
                 <tbody>
                   {(rows as JournalRow[]).map((j) => (
                     <tr key={j.id}>
-                      <td className="tabular-nums">{j.entry_date ?? '—'}</td>
+                      <td className="tabular-nums whitespace-nowrap">{fmtDate(j.entry_date)}</td>
                       <td className="tabular-nums">{j.entry_no ?? '—'}</td>
                       <td>
                         <span className="tabular-nums">{j.account_key ?? '—'}</span>
@@ -380,7 +425,7 @@ export default function Priority() {
                 <tbody>
                   {(rows as DocRow[]).map((d) => (
                     <tr key={d.id} onClick={() => setOpenDoc(d.id)} className="cursor-pointer hover:bg-gray-50">
-                      <td className="tabular-nums">{d.issue_date ?? '—'}</td>
+                      <td className="tabular-nums whitespace-nowrap">{fmtDate(d.issue_date)}</td>
                       <td>{DOC_TYPES[d.doc_type] ?? d.doc_type}</td>
                       <td className="tabular-nums">{d.doc_no}</td>
                       <td>{d.party_name ?? '—'}</td>
@@ -394,6 +439,7 @@ export default function Priority() {
             )}
           </table>
         </div>
+        </>
       )}
 
       {rows.length > 0 && (
