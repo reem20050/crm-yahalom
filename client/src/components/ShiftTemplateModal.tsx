@@ -46,7 +46,7 @@ export default function ShiftTemplateModal({ template, onClose }: ShiftTemplateM
 
   const { data: customersData } = useQuery({
     queryKey: ['customers-list'],
-    queryFn: () => customersApi.getAll({ limit: 100, status: 'active' }).then((r) => r.data),
+    queryFn: () => customersApi.getAll({ limit: 1000, status: 'active' }).then((r) => r.data),
   });
 
   const { data: sitesData } = useQuery({
