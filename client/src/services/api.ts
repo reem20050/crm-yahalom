@@ -1,6 +1,7 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
+import { explainValidation } from '../utils/validation';
 
 const api = axios.create({
   baseURL: '/api',
@@ -62,6 +63,10 @@ api.interceptors.response.use(
     if (status === 401) {
       useAuthStore.getState().logout();
       window.location.href = '/login';
+    }
+
+    if (status === 400) {
+      explainValidation(error.response?.data);
     }
 
     if (status === 403) {
