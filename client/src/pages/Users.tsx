@@ -259,8 +259,8 @@ export default function Users() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="page-header">
+      <div className="page-header">
+        <div>
           <h1 className="page-title">ניהול משתמשים</h1>
           <p className="page-subtitle">ניהול חשבונות משתמשים, הרשאות גישה ושיוך לעובדים</p>
         </div>
@@ -321,11 +321,14 @@ export default function Users() {
                         <Link2 className="w-3.5 h-3.5" />
                         {user.employee_first_name} {user.employee_last_name}
                       </span>
-                    ) : (
+                    ) : user.role === 'employee' ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-sm">
                         <Unlink className="w-3.5 h-3.5" />
                         לא משויך
                       </span>
+                    ) : (
+                      // רק משתמש מסוג "עובד" צריך רשומת עובד (צ'ק-אין, משמרות) — אצל מנהל זו לא אזהרה
+                      <span className="text-sm text-gray-400">לא נדרש</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -345,7 +348,9 @@ export default function Users() {
                         className={`p-1.5 rounded ${
                           user.employee_id
                             ? 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                            : 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
+                            : user.role === 'employee'
+                              ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
+                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                         }`}
                         title={user.employee_id ? 'שנה שיוך עובד' : 'שייך עובד'}
                       >
