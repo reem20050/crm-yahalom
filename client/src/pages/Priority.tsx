@@ -113,7 +113,7 @@ function Freshness({ asOf, days }: { asOf: string | null; days: number | null })
         <p className={`font-semibold ${tone.text}`}>
           תנועות היומן והיתרות (כרטסת) נכונות עד {asOf} — לפני {days} ימים
         </p>
-        <p className="text-sm text-gray-600 mt-0.5">
+        <p className="text-sm text-gray-600 mt-0.5 hidden sm:block">
           המסמכים ו"מי חייב" מתעדכנים כל לילה. הכרטסת מתעדכנת ידנית
           {days > 7 ? ' — לרענון לפנות לרעם.' : '.'}
         </p>
@@ -233,7 +233,8 @@ export default function Priority() {
         <>
           <Freshness asOf={s?.dataAsOf ?? null} days={s?.staleDays ?? null} />
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* במובייל מוסתר: נתוני הכרטסת דוחקים את "מי חייב" אל מחוץ למסך */}
+          <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-4">
             {/* ⚠️ המספר נכון לכרטסת, אך הכרטסת אינה כל החשיפה: חשבון עסקה אינו
                 נכנס אליה, 2024 סגורה, והעוסק המורשה אינו כלול. בלי ההסתייגות
                 המסך גורם להסיק שזו מלוא היתרה — טעות בטוחה-בעצמה. */}
