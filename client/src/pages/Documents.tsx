@@ -324,6 +324,8 @@ export default function Documents() {
           <p className="page-subtitle">כל המסמכים שהופקו ב-Priority — לחיצה על שורה פותחת את המסמך</p>
         </div>
       </div>
+      {/* "חשבוניות CRM (ישן)" מוסתרת (החלטת רעם 22/10). עדיין נגישה בכתובת ?tab=crm, ואז מוצגות שתי הלשוניות. */}
+      {legacy && (
       <div className="flex gap-2 border-b border-gray-100">
         {([['priority', 'מסמכי Priority'], ['crm', 'חשבוניות CRM (ישן)']] as const).map(([key, label]) => {
           const active = (key === 'crm') === legacy;
@@ -340,6 +342,7 @@ export default function Documents() {
           );
         })}
       </div>
+      )}
       {legacy ? (
         <>
           <p className="text-sm text-warning-700 bg-warning-50 rounded-lg p-3">
