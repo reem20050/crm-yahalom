@@ -42,6 +42,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+const MONTHS_SHORT = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
+
 type ViewMode = 'business' | 'operations';
 
 interface EmployeeShift extends Shift {
@@ -925,7 +927,10 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
     }),
     retry: false,
   });
-  const revenue = (revenueQ.data?.months ?? []).map((m) => ({ ...m, label: `${m.month.slice(5)}/${m.month.slice(2, 4)}` }));
+  const revenue = (revenueQ.data?.months ?? []).map((m) => ({
+    ...m,
+    label: `${MONTHS_SHORT[Number(m.month.slice(5, 7)) - 1] ?? m.month.slice(5)} ${m.month.slice(2, 4)}`,
+  }));
   const chase = (collectionsQ.data?.rows ?? []).filter((r) => r.to_chase > 0).slice(0, 5);
   // אריחי התצוגה העסקית: הכספים מ-Priority (לידים / משמרות / אירועים — בתצוגה התפעולית ובמסכים שלהם)
   const months = revenueQ.data?.months ?? [];
@@ -1021,7 +1026,7 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(v: number) => `${Math.round(v / 1000)}K`} />
+                <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(v: number) => (v >= 1e6 ? `${+(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}K`)} />
                 <Tooltip
                   formatter={(value: number) => [shekel(value), 'הופק (לפני מע"מ)']}
                   contentStyle={{
