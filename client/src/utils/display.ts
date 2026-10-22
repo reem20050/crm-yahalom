@@ -35,3 +35,10 @@ export function fmtDayDate(d: string | null | undefined): string {
 export function humanizeNotes(notes: string | null | undefined): string {
   return String(notes ?? '').replace(/\bTrue\b/g, 'כן').replace(/\bFalse\b/g, 'לא');
 }
+
+/** "2026-06-05" → "05/06/2026" (בלי המרת אזור זמן). */
+export function fmtDate(d: string | null | undefined): string {
+  if (!d) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
+}

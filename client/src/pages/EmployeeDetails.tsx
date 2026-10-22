@@ -30,6 +30,7 @@ import { employeesApi, certificationsApi, weaponsApi, performanceApi, equipmentA
 import WhatsAppButton from '../components/WhatsAppButton';
 import GuardRatingModal from '../components/GuardRatingModal';
 import DocumentManager from '../components/DocumentManager';
+import { fmtDate, realPhone } from '../utils/display';
 
 const DOCUMENT_TYPE_OPTIONS = [
   { value: 'id_card', label: 'תעודת זהות' },
@@ -817,14 +818,16 @@ export default function EmployeeDetails() {
                   <Phone className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">טלפון</p>
-                    <div className="flex items-center gap-2">
-                      <a href={`tel:${employee?.phone}`} className="text-primary-600 font-medium">
-                        {employee?.phone}
-                      </a>
-                      {employee?.phone && (
-                        <WhatsAppButton phone={employee.phone} name={`${employee.first_name || ''} ${employee.last_name || ''}`.trim() || 'עובד'} size="sm" />
-                      )}
-                    </div>
+                    {realPhone(employee?.phone) ? (
+                      <div className="flex items-center gap-2">
+                        <a href={`tel:${employee?.phone}`} className="text-primary-600 font-medium">
+                          {employee?.phone}
+                        </a>
+                        <WhatsAppButton phone={employee!.phone} name={`${employee!.first_name || ''} ${employee!.last_name || ''}`.trim() || 'עובד'} size="sm" />
+                      </div>
+                    ) : (
+                      <p className="text-gray-400">אין טלפון</p>
+                    )}
                   </div>
                 </div>
                 {employee?.email && (
@@ -980,7 +983,7 @@ export default function EmployeeDetails() {
           {/* Documents */}
           {id && (
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4 font-heading">מסמכים</h2>
+              <h2 className="text-lg font-semibold mb-4 font-heading">קבצים מצורפים</h2>
               <DocumentManager entityType="employee" entityId={id} />
             </div>
           )}
@@ -998,7 +1001,7 @@ export default function EmployeeDetails() {
               </div>
               <div>
                 <dt className="text-sm text-gray-500">תאריך התחלה</dt>
-                <dd className="font-medium">{employee?.hire_date}</dd>
+                <dd className="font-medium">{fmtDate(employee?.hire_date)}</dd>
               </div>
               <div>
                 <dt className="text-sm text-gray-500">סוג העסקה</dt>
