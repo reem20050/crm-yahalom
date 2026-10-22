@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { confirmDialog } from '../components/confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -452,8 +453,8 @@ export default function Invoices() {
                           {/* Delete button - only for draft status */}
                           {can('invoices:delete') && effectiveStatus === 'draft' && (
                             <button
-                              onClick={() => {
-                                if (confirm('האם אתה בטוח שברצונך למחוק חשבונית זו?')) {
+                              onClick={async () => {
+                                if (await confirmDialog('האם אתה בטוח שברצונך למחוק חשבונית זו?')) {
                                   deleteMutation.mutate(invoice.id);
                                 }
                               }}
@@ -859,8 +860,8 @@ export default function Invoices() {
           },
           {
             label: 'מחק נבחרים',
-            onClick: () => {
-              if (confirm('האם למחוק את החשבוניות הנבחרות?')) {
+            onClick: async () => {
+              if (await confirmDialog('האם למחוק את החשבוניות הנבחרות?')) {
                 bulkDeleteMutation.mutate([...selectedIds]);
               }
             },

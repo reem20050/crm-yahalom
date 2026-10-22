@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { confirmDialog } from '../components/confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
@@ -397,7 +398,7 @@ export default function WeaponsEquipment() {
                         העבר
                       </button>
                       <button
-                        onClick={() => { if (confirm('למחוק נשק זה?')) deleteWeaponMutation.mutate(w.id); }}
+                        onClick={async () => { if (await confirmDialog('למחוק נשק זה?')) deleteWeaponMutation.mutate(w.id); }}
                         className="text-red-400 hover:text-red-600 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -465,7 +466,7 @@ export default function WeaponsEquipment() {
                           </button>
                         )}
                         <button
-                          onClick={() => { if (confirm('למחוק ציוד זה?')) deleteEquipMutation.mutate(e.id); }}
+                          onClick={async () => { if (await confirmDialog('למחוק ציוד זה?')) deleteEquipMutation.mutate(e.id); }}
                           className="text-red-400 hover:text-red-600 p-1"
                         >
                           <Trash2 className="w-4 h-4" />

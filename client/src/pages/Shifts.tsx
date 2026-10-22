@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { confirmDialog } from '../components/confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -926,8 +927,8 @@ export default function Shifts() {
           },
           {
             label: 'מחק נבחרים',
-            onClick: () => {
-              if (confirm('האם למחוק את המשמרות הנבחרות?')) {
+            onClick: async () => {
+              if (await confirmDialog('האם למחוק את המשמרות הנבחרות?')) {
                 bulkDeleteMutation.mutate([...selectedIds]);
               }
             },

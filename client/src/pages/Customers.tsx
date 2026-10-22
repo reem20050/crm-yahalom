@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { confirmDialog } from '../components/confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -391,9 +392,9 @@ export default function Customers() {
                     {can('customers:delete') && (
                       <td>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (confirm('האם אתה בטוח שברצונך למחוק לקוח זה?')) {
+                            if (await confirmDialog('האם אתה בטוח שברצונך למחוק לקוח זה?')) {
                               deleteMutation.mutate(c.id);
                             }
                           }}

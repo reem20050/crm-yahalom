@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { confirmDialog } from './confirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Upload, Trash2, ExternalLink, File, Image, FileSpreadsheet, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -159,8 +160,8 @@ export default function DocumentManager({ entityType, entityId }: DocumentManage
                   </a>
                 )}
                 <button
-                  onClick={() => {
-                    if (confirm('האם למחוק מסמך זה?')) {
+                  onClick={async () => {
+                    if (await confirmDialog('האם למחוק מסמך זה?')) {
                       deleteMutation.mutate(doc.id);
                     }
                   }}
