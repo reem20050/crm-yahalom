@@ -117,9 +117,9 @@ function formatShortDate(dateStr: string): string {
 function formatDuration(start: string, end: string | null): string {
   if (!end) return 'רץ...';
   const ms = new Date(end).getTime() - new Date(start).getTime();
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${Math.round(ms / 1000)}s`;
-  return `${Math.round(ms / 60000)}m`;
+  if (ms < 1000) return 'פחות משנייה';
+  if (ms < 60000) return `${Math.round(ms / 1000)} שנ'`;
+  return `${Math.round(ms / 60000)} דק'`;
 }
 
 function cronToHebrew(cron: string): string {
