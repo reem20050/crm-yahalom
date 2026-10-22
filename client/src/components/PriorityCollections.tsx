@@ -78,8 +78,8 @@ export default function PriorityCollections() {
               <th className="py-2">לקוח</th>
               <th className="py-2">לגבות</th>
               <th className="py-2">שולם בבנק — חסרה קבלה</th>
-              <th className="py-2">לבירור</th>
-              <th className="py-2">יתרה</th>
+              <th className="py-2 hidden sm:table-cell">לבירור</th>
+              <th className="py-2 hidden sm:table-cell">יתרה</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -94,8 +94,8 @@ export default function PriorityCollections() {
                 </td>
                 <td className="py-2 tabular-nums font-medium">{r.to_chase ? shekel(r.to_chase) : '—'}</td>
                 <td className="py-2 tabular-nums">{r.paid_no_receipt ? shekel(r.paid_no_receipt) : '—'}</td>
-                <td className="py-2 tabular-nums">{r.maybe + r.short ? shekel(r.maybe + r.short) : '—'}</td>
-                <td className="py-2 tabular-nums text-gray-600">{shekel(r.balance)}</td>
+                <td className="py-2 tabular-nums hidden sm:table-cell">{r.maybe + r.short ? shekel(r.maybe + r.short) : '—'}</td>
+                <td className="py-2 tabular-nums text-gray-600 hidden sm:table-cell">{shekel(r.balance)}</td>
               </tr>
             ))}
           </tbody>

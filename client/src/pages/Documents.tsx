@@ -151,12 +151,12 @@ function PriorityDocumentsList() {
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input w-auto" />
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible">
           {TYPE_ORDER.map((t) => (
             <button
               key={t}
               onClick={() => toggleType(t)}
-              className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+              className={`shrink-0 px-3 py-1 rounded-full text-sm border transition-colors whitespace-nowrap ${
                 types.includes(t)
                   ? 'bg-primary-600 text-white border-primary-600'
                   : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
@@ -165,6 +165,8 @@ function PriorityDocumentsList() {
               {DOC_TYPES[t]}
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-3">
           {types.length > 0 && (
             <button onClick={() => setTypes([])} className="text-sm text-primary-600 hover:underline">נקה סוגים</button>
           )}
@@ -193,7 +195,31 @@ function PriorityDocumentsList() {
         </div>
       ) : (
         <div className="card p-0 overflow-hidden">
-          <div className="table-container">
+          {/* מובייל: כרטיסייה לכל מסמך */}
+          <ul className="md:hidden divide-y divide-gray-100">
+            {rows.map((d) => {
+              const amount = signedTotal(d);
+              return (
+                <li key={d.id}>
+                  <button onClick={() => setOpenId(d.id)} className="w-full text-right px-4 py-3 active:bg-gray-50">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs whitespace-nowrap ${TYPE_TONE[d.doc_type] ?? 'bg-gray-100 text-gray-700'}`}>
+                        {docTypeLabel(d.doc_type)}
+                      </span>
+                      <span className={`tabular-nums font-semibold ${d.cancelled ? 'line-through text-gray-400' : amount != null && amount < 0 ? 'text-danger-700' : 'text-gray-900'}`}>
+                        {shekel(amount)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-900 mt-1 truncate">{d.party_name || d.party_key || '—'}</p>
+                    <p className="text-xs text-gray-500 tabular-nums mt-0.5">
+                      {d.doc_no} · {fmtDate(d.issue_date ?? d.doc_date)}{d.cancelled ? ' · מבוטל' : ''}
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="table-container hidden md:block">
             <table className="table">
               <thead>
                 <tr>

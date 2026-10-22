@@ -289,7 +289,40 @@ export default function Customers() {
           <button onClick={clearFilters} className="btn-secondary">נקה סינון</button>
         </div>
       ) : (
-        <div className="table-container bg-white">
+        <>
+        {/* מובייל: שורה לכל לקוח עם השם, Priority והחוב — בלי גלילה הצידה */}
+        <div className="md:hidden space-y-2">
+          {rows.map((c) => {
+            const o = byCustomer.get(c.id);
+            const linked = !!c.priority_customer_no;
+            const chase = canPriority && linked && overviewOk && o?.status && o.status.to_chase > 0 ? o.status.to_chase : 0;
+            return (
+              <Link key={c.id} to={`/customers/${c.id}`} className="card block p-3 active:bg-gray-50">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900">{c.company_name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {[c.city, canPriority ? (linked ? `Priority ${c.priority_customer_no}` : 'לא מקושר') : '']
+                        .filter(Boolean).join(' · ')}
+                    </p>
+                    {canPriority && o?.last_doc && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {docTypeLabel(o.last_doc.doc_type)} · {fmtDate(o.last_doc.date)}
+                      </p>
+                    )}
+                  </div>
+                  {chase > 0 && (
+                    <div className="text-left shrink-0">
+                      <p className="text-[11px] text-gray-500">לגבות</p>
+                      <p className="font-semibold text-danger-700 tabular-nums">{shekel(chase)}</p>
+                    </div>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+        <div className="table-container bg-white hidden md:block">
           <table className="table">
             <thead>
               <tr>
@@ -377,6 +410,7 @@ export default function Customers() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Create Customer Modal */}
