@@ -461,6 +461,84 @@ router.get('/finance-report', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── PDF של מסמך: POST/GET /api/priority/documents/:id/pdf ─────────────────────
+// בקשה kind='pdf' ל-p_requests; העובד ב-VPS מפיק ב-Priority ("הצגה" + "קובץ PDF", לעולם לא שליחה) ומעלה ל-storage
+// (bucket פרטי priority-pdf). בלי אישור בטלגרם — החלטת רעם 22/10: הצגה בלבד של מסמך שכבר הופק.
+// הקובץ נשמר ומשמש שוב, כך שמסמך לא מודפס ב-Priority בכל לחיצה. הדפדפן מקבל קישור חתום ל-10 דקות בלבד.
+const PDF_DOC_TYPES = new Set([300, 305, 310, 320]);   // אלה שיש להם הדפסה ממופה ב-prio pdf
+const PDF_BUCKET = 'priority-pdf';
+const PDF_OPEN = ['new', 'preparing'];
+
+async function pdfDoc(id) {
+  if (!/^\d{1,18}$/.test(String(id))) return { error: [400, 'מזהה מסמך לא תקין'] };
+  const d = (await pm(`p_documents?select=id,doc_type,doc_no,party_key,cancelled&id=eq.${id}&limit=1`)).rows[0];
+  if (!d) return { error: [404, 'המסמך לא נמצא במראה'] };
+  if (!PDF_DOC_TYPES.has(Number(d.doc_type))) return { error: [422, 'אין PDF לסוג המסמך הזה (קבלה / זיכוי — ב-Priority)'] };
+  if (!/^[A-Z]{2}\d{6,12}$/.test(String(d.doc_no || '')) || !CUSTOMER_NO_RE.test(String(d.party_key || ''))) {
+    return { error: [422, 'פרטי המסמך לא תקינים לבקשת PDF'] };
+  }
+  return { doc: d };
+}
+
+async function latestPdfRequest(docNo) {
+  const q = 'p_requests?select=id,status,file_path,error,created_at,updated_at'
+    + `&kind=eq.pdf&payload->>doc_no=eq.${encodeURIComponent(docNo)}&order=id.desc&limit=1`;
+  return (await pm(q)).rows[0] || null;
+}
+
+async function signedPdfUrl(path) {
+  const c = config();
+  const jwt = await token();
+  const res = await fetch(`${c.url}/storage/v1/object/sign/${PDF_BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`, {
+    method: 'POST',
+    headers: { apikey: c.anon, Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expiresIn: 600 }),
+  });
+  if (!res.ok) {
+    const err = new Error(`storage_sign_failed_${res.status}`);
+    err.status = 502;
+    throw err;
+  }
+  const body = await res.json();
+  return `${c.url}/storage/v1${body.signedURL || body.signedUrl}`;
+}
+
+function pdfView(r) {
+  return r ? { request_id: r.id, status: r.status, error: r.status === 'failed' ? r.error : null } : { status: 'none' };
+}
+
+router.get('/documents/:id/pdf', async (req, res, next) => {
+  try {
+    const { doc, error } = await pdfDoc(req.params.id);
+    if (error) return res.status(error[0]).json({ error: error[1] });
+    const r = await latestPdfRequest(doc.doc_no);
+    if (r?.status === 'done' && r.file_path) return res.json({ ...pdfView(r), url: await signedPdfUrl(r.file_path) });
+    res.json(pdfView(r));
+  } catch (e) { next(e); }
+});
+
+router.post('/documents/:id/pdf', async (req, res, next) => {
+  try {
+    const { doc, error } = await pdfDoc(req.params.id);
+    if (error) return res.status(error[0]).json({ error: error[1] });
+    const prev = await latestPdfRequest(doc.doc_no);
+    // כבר מוכן או בדרך — לא יוצרים בקשה נוספת (ולא מדפיסים שוב ב-Priority)
+    if (prev && (PDF_OPEN.includes(prev.status) || (prev.status === 'done' && prev.file_path))) {
+      return res.json(pdfView(prev));
+    }
+    const crm = (await crmCustomersByNo([doc.party_key])).get(String(doc.party_key));
+    const [created] = await pmWrite('POST', 'p_requests', {
+      created_by: userName(req.user),
+      crm_customer_id: crm?.id ?? null,
+      priority_customer_no: String(doc.party_key),
+      kind: 'pdf',
+      payload: { doc_type: Number(doc.doc_type), doc_no: doc.doc_no, document_id: doc.id },
+      status: 'new',
+    });
+    res.status(201).json(pdfView(created));
+  } catch (e) { next(e); }
+});
+
 // ── GET /api/priority/revenue-monthly ────────────────────────────────────────
 // חשבוניות מס שהופקו לפי חודש (305/310/320 פחות זיכויים 330, בלי מבוטלים), **לפני מע"מ**.
 // זה "הופק", לא "נגבה". חשבון עסקה (300) לא נספר — הוא לא הכנסה עד שמופקת חשבונית.

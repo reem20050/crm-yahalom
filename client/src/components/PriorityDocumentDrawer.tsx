@@ -4,12 +4,13 @@
  * - השורות מגיעות מהמראה (p_doc_lines). לקבלה אין שורות פריטים, ולחלק מהמסמכים השורות לא נטענו —
  *   שני המצבים מוצגים במפורש ולא כטבלה ריקה.
  * - "פתוח" הוא הערכה מהכרטסת וספר הבנק (אותו חישוב כמו "מי חייב"), לא ההתאמה הרשמית של Priority.
- * - המסמך הרשמי (PDF) נמצא ב-Priority.
+ * - PDF: בקשה לעובד ב-VPS, שמפיק אותו ב-Priority ("הצגה" + "קובץ PDF") ושומר. קובץ שמור משמש שוב — לא מדפיסים
+ *   ב-Priority בכל לחיצה. קבלה / זיכוי — עדיין רק ב-Priority.
  */
 import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ExternalLink, FileText, X } from 'lucide-react';
+import { Download, ExternalLink, FileText, Loader2, X } from 'lucide-react';
 import { priorityApi } from '../services/api';
 import { CREDIT_NOTE, docTypeLabel, fmtDate, httpStatus, shekel } from './PriorityCustomerDocs';
 
@@ -53,6 +54,51 @@ interface DocDetail {
 
 const RECEIPT = 400;
 const DEAL = 300;
+const PDF_TYPES = new Set([300, 305, 310, 320]);
+
+interface PdfState { status: 'none' | 'new' | 'preparing' | 'done' | 'failed' | string; url?: string; error?: string | null }
+
+function PdfButton({ docId }: { docId: number }) {
+  const qc = useQueryClient();
+  const key = ['priority', 'document-pdf', docId];
+  const q = useQuery<PdfState>({
+    queryKey: key,
+    queryFn: () => priorityApi.getDocumentPdf(docId).then((r) => r.data),
+    retry: false,
+    // בזמן ההכנה בודקים כל 8 שניות; אחרי שמוכן — לא
+    refetchInterval: (query) => (['new', 'preparing'].includes(query.state.data?.status ?? '') ? 8000 : false),
+  });
+  const ask = useMutation({
+    mutationFn: () => priorityApi.requestDocumentPdf(docId).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+  const st = q.data?.status;
+  if (q.isLoading) return null;
+  if (q.isError) return <p className="text-xs text-danger-700">לא ניתן לבדוק את מצב ה-PDF.</p>;
+  if (st === 'done' && q.data?.url) {
+    return (
+      <a href={q.data.url} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm inline-flex items-center gap-1.5 px-3 py-1.5">
+        <Download className="w-4 h-4" /> פתיחת PDF
+      </a>
+    );
+  }
+  if (st === 'new' || st === 'preparing' || ask.isPending) {
+    return (
+      <p className="text-sm text-gray-600 flex items-center gap-1.5">
+        <Loader2 className="w-4 h-4 animate-spin" /> מכין PDF מ-Priority — בדרך כלל דקה-שתיים…
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1">
+      {st === 'failed' && <p className="text-xs text-danger-700">ה-PDF נכשל: {q.data?.error || 'שגיאה'}</p>}
+      <button onClick={() => ask.mutate()} className="btn-secondary text-sm inline-flex items-center gap-1.5 px-3 py-1.5">
+        <FileText className="w-4 h-4" /> {st === 'failed' ? 'לנסות שוב' : 'הפקת PDF'}
+      </button>
+      {ask.isError && <p className="text-xs text-danger-700">הבקשה לא נשלחה.</p>}
+    </div>
+  );
+}
 
 const PAY_STATUS: Record<string, string> = {
   to_chase: 'לגבות — אין ראיה לתשלום',
@@ -234,7 +280,17 @@ export default function PriorityDocumentDrawer({ docId, onClose }: { docId: numb
                 )}
               </section>
 
-              <p className="text-xs text-gray-400">המסמך הרשמי (PDF) נמצא ב-Priority. הנתונים כאן מהטעינה הלילית.</p>
+              <section className="border-t border-gray-100 pt-4 space-y-2">
+                {PDF_TYPES.has(d.doc_type) && !d.cancelled ? (
+                  <>
+                    <PdfButton docId={d.id} />
+                    <p className="text-xs text-gray-400">ה-PDF מופק ב-Priority (הצגה בלבד — לא נשלח לאף אחד) ונשמר לפעם הבאה.</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-400">PDF של מסמך מהסוג הזה — ב-Priority.</p>
+                )}
+                <p className="text-xs text-gray-400">הנתונים כאן מהטעינה הלילית.</p>
+              </section>
             </>
           )}
         </div>
