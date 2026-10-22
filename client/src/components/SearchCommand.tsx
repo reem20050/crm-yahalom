@@ -9,13 +9,21 @@ import {
   PartyPopper,
   X,
   Clock,
+  FileText,
 } from 'lucide-react';
-import { searchApi } from '../services/api';
+import { priorityApi, searchApi } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
+import { docTypeLabel } from './PriorityCustomerDocs';
 
 interface SearchResult {
   id: string;
-  type: 'lead' | 'customer' | 'employee' | 'event';
+  type: 'lead' | 'customer' | 'employee' | 'event' | 'document';
   contact_name?: string;
+  priority_customer_no?: string | null;
+  doc_no?: string;
+  doc_type?: number;
+  party_name?: string | null;
+  issue_date?: string | null;
   company_name?: string;
   phone?: string;
   status?: string;
@@ -60,6 +68,14 @@ const typeConfig = {
     color: 'text-orange-600',
     bg: 'bg-orange-50',
   },
+  // מסמך נפתח בחלונית במסך המסמכים (/invoices?doc=…)
+  document: {
+    label: 'מסמכי Priority',
+    icon: FileText,
+    path: '/invoices',
+    color: 'text-primary-600',
+    bg: 'bg-primary-50',
+  },
 };
 
 function getResultLabel(result: SearchResult): string {
@@ -72,6 +88,8 @@ function getResultLabel(result: SearchResult): string {
       return `${result.first_name || ''} ${result.last_name || ''}`.trim();
     case 'event':
       return result.event_name || '';
+    case 'document':
+      return `${docTypeLabel(result.doc_type ?? 0)} ${result.doc_no ?? ''}`.trim();
     default:
       return '';
   }
@@ -82,7 +100,13 @@ function getResultSubtitle(result: SearchResult): string {
     case 'lead':
       return [result.company_name, result.phone].filter(Boolean).join(' | ');
     case 'customer':
-      return result.city || '';
+      return [result.city, result.priority_customer_no ? `Priority ${result.priority_customer_no}` : '']
+        .filter(Boolean).join(' | ');
+    case 'document':
+      return [
+        result.party_name,
+        result.issue_date ? new Date(result.issue_date).toLocaleDateString('he-IL') : '',
+      ].filter(Boolean).join(' | ');
     case 'employee':
       return result.phone || '';
     case 'event':
@@ -100,6 +124,7 @@ function getResultSubtitle(result: SearchResult): string {
 }
 
 function getResultPath(result: SearchResult): string {
+  if (result.type === 'document') return `/invoices?doc=${encodeURIComponent(result.id)}`;
   const config = typeConfig[result.type];
   return `${config.path}/${result.id}`;
 }
@@ -166,7 +191,22 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
     enabled: debouncedQuery.length >= 2,
   });
 
-  const results: SearchResult[] = data?.data?.results || [];
+  // מסמכי Priority — רק למי שרשאי לנתונים הכספיים (השרת אוכף; כאן רק לא שולחים בקשה שתיכשל)
+  const { can } = usePermissions();
+  const canPriority = can('page:priority');
+  const docsQ = useQuery({
+    queryKey: ['global-search-docs', debouncedQuery],
+    queryFn: () => priorityApi.getDocuments({ q: debouncedQuery, limit: 5, includeCancelled: 'true' }),
+    enabled: canPriority && debouncedQuery.length >= 2,
+    retry: false,
+  });
+  const docResults: SearchResult[] = ((docsQ.data?.data?.rows || []) as {
+    id: number; doc_no: string; doc_type: number; party_name: string | null; issue_date: string | null;
+  }[]).map((d) => ({
+    id: String(d.id), type: 'document', doc_no: d.doc_no, doc_type: d.doc_type,
+    party_name: d.party_name, issue_date: d.issue_date,
+  }));
+  const results: SearchResult[] = [...(data?.data?.results || []), ...docResults];
 
   // Group results by type
   const groupedResults = results.reduce(
@@ -180,9 +220,10 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
     {} as Record<string, SearchResult[]>
   );
 
-  const typeOrder: Array<'lead' | 'customer' | 'employee' | 'event'> = [
-    'lead',
+  const typeOrder: Array<SearchResult['type']> = [
     'customer',
+    'document',
+    'lead',
     'employee',
     'event',
   ];
@@ -249,7 +290,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
                 handleResultClick(flatResults[activeIndex]);
               }
             }}
-            placeholder="חיפוש לידים, לקוחות, עובדים, אירועים..."
+            placeholder="חיפוש לקוחות, מסמכים (מספר / ח.פ / מספר Priority), עובדים..."
             className="flex-1 py-4 text-base outline-none placeholder-gray-400 bg-transparent font-heading"
             dir="rtl"
           />

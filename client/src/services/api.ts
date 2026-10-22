@@ -466,6 +466,8 @@ export const priorityApi = {
   getDocument: (id: number) => api.get(`/priority/documents/${id}`),
   // חשבוניות מס שהופקו לפי חודש (לפני מע"מ) — לדשבורד העסקי
   getRevenueMonthly: (months = 6) => api.get('/priority/revenue-monthly', { params: { months } }),
+  // דוח כספים שנתי (מסך הדוחות): הופק / נגבה לפי חודש + לקוחות מובילים
+  getFinanceReport: (year: number) => api.get('/priority/finance-report', { params: { year } }),
   // כרטיס לקוח: מסמכי Priority של לקוח מקושר. הקישור עצמו — הצעה + אישור מנהל בלבד.
   getCustomerDocuments: (customerId: string) =>
     api.get(`/priority/customer/${encodeURIComponent(customerId)}`),

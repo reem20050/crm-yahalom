@@ -233,3 +233,34 @@ test('GET /revenue-monthly: חשבוניות מס לפני מע"מ, זיכוי �
   assert.equal(m1.net, 1700, 'OV1 פחות CR1');
   assert.equal(m2.net, 0);
 });
+
+test('GET /finance-report: הופק לפני מע"מ בניכוי זיכוי, נגבה = קבלות + חשבוניות מס קבלה, לקוחות מובילים', async () => {
+  const year = Number(month(0).slice(0, 4));
+  const { status, body } = await call(`/finance-report?year=${year}`);
+  assert.equal(status, 200);
+  assert.equal(body.months.length, 12);
+  const m0 = body.months.find((m) => m.month === month(0).slice(0, 7));
+  assert.equal(m0.invoiced, 1000, 'IN1 בלבד — לא חשבון עסקה, לא מבוטל');
+  assert.equal(m0.collected, 500, 'RC1 (קבלה) כולל מע"מ');
+  const m1 = body.months.find((m) => m.month === month(-1).slice(0, 7));
+  if (m1) {   // בינואר החודש הקודם בשנה אחרת
+    assert.equal(m1.invoiced, 1700);
+    assert.equal(m1.collected, 2360, 'OV1 — חשבונית מס קבלה נחשבת נגבתה');
+  }
+  assert.equal(body.top_customers[0].party_key, '200100');
+  assert.equal(body.top_customers[0].customer_id, 'c1');
+  assert.equal((await call('/finance-report?year=1999')).status, 400);
+});
+
+test('GET /customer/:id: פרטי קשר מהמסמך האחרון שיש בו טלפון', async () => {
+  TABLES.p_documents[1].party_phone = '09-8888888';
+  TABLES.p_documents[1].party_city = 'נתניה';
+  try {
+    const { status, body } = await call('/customer/c1');
+    assert.equal(status, 200);
+    assert.deepEqual(body.contact, { phone: '09-8888888', city: 'נתניה', vat_id: null });
+  } finally {
+    delete TABLES.p_documents[1].party_phone;
+    delete TABLES.p_documents[1].party_city;
+  }
+});

@@ -32,12 +32,15 @@ router.get('/', async (req, res) => {
 
     // Search customers
     const customersResult = await db.query(`
-      SELECT id, company_name, city, status,
+      SELECT id, company_name, city, status, priority_customer_no,
              'customer' as type
       FROM customers
-      WHERE company_name LIKE $1
+      WHERE deleted_at IS NULL
+        AND (company_name LIKE $1
          OR address LIKE $1
          OR city LIKE $1
+         OR business_id LIKE $1
+         OR priority_customer_no LIKE $1)
       LIMIT 20
     `, [searchTerm]);
 
@@ -77,8 +80,8 @@ router.get('/', async (req, res) => {
 
     // Combine all results and limit to 20 total
     const allResults = [
-      ...leadsResult.rows,
       ...customersResult.rows,
+      ...leadsResult.rows,
       ...employeesResult.rows,
       ...eventsResult.rows,
       ...contractorsResult.rows,

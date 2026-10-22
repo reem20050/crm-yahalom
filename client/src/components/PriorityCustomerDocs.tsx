@@ -67,6 +67,8 @@ export type PriorityCustomerResponse =
       /** סטטוס תשלום נגזר (p_customer_status) — null כשעוד לא חושב. */
       status?: PaymentStatus | null;
       status_unavailable?: boolean;
+      /** טלפון / עיר / ח.פ. כפי שמופיעים במסמכים ב-Priority — null כשאין. */
+      contact?: { phone: string | null; city: string | null; vat_id: string | null } | null;
       rows: PriorityDocRow[];
       total: number;
       truncated: boolean;
