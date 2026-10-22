@@ -507,9 +507,60 @@ function customerAccounts(select) {
   return pmAll(`p_accounts?select=${select}&kind=eq.customer&order=account_key`, 'accounts');
 }
 
+/**
+ * כל לקוחות Priority לקישור: חשבונות p_accounts, ובנוסף לקוחות שמופיעים בסטטוס התשלום (p_customer_status —
+ * שורה לכל לקוח במסך הלקוחות של Priority) ואין להם שורה ב-p_accounts. בלי זה תור הקישור עיוור אליהם, וגם
+ * קישור ידני נדחה (למשל 200039 — חייב ₪86k). ח.פ. ועיר להשלמה — מהמסמך האחרון שיש בו.
+ * כשל בקריאת הסטטוס לא מפיל את התור — חוזרים לחשבונות בלבד.
+ */
+async function customerParties(select) {
+  const accounts = await customerAccounts(select);
+  const have = new Set(accounts.map((a) => String(a.account_key)));
+  let status = [];
+  try {
+    status = await pmAll('p_customer_status?select=party_key,party_name&order=party_key', 'status');
+  } catch (e) {
+    console.warn('priority parties: p_customer_status unreadable, accounts only', e.message);
+    return accounts;
+  }
+  const missing = status.filter((r) => CUSTOMER_NO_RE.test(String(r.party_key)) && !have.has(String(r.party_key)));
+  if (!missing.length) return accounts;
+  const keys = missing.map((r) => String(r.party_key));
+  const docs = [];
+  for (let i = 0; i < keys.length; i += IN_CHUNK) {
+    docs.push(...await pmAll(
+      `p_documents?select=id,party_key,party_name,party_vat_id,party_city&party_key=in.(${keys.slice(i, i + IN_CHUNK).join(',')})&order=id`,
+      'documents',
+    ));
+  }
+  const latest = (key, field) => {
+    let v = null;
+    for (const d of docs) if (String(d.party_key) === key && d[field] && String(d[field]).trim()) v = d[field];
+    return v;   // order=id → האחרון שנמצא הוא החדש
+  };
+  return [...accounts, ...missing.map((r) => {
+    const key = String(r.party_key);
+    return {
+      account_key: key,
+      account_name: r.party_name || latest(key, 'party_name'),
+      party_vat_id: latest(key, 'party_vat_id'),
+      city: latest(key, 'party_city'),
+      source: 'status',   // לא מ-p_accounts
+    };
+  })];
+}
+
+/** מספר לקוח קיים ב-Priority: חשבון לקוח ב-p_accounts, או שורה בסטטוס התשלום. מחזיר את השם, או null. */
+async function partyName(no) {
+  const acc = await pm(`p_accounts?select=account_key,account_name&kind=eq.customer&account_key=eq.${no}&limit=1`);
+  if (acc.rows.length) return { name: acc.rows[0].account_name };
+  const st = await pm(`p_customer_status?select=party_key,party_name&party_key=eq.${no}&limit=1`).catch(() => ({ rows: [] }));
+  return st.rows.length ? { name: st.rows[0].party_name } : null;
+}
+
 router.get('/link-proposals', async (req, res, next) => {
   try {
-    const accounts = await customerAccounts('account_key,account_name,party_vat_id');
+    const accounts = await customerParties('account_key,account_name,party_vat_id');
     const customers = await db.query(
       'SELECT id, company_name, business_id, priority_customer_no, priority_matched_by, deleted_at'
       + ' FROM customers WHERE deleted_at IS NULL',
@@ -525,7 +576,7 @@ const IN_CHUNK = 100;   // מספרים לבקשה אחת ב-party_key=in.(…) 
 
 router.get('/unmatched', async (req, res, next) => {
   try {
-    const accounts = await customerAccounts('account_key,account_name,party_vat_id,city');
+    const accounts = await customerParties('account_key,account_name,party_vat_id,city');
     // כולל מחוקים: מספר Priority שמקושר ללקוח מחוק עדיין תפוס (האינדקס הייחודי כולל אותו)
     const all = (await db.query(
       'SELECT id, company_name, business_id, priority_customer_no, priority_matched_by, deleted_at FROM customers',
@@ -566,7 +617,7 @@ router.post('/import-customers', async (req, res, next) => {
     const valid = nos.filter((n) => CUSTOMER_NO_RE.test(n));   // לא תקינים → skipped invalid_no
 
     // כל החשבונות ולא רק המבוקשים: כפיל ב-Priority של חשבון שכבר מקושר מזוהה לפי ח.פ. של החשבון האחר
-    const accounts = valid.length === 0 ? [] : await customerAccounts('account_key,account_name,party_vat_id,city');
+    const accounts = valid.length === 0 ? [] : await customerParties('account_key,account_name,party_vat_id,city');
     const customers = (await db.query(
       'SELECT id, company_name, business_id, priority_customer_no, deleted_at FROM customers',
     )).rows;
@@ -621,10 +672,8 @@ router.post('/links', async (req, res, next) => {
     const customer = await activeCustomer(customerId);
     if (!customer) return res.status(404).json({ error: 'לקוח לא נמצא' });
 
-    const acc = await pm(
-      `p_accounts?select=account_key,account_name&kind=eq.customer&account_key=eq.${no}&limit=1`,
-    );
-    if (acc.rows.length === 0) {
+    // גם לקוח שאין לו שורה ב-p_accounts אבל מופיע בסטטוס התשלום (מסך הלקוחות של Priority)
+    if (!(await partyName(no))) {
       return res.status(422).json({ error: 'מספר לקוח לא נמצא במראה של Priority' });
     }
 
