@@ -388,3 +388,13 @@ input[type="email"] {
     box-shadow: none !important;
   }
 }
+
+/* גרפים (recharts): ב-RTL ה-SVG הופך את text-anchor, ותוויות ציר Y נכתבות על קו הציר. הגרף עצמו LTR;
+   חלונית המידע והמקרא — טקסט עברי — נשארים RTL. */
+.recharts-wrapper {
+  direction: ltr;
+}
+.recharts-tooltip-wrapper,
+.recharts-legend-wrapper {
+  direction: rtl;
+}
