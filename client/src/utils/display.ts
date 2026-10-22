@@ -21,3 +21,17 @@ export function realPhone(phone: string | null | undefined): string | null {
   if (digits.length < 9 || /^0+$/.test(digits)) return null;
   return phone as string;
 }
+
+/** "2026-09-06" → "יום א' 06/09/2026" (בלי המרת אזור זמן). */
+export function fmtDayDate(d: string | null | undefined): string {
+  if (!d) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('he-IL', { weekday: 'short' });
+  return `${day} ${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** הערות שנכתבו אוטומטית (סנכרון ממערכת הסריקה) כוללות True/False — בתצוגה: כן/לא. */
+export function humanizeNotes(notes: string | null | undefined): string {
+  return String(notes ?? '').replace(/\bTrue\b/g, 'כן').replace(/\bFalse\b/g, 'לא');
+}

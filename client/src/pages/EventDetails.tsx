@@ -21,6 +21,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { eventsApi, employeesApi, contractorsApi } from '../services/api';
+import { distinct, fmtDayDate, humanizeNotes } from '../utils/display';
 
 const statusOptions = [
   { value: 'quote', label: 'הצעת מחיר' },
@@ -305,7 +306,9 @@ export default function EventDetails() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 font-heading">{event?.event_name}</h1>
-            <p className="text-gray-500">{event?.company_name}</p>
+            {distinct(event?.company_name, event?.event_name) && (
+              <p className="text-gray-500">{event?.company_name}</p>
+            )}
             {event?.status && (
               <span className={`badge mt-1 ${statusColors[event.status] || 'badge-gray'}`}>
                 {statusOptions.find((s) => s.value === event.status)?.label || event.status}
@@ -550,7 +553,7 @@ export default function EventDetails() {
                     <Calendar className="w-5 h-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">תאריך</p>
-                      <p className="font-medium">{event?.event_date}</p>
+                      <p className="font-medium">{fmtDayDate(event?.event_date)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -562,14 +565,17 @@ export default function EventDetails() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 col-span-2">
-                    <MapPin className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-sm text-gray-500">מיקום</p>
-                      <p className="font-medium">{event?.location}</p>
-                      {event?.address && <p className="text-sm text-gray-500">{event.address}</p>}
+                  {/* מיקום שזהה לשם האירוע (ייבוא) לא מוסיף מידע */}
+                  {(distinct(event?.location, event?.event_name, event?.company_name) || event?.address) && (
+                    <div className="flex items-center gap-3 col-span-2">
+                      <MapPin className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-500">מיקום</p>
+                        <p className="font-medium">{event?.location}</p>
+                        {event?.address && <p className="text-sm text-gray-500">{event.address}</p>}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4 mt-4 pt-4 border-t">
@@ -751,7 +757,7 @@ export default function EventDetails() {
           {!isEditing && event?.notes && (
             <div className="card">
               <h2 className="text-lg font-semibold mb-4 font-heading">הערות</h2>
-              <p className="text-gray-700 whitespace-pre-wrap">{event.notes}</p>
+              <p className="text-gray-700 whitespace-pre-wrap">{humanizeNotes(event.notes)}</p>
             </div>
           )}
         </div>
