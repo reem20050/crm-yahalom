@@ -58,6 +58,9 @@ interface JournalRow {
   details: string | null; debit_credit: string | null; amount: number | null;
 }
 
+// סוג החשבון במראה (customer / supplier / gl) — בתצוגה בעברית
+const ACCOUNT_KINDS: Record<string, string> = { customer: 'לקוח', supplier: 'ספק', gl: 'חשבון הנהלת חשבונות' };
+
 interface AccountRow {
   account_key: string; account_name: string | null; kind: string | null;
   party_vat_id: string | null; city: string | null; balance: number | null;
@@ -358,7 +361,7 @@ export default function Priority() {
                     <tr key={a.account_key}>
                       <td className="tabular-nums">{a.account_key}</td>
                       <td>{a.account_name ?? '—'}</td>
-                      <td>{a.kind ?? '—'}</td>
+                      <td>{a.kind ? (ACCOUNT_KINDS[a.kind] ?? a.kind) : '—'}</td>
                       <td className="tabular-nums">{a.party_vat_id ?? '—'}</td>
                       <td>{a.city ?? '—'}</td>
                       <td className="tabular-nums">{shekel(a.balance)}</td>
