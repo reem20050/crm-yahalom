@@ -70,7 +70,7 @@ export default function GuardRatingModal({ employeeId, employeeName, onClose }: 
             </div>
             <h2 className="text-xl font-bold font-heading">דירוג מאבטח</h2>
           </div>
-          <button onClick={onClose} className="btn-icon">
+          <button aria-label="סגירה" onClick={onClose} className="btn-icon">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -106,6 +106,7 @@ export default function GuardRatingModal({ employeeId, employeeName, onClose }: 
                     onMouseEnter={() => setHoverRating(star)}
                     onMouseLeave={() => setHoverRating(0)}
                     onClick={() => setRating(star)}
+                    aria-label={`דירוג ${star} מתוך 5`}
                     className="transition-all duration-200 hover:scale-125 active:scale-95"
                   >
                     <Star

@@ -165,7 +165,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <h2 className="text-xl font-bold font-heading text-gray-900">המרת ליד ללקוח</h2>
-          <button
+          <button aria-label="סגירה"
             onClick={onClose}
             className="btn-icon"
           >

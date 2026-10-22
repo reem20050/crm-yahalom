@@ -167,7 +167,7 @@ export default function DocumentManager({ entityType, entityId }: DocumentManage
                     }
                   }}
                   className="btn-icon text-red-400 hover:text-red-600"
-                  title="מחק מסמך"
+                  title="מחק מסמך" aria-label="מחק מסמך"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

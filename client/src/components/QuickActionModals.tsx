@@ -48,7 +48,7 @@ export function QuickLeadModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
       <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">ליד חדש</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+          <button aria-label="סגירה" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -136,7 +136,7 @@ export function QuickShiftModal({ isOpen, onClose }: { isOpen: boolean; onClose:
       <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">משמרת חדשה</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+          <button aria-label="סגירה" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -239,7 +239,7 @@ export function QuickInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClos
       <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">חשבונית חדשה</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+          <button aria-label="סגירה" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -326,7 +326,7 @@ export function QuickIncidentModal({ isOpen, onClose }: { isOpen: boolean; onClo
       <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-4 sm:p-6 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold font-heading">דיווח אירוע</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+          <button aria-label="סגירה" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>

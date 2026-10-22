@@ -567,7 +567,7 @@ export default function EmployeeDetails() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium">{expiryLabel[cert.expiry_status || 'valid']}</span>
                         {cert.expiry_date && <span className="text-xs opacity-70">{fmtDate(cert.expiry_date)}</span>}
-                        <button onClick={() => deleteCertMutation.mutate(cert.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100">
+                        <button aria-label="מחיקה" onClick={() => deleteCertMutation.mutate(cert.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -1088,7 +1088,7 @@ export default function EmployeeDetails() {
                       <button
                         onClick={async () => { if (await confirmDialog('למחוק מסמך זה?')) deleteDocumentMutation.mutate(doc.id); }}
                         className="text-red-400 hover:text-red-600 p-1"
-                        title="מחק מסמך"
+                        title="מחק מסמך" aria-label="מחק מסמך"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

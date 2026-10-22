@@ -209,7 +209,7 @@ export default function Contractors() {
                         }
                       }}
                       className="p-1.5 rounded-lg text-gray-300 hover:text-danger-500 hover:bg-danger-50 transition-colors"
-                      title="מחק"
+                      title="מחק" aria-label="מחק"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -240,7 +240,7 @@ export default function Contractors() {
           <div className="modal-content max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900">קבלן חדש</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => {
                   setIsModalOpen(false);
                   reset();

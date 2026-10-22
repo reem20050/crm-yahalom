@@ -58,7 +58,7 @@ export default function BulkActionBar({ selectedCount, onClear, actions }: BulkA
         <button
           onClick={onClear}
           className="mr-auto flex-shrink-0 w-8 h-8 rounded-lg hover:bg-gray-700 flex items-center justify-center transition-colors"
-          title="בטל בחירה"
+          title="בטל בחירה" aria-label="בטל בחירה"
         >
           <X className="w-4 h-4 text-gray-400" />
         </button>

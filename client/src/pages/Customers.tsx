@@ -399,7 +399,7 @@ export default function Customers() {
                             }
                           }}
                           className="p-1.5 rounded-lg text-gray-300 hover:text-danger-500 hover:bg-danger-50 transition-colors"
-                          title="מחק"
+                          title="מחק" aria-label="מחק"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -420,7 +420,7 @@ export default function Customers() {
           <div className="modal-content max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">לקוח חדש</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => {
                   setIsModalOpen(false);
                   reset();

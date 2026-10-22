@@ -433,7 +433,7 @@ export default function Invoices() {
                               description: invoice.description,
                             })}
                             className="text-gray-400 hover:text-gray-600 p-1"
-                            title="הורד PDF"
+                            title="הורד PDF" aria-label="הורד PDF"
                           >
                             <Download className="w-4 h-4" />
                           </button>
@@ -444,7 +444,7 @@ export default function Invoices() {
                               onClick={() => sendEmailMutation.mutate({ id: invoice.id })}
                               disabled={sendEmailMutation.isPending}
                               className="text-blue-400 hover:text-blue-600 p-1"
-                              title="שלח חשבונית במייל"
+                              title="שלח חשבונית במייל" aria-label="שלח חשבונית במייל"
                             >
                               <Mail className="w-4 h-4" />
                             </button>
@@ -459,7 +459,7 @@ export default function Invoices() {
                                 }
                               }}
                               className="text-red-400 hover:text-red-600 p-1"
-                              title="מחק חשבונית"
+                              title="מחק חשבונית" aria-label="מחק חשבונית"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -492,7 +492,7 @@ export default function Invoices() {
           <div className="modal-content w-full max-w-2xl">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">חשבונית חדשה</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => {
                   setIsModalOpen(false);
                   reset();
@@ -599,7 +599,7 @@ export default function Invoices() {
           <div className="modal-content w-full max-w-3xl">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">הפקת חשבונית ירוקה</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => setIsGreenInvoiceModalOpen(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
@@ -673,7 +673,7 @@ export default function Invoices() {
                         ₪{(item.quantity * item.unitPrice).toLocaleString()}
                       </span>
                       {greenInvoiceItems.length > 1 && (
-                        <button
+                        <button aria-label="מחיקה"
                           onClick={() => {
                             setGreenInvoiceItems(greenInvoiceItems.filter((_, i) => i !== index));
                           }}
@@ -751,7 +751,7 @@ export default function Invoices() {
           <div className="modal-content w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-lg font-bold">שליחת חשבונית במייל</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => { setEmailModal({ invoiceId: '', show: false }); setManualEmail(''); }}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
@@ -807,7 +807,7 @@ export default function Invoices() {
           <div className="modal-content w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-lg font-bold">תאריך תשלום</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => setPaymentDateModal({ invoiceId: '', show: false })}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >

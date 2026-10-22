@@ -183,7 +183,7 @@ export default function Layout() {
                 <p className="text-[10px] text-gray-400 font-heading">CRM & Security</p>
               </div>
             </div>
-            <button
+            <button aria-label="סגירה"
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
             >
@@ -279,7 +279,7 @@ export default function Layout() {
           <div className="flex items-center justify-between h-16 px-4 lg:px-8">
             {/* Left: mobile menu + page title */}
             <div className="flex items-center gap-3">
-              <button
+              <button aria-label="תפריט"
                 onClick={() => setSidebarOpen(true)}
                 className="lg:hidden p-2 -mr-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors"
               >

@@ -87,7 +87,7 @@ export default function ShiftTemplateModal({ template, onClose }: ShiftTemplateM
       <div className="modal-content max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold font-heading">{isEditing ? 'עריכת תבנית' : 'תבנית משמרת חדשה'}</h2>
-          <button onClick={onClose} className="btn-icon">
+          <button aria-label="סגירה" onClick={onClose} className="btn-icon">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -283,7 +283,7 @@ export function GenerateFromTemplateModal({
             </div>
             יצירת משמרות מתבנית
           </h2>
-          <button onClick={onClose} className="btn-icon">
+          <button aria-label="סגירה" onClick={onClose} className="btn-icon">
             <X className="w-5 h-5" />
           </button>
         </div>

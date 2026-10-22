@@ -298,7 +298,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
             dir="rtl"
           />
           {searchQuery && (
-            <button
+            <button aria-label="סגירה"
               onClick={() => setSearchQuery('')}
               className="p-1 rounded hover:bg-gray-100"
             >

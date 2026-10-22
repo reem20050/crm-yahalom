@@ -262,7 +262,7 @@ export default function Events() {
           <div className="modal-content max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">אירוע חדש</h2>
-              <button
+              <button aria-label="סגירה"
                 onClick={() => {
                   setIsModalOpen(false);
                   reset();
