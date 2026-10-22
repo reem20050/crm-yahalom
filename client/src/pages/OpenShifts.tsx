@@ -4,6 +4,7 @@ import { CalendarPlus, MapPin, Clock, Users, Loader2, CalendarX } from 'lucide-r
 import { shiftsApi } from '../services/api';
 import toast from 'react-hot-toast';
 import type { MutationError } from '../types';
+import { localIsoDate } from '../utils/display';
 
 interface OpenShift {
   shift_id: string;
@@ -32,14 +33,14 @@ function formatHebrewDate(dateStr: string) {
 }
 
 function isToday(dateStr: string) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localIsoDate();
   return dateStr === today;
 }
 
 function isTomorrow(dateStr: string) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  return dateStr === tomorrow.toISOString().split('T')[0];
+  return dateStr === localIsoDate(tomorrow);
 }
 
 function getDateLabel(dateStr: string) {

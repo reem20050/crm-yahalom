@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, ChevronLeft, ChevronRight, ArrowLeftRight, Loader2, Check } from 'lucide-react';
 import { leadsApi } from '../services/api';
+import { localIsoDate } from '../utils/display';
 
 interface LeadData {
   id: string;
@@ -89,7 +90,7 @@ export default function LeadConversionWizard({ isOpen, onClose, lead, onSuccess 
 
   const [contractForm, setContractForm] = useState<ContractForm>({
     monthly_value: lead.expected_value || '',
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: localIsoDate(),
     end_date: '',
     terms: 'שוטף + 30',
     auto_renewal: true,

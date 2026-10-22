@@ -9,12 +9,12 @@ import { Search, PartyPopper, Calendar, MapPin, Users, Plus, X, Shield, Car, Bui
 import { eventsApi, customersApi, leadsApi } from '../services/api';
 import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
-import { distinct, fmtDayDate } from '../utils/display';
+import { distinct, fmtDayDate, localIsoDate } from '../utils/display';
 import CustomerPicker from '../components/CustomerPicker';
 
 // סטטוסים שאחרי תאריך האירוע אמורים היו להתעדכן (הושלם / חשבונית הופקה / בוטל)
 const OPEN_STATUSES = ['quote', 'approved', 'staffed'];
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localIsoDate();
 const isPast = (d: string | null | undefined) => !!d && String(d).slice(0, 10) < todayIso();
 
 const eventSchema = z.object({
@@ -105,7 +105,7 @@ export default function Events() {
   } = useForm<EventForm>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
-      event_date: new Date().toISOString().split('T')[0],
+      event_date: localIsoDate(),
       required_guards: 1,
       requires_weapon: false,
       requires_vehicle: false,

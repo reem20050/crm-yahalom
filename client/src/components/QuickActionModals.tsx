@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { leadsApi, shiftsApi, invoicesApi, incidentsApi, sitesGlobalApi, customersApi } from '../services/api';
 import type { Site, Customer } from '../types';
+import { localIsoDate } from '../utils/display';
 
 /* ======== QuickLeadModal ======== */
 
@@ -99,7 +100,7 @@ export function QuickShiftModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ShiftForm>({
     resolver: zodResolver(shiftSchema),
     defaultValues: {
-      date: new Date().toISOString().split('T')[0],
+      date: localIsoDate(),
     },
   });
 
@@ -213,8 +214,8 @@ export function QuickInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClos
       return invoicesApi.create({
         ...data,
         total_amount: parseFloat(data.total_amount),
-        issue_date: today.toISOString().split('T')[0],
-        due_date: dueDate.toISOString().split('T')[0],
+        issue_date: localIsoDate(today),
+        due_date: localIsoDate(dueDate),
       });
     },
     onSuccess: () => {

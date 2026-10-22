@@ -16,6 +16,7 @@ import { incidentsApi, customersApi, sitesApi } from '../services/api';
 import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import type { Incident, Customer, Site } from '../types';
+import { fmtDate, localIsoDate } from '../utils/display';
 
 const incidentTypes: Record<string, string> = {
   theft: 'גניבה',
@@ -72,7 +73,7 @@ export default function Incidents() {
   const [resolutionText, setResolutionText] = useState('');
   const [formData, setFormData] = useState({
     title: '', incident_type: 'suspicious_activity', severity: 'medium',
-    customer_id: '', site_id: '', incident_date: new Date().toISOString().split('T')[0],
+    customer_id: '', site_id: '', incident_date: localIsoDate(),
     incident_time: new Date().toTimeString().slice(0, 5), description: '',
     location_details: '', police_called: false, police_report_number: '',
     ambulance_called: false, injuries_reported: false, property_damage: false,
@@ -146,7 +147,7 @@ export default function Incidents() {
   const resetForm = () => {
     setFormData({
       title: '', incident_type: 'suspicious_activity', severity: 'medium',
-      customer_id: '', site_id: '', incident_date: new Date().toISOString().split('T')[0],
+      customer_id: '', site_id: '', incident_date: localIsoDate(),
       incident_time: new Date().toTimeString().slice(0, 5), description: '',
       location_details: '', police_called: false, police_report_number: '',
       ambulance_called: false, injuries_reported: false, property_damage: false,
@@ -262,7 +263,7 @@ export default function Incidents() {
                     ? 'bg-warning-50 border-r-4 border-r-warning-500'
                     : 'bg-success-50 border-r-4 border-r-success-500';
                   return (
-                  <tr key={inc.id} className={`border-b border-gray-50 last:border-0 hover:shadow-sm transition-shadow ${severityRowClass}`}>
+                  <tr key={inc.id} onClick={() => setShowDetail(inc.id)} className={`border-b border-gray-50 last:border-0 hover:shadow-sm transition-shadow cursor-pointer ${severityRowClass}`}>
                     <td>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${severityColors[inc.severity] || ''}`}>
                         {severityLabels[inc.severity] || inc.severity}
@@ -271,7 +272,7 @@ export default function Incidents() {
                     <td className="font-medium text-gray-900">{inc.title}</td>
                     <td className="text-sm text-gray-600">{incidentTypes[inc.incident_type] || inc.incident_type}</td>
                     <td className="text-sm text-gray-600">{inc.site_name || inc.company_name || '-'}</td>
-                    <td className="text-sm text-gray-600">{inc.incident_date} {inc.incident_time}</td>
+                    <td className="text-sm text-gray-600 whitespace-nowrap">{fmtDate(inc.incident_date)} {String(inc.incident_time ?? '').slice(0, 5)}</td>
                     <td>
                       <span className={`badge ${statusColors[inc.status] || ''}`}>
                         {statusLabels[inc.status] || inc.status}
@@ -279,7 +280,7 @@ export default function Incidents() {
                     </td>
                     <td>
                       <div className="flex gap-1">
-                        <button onClick={() => setShowDetail(inc.id)} className="p-1.5 rounded-lg hover:bg-white/60 transition-colors" title="צפה">
+                        <button onClick={(e) => { e.stopPropagation(); setShowDetail(inc.id); }} className="p-1.5 rounded-lg hover:bg-white/60 transition-colors" title="צפה">
                           <Eye className="w-4 h-4 text-gray-500" />
                         </button>
                       </div>
@@ -414,7 +415,7 @@ export default function Incidents() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">תאריך ושעה</p>
-                  <p className="font-medium">{detailData.incident?.incident_date} {detailData.incident?.incident_time}</p>
+                  <p className="font-medium">{fmtDate(detailData.incident?.incident_date)} {String(detailData.incident?.incident_time ?? '').slice(0, 5)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">סטטוס</p>

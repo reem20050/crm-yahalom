@@ -11,6 +11,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { exportInvoiceToPDF } from '../utils/pdfExport';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
+import { localIsoDate } from '../utils/display';
 
 const statusLabels: Record<string, { label: string; class: string; dot?: string }> = {
   draft: { label: 'טיוטה', class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700', dot: 'bg-gray-400' },
@@ -52,11 +53,11 @@ export default function Invoices() {
   const [statusFilter, setStatusFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paymentDateModal, setPaymentDateModal] = useState<{ invoiceId: string; show: boolean }>({ invoiceId: '', show: false });
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(localIsoDate());
   const [isGreenInvoiceModalOpen, setIsGreenInvoiceModalOpen] = useState(false);
   const [greenInvoiceItems, setGreenInvoiceItems] = useState<Array<{ description: string; quantity: number; unitPrice: number }>>([{ description: '', quantity: 1, unitPrice: 0 }]);
   const [greenInvoiceCustomer, setGreenInvoiceCustomer] = useState('');
-  const [greenInvoiceDueDate, setGreenInvoiceDueDate] = useState(new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]);
+  const [greenInvoiceDueDate, setGreenInvoiceDueDate] = useState(localIsoDate(new Date(Date.now() + 30*24*60*60*1000)));
   const [greenInvoiceRemarks, setGreenInvoiceRemarks] = useState('');
   const [emailModal, setEmailModal] = useState<{ invoiceId: string; show: boolean }>({ invoiceId: '', show: false });
   const [manualEmail, setManualEmail] = useState('');
@@ -187,7 +188,7 @@ export default function Invoices() {
   } = useForm<InvoiceForm>({
     resolver: zodResolver(invoiceSchema),
     defaultValues: {
-      issue_date: new Date().toISOString().split('T')[0],
+      issue_date: localIsoDate(),
     },
   });
 
@@ -198,7 +199,7 @@ export default function Invoices() {
   const handleStatusChange = (invoiceId: string, newStatus: string) => {
     if (newStatus === 'paid') {
       setPaymentDateModal({ invoiceId, show: true });
-      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setPaymentDate(localIsoDate());
       return;
     }
     updateStatusMutation.mutate({ id: invoiceId, status: newStatus });
