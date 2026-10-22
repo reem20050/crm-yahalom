@@ -19,8 +19,10 @@ import {
   Wifi,
   WifiOff,
   Server,
+  Database,
 } from 'lucide-react';
-import api from '../services/api';
+import api, { priorityApi } from '../services/api';
+import { Link as RouterLink } from 'react-router-dom';
 import type { MutationError } from '../types';
 
 // Types
@@ -493,6 +495,7 @@ export default function Settings() {
 
       {/* Integrations Section */}
       <div className="grid gap-6">
+        <PriorityStatusCard />
         {/* Google Workspace */}
         <div className="card">
           <div className="flex items-start gap-4">
@@ -664,7 +667,7 @@ export default function Settings() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-gray-900 font-heading">חשבונית ירוקה</h3>
-                  <p className="text-sm text-gray-500">הפקת חשבוניות וקבלות</p>
+                  <p className="text-sm text-gray-500">לא בשימוש — המסמכים הרשמיים מופקים ב-Priority</p>
                 </div>
                 {settings?.greenInvoice.connected ? (
                   <span className="badge badge-success flex items-center gap-1">
@@ -749,12 +752,13 @@ export default function Settings() {
                 </form>
               ) : (
                 <div className="mt-4">
-                  <p className="text-sm text-gray-600 mb-3">
-                    חבר את חשבונית ירוקה כדי להפיק חשבוניות וקבלות ישירות מהמערכת
+                  <p className="text-sm text-warning-700 bg-warning-50 rounded-lg p-3 mb-3">
+                    המסמכים הרשמיים של החברה מופקים רק ב-Priority. חיבור חשבונית ירוקה כאן יפיק מסמכים מחוץ ל-Priority —
+                    לא לחבר בלי החלטה של רעם.
                   </p>
                   <button
                     onClick={() => setShowGreenInvoiceForm(true)}
-                    className="btn-primary flex items-center gap-2"
+                    className="btn-secondary flex items-center gap-2"
                   >
                     <Link className="w-4 h-4" />
                     הגדר חשבונית ירוקה
@@ -785,6 +789,48 @@ export default function Settings() {
             מדריך חשבונית ירוקה
             <ExternalLink className="w-3 h-3" />
           </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Priority — מצב החיבור דרך המראה (Supabase): הטעינה האחרונה, מספר המסמכים, עד מתי הכרטסת. קריאה בלבד. */
+function PriorityStatusCard() {
+  const q = useQuery({
+    queryKey: ['priority', 'summary'],
+    queryFn: () => priorityApi.getSummary().then((r) => r.data),
+    retry: false,
+  });
+  const s = q.data;
+  const lastRun: string | null = s?.lastRun?.started_at ?? null;
+  const ok = !!lastRun && Date.now() - new Date(lastRun).getTime() < 36 * 3600 * 1000;
+  return (
+    <div className="card">
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 bg-gradient-to-br from-primary-100 to-primary-50 rounded-xl flex items-center justify-center">
+          <Database className="w-6 h-6 text-primary-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="font-semibold text-gray-900 font-heading">Priority</h3>
+              <p className="text-sm text-gray-500">מסמכים, סטטוס תשלום והפקה — דרך המראה, מתעדכן כל לילה</p>
+            </div>
+            {q.isLoading ? null : q.isError ? (
+              <span className="badge badge-danger">לא ניתן לקרוא</span>
+            ) : (
+              <span className={`badge ${ok ? 'badge-success' : 'badge-warning'}`}>{ok ? 'מעודכן' : 'לא עודכן ביממה האחרונה'}</span>
+            )}
+          </div>
+          {s && (
+            <p className="text-sm text-gray-600 mt-3">
+              טעינה אחרונה: {lastRun ? new Date(lastRun).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+              {s.summary?.doc_count != null && ` · ${Number(s.summary.doc_count).toLocaleString('he-IL')} מסמכים פעילים`}
+              {s.dataAsOf && ` · כרטסת עד ${s.dataAsOf}`}
+            </p>
+          )}
+          <RouterLink to="/priority" className="text-sm text-primary-600 hover:underline mt-2 inline-block">למסך Priority ←</RouterLink>
         </div>
       </div>
     </div>
