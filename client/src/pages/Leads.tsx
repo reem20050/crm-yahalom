@@ -20,6 +20,7 @@ import { SkeletonPulse, SkeletonTableRows } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
+import LeadFormLink from '../components/LeadFormLink';
 
 const leadSchema = z.object({
   company_name: z.string().optional(),
@@ -140,12 +141,15 @@ export default function Leads() {
           <h1 className="page-title">לידים</h1>
           <p className="page-subtitle">ניהול לידים ומעקב מכירות</p>
         </div>
-        {can('leads:create') && (
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            ליד חדש
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <LeadFormLink />
+          {can('leads:create') && (
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              ליד חדש
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
