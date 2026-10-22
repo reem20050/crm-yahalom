@@ -9,19 +9,12 @@ import { Search, PartyPopper, Calendar, MapPin, Users, Plus, X, Shield, Car, Bui
 import { eventsApi, customersApi, leadsApi } from '../services/api';
 import { SkeletonPulse, SkeletonGrid } from '../components/Skeleton';
 import { usePermissions } from '../hooks/usePermissions';
-import { distinct } from '../utils/display';
+import { distinct, fmtDayDate } from '../utils/display';
 
 // סטטוסים שאחרי תאריך האירוע אמורים היו להתעדכן (הושלם / חשבונית הופקה / בוטל)
 const OPEN_STATUSES = ['quote', 'approved', 'staffed'];
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const isPast = (d: string | null | undefined) => !!d && String(d).slice(0, 10) < todayIso();
-function fmtEventDate(d: string | null | undefined) {
-  if (!d) return '—';
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
-  if (!m) return d;
-  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('he-IL', { weekday: 'short' });
-  return `${day} ${m[3]}/${m[2]}/${m[1]}`;
-}
 
 const eventSchema = z.object({
   event_name: z.string().min(1, 'נדרש שם אירוע'),
@@ -211,7 +204,7 @@ export default function Events() {
                   <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
                     <span className="flex items-center gap-1 whitespace-nowrap">
                       <Calendar className="w-4 h-4" />
-                      {fmtEventDate(event.event_date)}
+                      {fmtDayDate(event.event_date)}
                     </span>
                     {distinct(event.location, event.event_name, event.company_name) && (
                       <span className="flex items-center gap-1 min-w-0">
