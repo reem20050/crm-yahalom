@@ -122,7 +122,7 @@ export default function LeadForm() {
             </div>
 
             {/* מלכודת לבוטים — מוסתרת מאדם, לא בסדר הטאב */}
-            <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
+            <div aria-hidden="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}>
               <label htmlFor="website">אתר</label>
               <input id="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={set('website')} />
             </div>
