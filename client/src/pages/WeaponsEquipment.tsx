@@ -354,7 +354,7 @@ export default function WeaponsEquipment() {
             status: string; employee_name?: string; employee_id?: string; notes?: string;
           }) => (
             <div key={w.id} className="card-interactive p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
                     w.status === 'assigned' ? 'bg-success-50' : w.status === 'maintenance' ? 'bg-warning-50' : 'bg-gray-100'
@@ -430,7 +430,7 @@ export default function WeaponsEquipment() {
             const condBg: Record<string, string> = { new: 'bg-success-50 text-success-700', good: 'bg-success-50 text-success-700', fair: 'bg-warning-50 text-warning-700', needs_repair: 'bg-danger-50 text-danger-700', damaged: 'bg-danger-50 text-danger-700' };
             return (
               <div key={e.id} className="card-interactive p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-4">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isAssigned ? 'bg-primary-50' : 'bg-gray-100'}`}>
                       <Package className={`w-6 h-6 ${isAssigned ? 'text-primary-600' : 'text-gray-600'}`} />
