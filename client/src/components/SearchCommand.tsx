@@ -207,6 +207,8 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
     party_name: d.party_name, issue_date: d.issue_date,
   }));
   const results: SearchResult[] = [...(data?.data?.results || []), ...docResults];
+  // "אין תוצאות" רק כששני החיפושים הסתיימו — אחרת זה מהבהב לפני שהמסמכים מגיעים
+  const searching = isLoading || (canPriority && debouncedQuery.length >= 2 && docsQ.isLoading);
 
   // Group results by type
   const groupedResults = results.reduce(
@@ -338,7 +340,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
           )}
 
           {/* Loading */}
-          {isLoading && debouncedQuery.length >= 2 && (
+          {searching && debouncedQuery.length >= 2 && (
             <div className="px-4 py-8 text-center text-gray-500">
               <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
               <p className="text-sm">מחפש...</p>
@@ -346,7 +348,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
           )}
 
           {/* No results */}
-          {!isLoading &&
+          {!searching &&
             debouncedQuery.length >= 2 &&
             results.length === 0 && (
               <div className="px-4 py-8 text-center text-gray-500">
@@ -355,7 +357,7 @@ export default function SearchCommand({ isOpen, onClose }: SearchCommandProps) {
             )}
 
           {/* Grouped results */}
-          {!isLoading &&
+          {!searching &&
             results.length > 0 &&
             (() => {
               let globalIndex = 0;

@@ -39,8 +39,8 @@ type ReportTab = 'sales' | 'customers' | 'employees' | 'financial' | 'profitloss
 
 interface FinanceReport {
   year: number;
-  totals: { invoiced: number; collected: number };
-  months: { month: string; invoiced: number; collected: number; count: number }[];
+  totals: { invoiced: number; invoiced_incl: number; collected: number };
+  months: { month: string; invoiced: number; invoiced_incl: number; collected: number; count: number }[];
   top_customers: { party_key: string; name: string | null; customer_id: string | null; invoiced: number; count: number }[];
 }
 
@@ -462,8 +462,8 @@ export default function Reports() {
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-gray-600">
-              לפי המסמכים ב-Priority (מתעדכן כל לילה). "הופק" = חשבוניות מס לפני מע"מ בניכוי זיכויים;
-              "נגבה" = קבלות וחשבוניות מס קבלה, כולל מע"מ.
+              לפי המסמכים ב-Priority (מתעדכן כל לילה). הופק ונגבה מוצגים <b>כולל מע"מ</b>, כדי שאפשר יהיה להשוות:
+              הופק = חשבוניות מס בניכוי זיכויים; נגבה = קבלות וחשבוניות מס קבלה.
             </p>
             <select value={finYear} onChange={(e) => setFinYear(Number(e.target.value))} className="input w-auto">
               {[0, 1, 2].map((i) => {
@@ -485,8 +485,8 @@ export default function Reports() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="card">
                   <p className="text-sm text-gray-500">הופק ב-{financialData.year}</p>
-                  <p className="text-2xl font-bold tabular-nums mt-1">{shekel(financialData.totals.invoiced)}</p>
-                  <p className="text-xs text-gray-400 mt-1">חשבוניות מס לפני מע"מ, בניכוי זיכויים</p>
+                  <p className="text-2xl font-bold tabular-nums mt-1">{shekel(financialData.totals.invoiced_incl)}</p>
+                  <p className="text-xs text-gray-400 mt-1">כולל מע"מ · הכנסה לפני מע"מ: {shekel(financialData.totals.invoiced)}</p>
                 </div>
                 <div className="card">
                   <p className="text-sm text-gray-500">נגבה ב-{financialData.year}</p>
@@ -513,7 +513,7 @@ export default function Reports() {
                       <XAxis dataKey="label" />
                       <YAxis tickFormatter={(v: number) => `${Math.round(v / 1000)}K`} />
                       <Tooltip formatter={(value: number) => shekel(value)} />
-                      <Bar dataKey="invoiced" fill="#0ea5e9" name="הופק (לפני מע״מ)" />
+                      <Bar dataKey="invoiced_incl" fill="#0ea5e9" name="הופק (כולל מע״מ)" />
                       <Bar dataKey="collected" fill="#22c55e" name="נגבה (כולל מע״מ)" />
                     </BarChart>
                   </ResponsiveContainer>
