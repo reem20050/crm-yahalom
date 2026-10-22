@@ -31,6 +31,23 @@ interface ActivityLogProps {
 
 // --- Activity type config ---
 
+// פעולות שהמערכת רושמת לבד (לא פעולה ידנית מהטופס) — בתצוגה בעברית, לא create / update
+const SYSTEM_ACTIONS: Record<string, string> = {
+  create: 'נוצר',
+  update: 'עודכן',
+  delete: 'נמחק',
+  restore: 'שוחזר',
+  convert: 'הומר ללקוח',
+  status_change: 'שינוי סטטוס',
+  bulk_status: 'שינוי סטטוס',
+  priority_link: 'קישור ל-Priority',
+  priority_unlink: 'ניתוק מ-Priority',
+  priority_import: 'נוצר מ-Priority',
+  priority_request: 'בקשת הפקה ל-Priority',
+  priority_request_cancel: 'ביטול בקשת הפקה',
+  import: 'ייבוא',
+};
+
 const ACTIVITY_TYPES: Record<
   string,
   { label: string; icon: typeof Phone; colorClass: string; gradientBg: string }
@@ -281,7 +298,7 @@ export default function ActivityLog({ entityType, entityId }: ActivityLogProps) 
           <div className="space-y-0">
             {activities.map((activity, index) => {
               const config = ACTIVITY_TYPES[activity.action] ?? {
-                label: activity.action,
+                label: SYSTEM_ACTIONS[activity.action] ?? activity.action,
                 icon: Clock,
                 colorClass: 'text-gray-600',
                 gradientBg: 'bg-gradient-to-br from-gray-100 to-gray-50',
