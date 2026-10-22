@@ -17,6 +17,9 @@ import { useBulkSelection } from '../hooks/useBulkSelection';
 import BulkActionBar from '../components/BulkActionBar';
 import CustomerPicker from '../components/CustomerPicker';
 
+// תפקיד בשיבוץ (ברירת המחדל בשרת: guard) — בתצוגה בעברית
+const ASSIGNMENT_ROLES: Record<string, string> = { guard: 'מאבטח', supervisor: 'אחראי משמרת', driver: 'נהג', officer: 'קב"ט' };
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface ShiftAssignment {
@@ -355,7 +358,7 @@ function ShiftDetailModal({
                         </div>
                         <div>
                           <p className="font-medium">{assignment.employee_name}</p>
-                          <p className="text-sm text-gray-500">{assignment.role}</p>
+                          <p className="text-sm text-gray-500">{ASSIGNMENT_ROLES[assignment.role] ?? assignment.role}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
