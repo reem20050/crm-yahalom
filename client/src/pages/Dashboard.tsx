@@ -900,6 +900,15 @@ function OperationsView({ data }: { data: DashboardOpsData }) {
 }
 
 /* ======== BUSINESS VIEW ======== */
+/** ₪471K / ₪1.2M — שייכנס באריח גם בשתי עמודות בטלפון; הסכום המדויק ב-title. */
+function compactShekel(n: number) {
+  const a = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (a >= 1e6) return `${sign}₪${(a / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+  if (a >= 1e3) return `${sign}₪${Math.round(a / 1e3)}K`;
+  return `${sign}₪${Math.round(a)}`;
+}
+
 interface CollectionsRow { party_key: string; name: string | null; customer_id: string | null; to_chase: number }
 
 function BusinessView({ data }: { data: DashboardBusinessData }) {
@@ -912,44 +921,53 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
   const collectionsQ = useQuery({
     queryKey: ['priority-collections'],
     queryFn: () => priorityApi.getCollections().then((r) => r.data as {
-      bank_through: string | null; totals: { to_chase: number }; rows: CollectionsRow[];
+      bank_through: string | null; totals: { to_chase: number; paid_no_receipt: number }; rows: CollectionsRow[];
     }),
     retry: false,
   });
   const revenue = (revenueQ.data?.months ?? []).map((m) => ({ ...m, label: `${m.month.slice(5)}/${m.month.slice(2, 4)}` }));
   const chase = (collectionsQ.data?.rows ?? []).filter((r) => r.to_chase > 0).slice(0, 5);
+  // אריחי התצוגה העסקית: הכספים מ-Priority (לידים / משמרות / אירועים — בתצוגה התפעולית ובמסכים שלהם)
+  const months = revenueQ.data?.months ?? [];
+  const thisMonth = months.length ? months[months.length - 1] : undefined;
+  const totals = collectionsQ.data?.totals;
+  const money = (n: number | undefined, failed: boolean) => (failed ? '?' : n == null ? '…' : compactShekel(n));
   const stats = [
     {
-      name: 'לידים חדשים',
-      value: data?.leads?.new_leads || 0,
-      icon: Users,
-      iconColor: 'text-sky-600',
-      bgColor: 'bg-gradient-to-br from-sky-100 to-sky-50',
-      href: '/leads?status=new',
+      name: 'הופק החודש',
+      value: money(thisMonth?.net, revenueQ.isError),
+      title: thisMonth ? `${shekel(thisMonth.net)} — חשבוניות מס לפני מע"מ` : undefined,
+      icon: Receipt,
+      iconColor: 'text-primary-600',
+      bgColor: 'bg-gradient-to-br from-primary-100 to-primary-50',
+      href: '/invoices',
+    },
+    {
+      name: 'לגבות',
+      value: money(totals?.to_chase, collectionsQ.isError),
+      title: totals ? `${shekel(totals.to_chase)} — אין ראיה לתשלום עד ${fmtDate(collectionsQ.data?.bank_through)}` : undefined,
+      icon: FileWarning,
+      iconColor: 'text-danger-600',
+      bgColor: 'bg-gradient-to-br from-danger-100 to-danger-50',
+      href: '/priority?tab=collections',
+    },
+    {
+      name: 'שולם בבנק — חסרה קבלה',
+      value: money(totals?.paid_no_receipt, collectionsQ.isError),
+      title: totals ? `${shekel(totals.paid_no_receipt)} — להפיק קבלות, לא לגבות` : undefined,
+      icon: CheckCircle,
+      iconColor: 'text-emerald-600',
+      bgColor: 'bg-gradient-to-br from-emerald-100 to-emerald-50',
+      href: '/priority?tab=collections',
     },
     {
       name: 'לקוחות פעילים',
-      value: data?.customers?.active_customers || 0,
+      value: String(data?.customers?.active_customers || 0),
+      title: undefined as string | undefined,
       icon: Building2,
-      iconColor: 'text-emerald-600',
-      bgColor: 'bg-gradient-to-br from-emerald-100 to-emerald-50',
+      iconColor: 'text-sky-600',
+      bgColor: 'bg-gradient-to-br from-sky-100 to-sky-50',
       href: '/customers',
-    },
-    {
-      name: 'משמרות היום',
-      value: data?.shiftsToday?.total || 0,
-      icon: Calendar,
-      iconColor: 'text-violet-600',
-      bgColor: 'bg-gradient-to-br from-violet-100 to-violet-50',
-      href: '/shifts',
-    },
-    {
-      name: 'אירועים השבוע',
-      value: data?.upcomingEvents?.length || 0,
-      icon: PartyPopper,
-      iconColor: 'text-amber-600',
-      bgColor: 'bg-gradient-to-br from-amber-100 to-amber-50',
-      href: '/events',
     },
   ];
 
@@ -961,6 +979,7 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
           <Link
             key={stat.name}
             to={stat.href}
+            title={stat.title}
             className="stat-card hover:shadow-elevated transition-all duration-200"
           >
             <div className="flex items-center justify-between">
