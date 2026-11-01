@@ -200,7 +200,7 @@ export function QuickInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
   const { data: customersData } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => customersApi.getAll().then((res) => res.data),
+    queryFn: () => customersApi.getAll({ limit: 1000, status: 'active' }).then((res) => res.data),
     enabled: isOpen,
   });
 

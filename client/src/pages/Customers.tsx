@@ -70,7 +70,8 @@ export default function Customers() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [debtOnly, setDebtOnly] = useState(false);
   const [linkFilter, setLinkFilter] = useState<LinkFilter>('');
-  const [statusFilter, setStatusFilter] = useState('');
+  // ברירת מחדל: פעילים בלבד — 164 לקוחות ישנים ממורנינג (בלי אף מסמך) סומנו "לא פעיל" ב-01/11
+  const [statusFilter, setStatusFilter] = useState('active');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -167,8 +168,9 @@ export default function Customers() {
     });
   }, [customers, searchTerm, statusFilter, linkFilter, debtOnly, sort, byCustomer, canPriority, overviewOk]);
 
-  const filtered = !!(searchTerm.trim() || statusFilter || linkFilter || debtOnly);
-  const clearFilters = () => { setSearchTerm(''); setStatusFilter(''); setLinkFilter(''); setDebtOnly(false); };
+  const filtered = !!(searchTerm.trim() || statusFilter !== 'active' || linkFilter || debtOnly);
+  const clearFilters = () => { setSearchTerm(''); setStatusFilter('active'); setLinkFilter(''); setDebtOnly(false); };
+  const inactiveCount = customers.filter((c) => c.status && c.status !== 'active').length;
   const sortBy = (key: SortKey) => setSort((s) => (s.key === key
     ? { key, dir: s.dir === 1 ? -1 : 1 }
     // סכום ותאריך — מהגדול/החדש; טקסט — א-ב
@@ -251,6 +253,11 @@ export default function Customers() {
           {!isLoading && (
             <span className="text-gray-500 mr-auto tabular-nums">
               {rows.length.toLocaleString('he-IL')} מתוך {total.toLocaleString('he-IL')} לקוחות
+              {statusFilter === 'active' && inactiveCount > 0 && (
+                <button onClick={() => setStatusFilter('')} className="text-primary-600 hover:underline mr-2">
+                  ({inactiveCount.toLocaleString('he-IL')} לא פעילים — להציג)
+                </button>
+              )}
             </span>
           )}
         </div>
