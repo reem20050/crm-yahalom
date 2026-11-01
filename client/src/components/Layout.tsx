@@ -42,6 +42,10 @@ import BottomNav from './BottomNav';
 // LocationReporter disabled - GPS only on check-in/check-out
 // import LocationReporter from './LocationReporter';
 
+// מסכים שהוסתרו מהתפריט (רעם, 01/11: "מלא פיצ'רים לא רלוונטיים"): אין בהם אף רשומה. הנתיבים עצמם נשארים —
+// להחזרת מסך מוחקים אותו מהרשימה.
+const HIDDEN_PAGES = new Set(['/incidents', '/weapons', '/guard-tracking', '/guard-panel', '/open-shifts']);
+
 const navigationGroups = [
   {
     label: 'ראשי',
@@ -108,7 +112,7 @@ export default function Layout() {
   const filteredGroups = navigationGroups
     .map(group => ({
       ...group,
-      items: group.items.filter(item => can(item.permission)),
+      items: group.items.filter(item => can(item.permission) && !HIDDEN_PAGES.has(item.href)),
     }))
     .filter(group => group.items.length > 0);
 
