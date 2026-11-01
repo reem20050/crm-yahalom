@@ -250,8 +250,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      {/* Quick Actions — "דוח אירוע" הוסר יחד עם מסך אירועי האבטחה (ריק) */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         <button onClick={() => setQuickModal('lead')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
           <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <UserPlus className="w-5 h-5" />
@@ -280,15 +280,6 @@ export default function Dashboard() {
             <div className="text-xs text-white/70">חשבוניות וקבלות מ-Priority</div>
           </div>
         </Link>
-        <button onClick={() => setQuickModal('incident')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-red-500 to-red-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-          <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="font-semibold text-sm text-white truncate">דוח אירוע</div>
-            <div className="text-xs text-white/70">דווח אירוע חדש</div>
-          </div>
-        </button>
       </div>
 
       {viewMode === 'operations' ? (
@@ -611,7 +602,7 @@ function EmployeeView({ data }: { data: DashboardEmployeeData }) {
 
 /* ======== OPERATIONS VIEW ======== */
 function OperationsView({ data }: { data: DashboardOpsData }) {
-  const stats = [
+  const stats: { name: string; value: string | number; icon: typeof Shield; iconColor: string; bgColor: string; href?: string; urgent?: boolean }[] = [
     {
       name: 'מאבטחים בשטח',
       value: `${data?.guards_on_duty || 0}/${data?.guards_expected_today || 0}`,
@@ -627,15 +618,6 @@ function OperationsView({ data }: { data: DashboardOpsData }) {
       bgColor: 'bg-gradient-to-br from-emerald-100 to-emerald-50',
     },
     {
-      name: 'אירועי אבטחה פתוחים',
-      value: data?.open_incidents?.count || 0,
-      icon: AlertTriangle,
-      iconColor: (data?.open_incidents?.critical ?? 0) > 0 ? 'text-red-600' : 'text-red-500',
-      bgColor: (data?.open_incidents?.critical ?? 0) > 0 ? 'bg-gradient-to-br from-red-200 to-red-100' : 'bg-gradient-to-br from-red-100 to-red-50',
-      urgent: (data?.open_incidents?.critical || 0) > 0,
-      href: '/incidents',
-    },
-    {
       name: 'רישיונות שפגים',
       value: data?.expiring_licenses?.length || 0,
       icon: FileWarning,
@@ -647,7 +629,7 @@ function OperationsView({ data }: { data: DashboardOpsData }) {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
         {stats.map((stat) => {
           const Wrapper: React.ElementType = stat.href ? Link : 'div';
           const wrapperProps = stat.href ? { to: stat.href } : {};

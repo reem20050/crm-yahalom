@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, AlertTriangle, CalendarDays, Menu, Building2, Receipt, Landmark } from 'lucide-react';
+import { LayoutDashboard, Calendar, PartyPopper, CalendarDays, Menu, Building2, Receipt, Landmark } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 
 interface BottomNavProps {
@@ -9,7 +9,7 @@ interface BottomNavProps {
 const opsItems = [
   { name: 'דשבורד', href: '/', icon: LayoutDashboard },
   { name: 'משמרות', href: '/shifts', icon: Calendar },
-  { name: 'אבטחה', href: '/incidents', icon: AlertTriangle },
+  { name: 'אירועים', href: '/events', icon: PartyPopper },
   { name: 'לוח שנה', href: '/calendar', icon: CalendarDays },
 ];
 
