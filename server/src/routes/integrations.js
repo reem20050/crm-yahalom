@@ -67,8 +67,12 @@ router.get('/google/callback', async (req, res) => {
   }
 });
 
+// ערוץ הוואטסאפ של ה-CRM סגור מ-01/11 (רעם): הכתובת הייתה פתוחה בלי אימות, ענתה אוטומטית לכל הודעה, ואם יחובר מספר
+// משימות התזכורת היו שולחות ללקוחות על חשבוניות מורנינג. וואטסאפ — רק דרך HERMES. WHATSAPP_WEBHOOK_ENABLED=true מחזיר.
+const webhookClosed = (req, res, next) => (process.env.WHATSAPP_WEBHOOK_ENABLED === 'true' ? next() : res.sendStatus(410));
+
 // WhatsApp webhook verification (Meta sends GET without auth)
-router.get('/whatsapp/webhook', (req, res) => {
+router.get('/whatsapp/webhook', webhookClosed, (req, res) => {
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'tzevet-yahalom-verify';
 
   if (req.query['hub.verify_token'] === verifyToken) {
@@ -79,7 +83,7 @@ router.get('/whatsapp/webhook', (req, res) => {
 });
 
 // WhatsApp webhook incoming messages (Meta sends POST without auth)
-router.post('/whatsapp/webhook', async (req, res) => {
+router.post('/whatsapp/webhook', webhookClosed, async (req, res) => {
   try {
     const result = await whatsappService.handleWebhook(req.body);
 

@@ -44,7 +44,12 @@ import BottomNav from './BottomNav';
 
 // מסכים שהוסתרו מהתפריט (רעם, 01/11: "מלא פיצ'רים לא רלוונטיים"): אין בהם אף רשומה. הנתיבים עצמם נשארים —
 // להחזרת מסך מוחקים אותו מהרשימה.
-const HIDDEN_PAGES = new Set(['/incidents', '/weapons', '/guard-tracking', '/guard-panel', '/open-shifts']);
+// 01/11 (שלב 2, רעם: "כן, לבצע"): גם משמרות, לוח שנה, מפת אתרים, עובדים, אירועים, קבלנים ואוטומציה — ריקים או עותק ישן מיולי;
+// המשמרות והנוכחות במערכת הנוכחות, העובדים והאירועים במערכת הסריקה. הנתונים יוצאו לקובץ לפני ההסתרה.
+const HIDDEN_PAGES = new Set([
+  '/incidents', '/weapons', '/guard-tracking', '/guard-panel', '/open-shifts',
+  '/shifts', '/calendar', '/sites-map', '/employees', '/events', '/contractors', '/automation',
+]);
 
 const navigationGroups = [
   {

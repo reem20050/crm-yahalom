@@ -147,9 +147,8 @@ export default function Reports() {
     { id: 'financial' as const, label: 'כספים', icon: DollarSign },
     { id: 'sales' as const, label: 'מכירות', icon: TrendingUp },
     { id: 'customers' as const, label: 'לקוחות', icon: Building2 },
-    { id: 'employees' as const, label: 'עובדים', icon: Users },
-    { id: 'profitloss' as const, label: 'רווח והפסד', icon: BarChart3 },
-    { id: 'performance' as const, label: 'ביצועי מאבטחים', icon: Shield },
+    // הוסתרו ב-01/11: "עובדים" ו"ביצועי מאבטחים" רצים על משמרות ועובדים ב-CRM (ריקים / עותק ישן),
+    // ו"רווח והפסד" מסומן "לא משקף". הקוד נשאר; מחזירים בהוספת השורות.
   ];
 
   const handleExport = () => {
