@@ -134,12 +134,16 @@ interface DashboardBusinessData {
 }
 
 const VIEW_KEY = 'yahalom-dashboard-view';
+// הניקוי של 01/11: משמרות, אירועים ועובדים לא חיים ב-CRM (עותק ישן; המשמרות עוברות למערכת הנוכחות), ולכן התצוגה
+// התפעולית, "משמרת חדשה" ו"אירועים קרובים" מוסתרים. true מחזיר.
+const SHOW_OPS = false;
 
 export default function Dashboard() {
   // התצוגה האחרונה שנבחרה נשמרת לדפדפן; ברירת המחדל "עסקי" — שם הכספים מ-Priority
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     try {
       const v = localStorage.getItem(VIEW_KEY);
+      if (!SHOW_OPS) return 'business';
       return v === 'operations' || v === 'business' ? v : 'business';
     } catch { return 'business'; }
   });
@@ -224,6 +228,7 @@ export default function Dashboard() {
           </div>
         </div>
         {/* View Toggle */}
+        {SHOW_OPS && (
         <div className="view-toggle">
           <button
             onClick={() => setViewMode('operations')}
@@ -248,10 +253,11 @@ export default function Dashboard() {
             <span className="hidden sm:inline">עסקי</span>
           </button>
         </div>
+        )}
       </div>
 
       {/* Quick Actions — "דוח אירוע" הוסר יחד עם מסך אירועי האבטחה (ריק) */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <div className={`grid grid-cols-2 ${SHOW_OPS ? 'lg:grid-cols-3' : ''} gap-3 mb-6`}>
         <button onClick={() => setQuickModal('lead')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
           <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <UserPlus className="w-5 h-5" />
@@ -261,6 +267,7 @@ export default function Dashboard() {
             <div className="text-xs text-white/70">הוסף ליד מהיר</div>
           </div>
         </button>
+        {SHOW_OPS && (
         <button onClick={() => setQuickModal('shift')} className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-violet-500 to-violet-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
           <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
             <CalendarPlus className="w-5 h-5" />
@@ -270,6 +277,7 @@ export default function Dashboard() {
             <div className="text-xs text-white/70">צור משמרת מהירה</div>
           </div>
         </button>
+        )}
         {/* מסמכים רשמיים מופקים רק ב-Priority — הכפתור מוביל למסמכים, לא ליצירת חשבונית בתוך ה-CRM */}
         <Link to="/invoices" className="rounded-2xl p-4 flex items-center gap-3 text-right bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
           <div className="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center flex-shrink-0">
@@ -982,7 +990,7 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 ${SHOW_OPS ? 'lg:grid-cols-2' : ''} gap-6`}>
         {/* Revenue chart */}
         <div className="card">
           <div className="section-header">
@@ -1038,7 +1046,8 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
           )}
         </div>
 
-        {/* Upcoming events */}
+        {/* Upcoming events — מוסתר (SHOW_OPS) */}
+        {SHOW_OPS && (
         <div className="card">
           <div className="section-header">
             <div className="section-header-icon bg-gradient-to-br from-amber-100 to-amber-50">
@@ -1083,6 +1092,7 @@ function BusinessView({ data }: { data: DashboardBusinessData }) {
             </div>
           )}
         </div>
+        )}
 
         {/* Unassigned shifts */}
         <div className="card">

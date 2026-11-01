@@ -27,6 +27,8 @@ import type { MutationError } from '../types';
 
 // חשבונית ירוקה לא בשימוש — המסמכים הרשמיים מופקים רק ב-Priority. true מחזיר את הכרטיס.
 const SHOW_GREEN_INVOICE = false;
+// ערוץ הוואטסאפ של ה-CRM סגור מ-01/11: וואטסאפ רק דרך HERMES (חיבור כאן היה מפעיל מענה אוטומטי ותזכורות ללקוחות). true מחזיר.
+const SHOW_WHATSAPP = false;
 
 // Types
 interface IntegrationSettings {
@@ -625,7 +627,8 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* WhatsApp - WAHA */}
+        {/* WhatsApp - WAHA — מוסתר (ראה SHOW_WHATSAPP) */}
+        {SHOW_WHATSAPP && (
         <div className="card">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-50 rounded-xl flex items-center justify-center">
@@ -659,6 +662,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Green Invoice — מוסתר (החלטת רעם 22/10: המסמכים הרשמיים רק ב-Priority). הקוד והחיבור נשארים. */}
         {SHOW_GREEN_INVOICE && (

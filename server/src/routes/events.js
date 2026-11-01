@@ -272,8 +272,8 @@ router.put('/:id', requireManager, async (req, res) => {
       googleHelper.updateCalendarEvent(updatedEvent.google_calendar_event_id, updatedEvent).catch(err => console.error('[Event] Google Calendar update failed:', err.message));
     }
 
-    // Auto-generate invoice for completed event
-    if (status === 'completed') {
+    // חשבונית פנימית לאירוע שהושלם — כבויה מ-01/11: מסמכים מופקים רק ב-Priority (CRM_EVENT_INVOICES_ENABLED=true מחזיר)
+    if (status === 'completed' && process.env.CRM_EVENT_INVOICES_ENABLED === 'true') {
       try {
         const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
         const invoice = await autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
@@ -373,8 +373,8 @@ router.post('/:id/complete', requireManager, async (req, res) => {
       return res.status(404).json({ error: 'אירוע לא נמצא' });
     }
 
-    // Auto-generate invoice for completed event
-    try {
+    // חשבונית פנימית לאירוע שהושלם — כבויה מ-01/11 (ראה למעלה)
+    if (process.env.CRM_EVENT_INVOICES_ENABLED === 'true') try {
       const autoInvoiceGenerator = require('../services/autoInvoiceGenerator');
       const invoice = await autoInvoiceGenerator.generateEventInvoice(req.params.id, req.user.id);
       if (invoice) {

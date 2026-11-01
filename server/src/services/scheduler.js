@@ -14,8 +14,21 @@ const googleHelper = require('../utils/googleHelper');
 // ולכן המשימות האלה כבויות כברירת מחדל: הן היו מזכירות ללקוחות חובות שלא קיימים / מפספסות חובות אמיתיים.
 // מחזירים אותן (GREEN_INVOICE_JOBS_ENABLED=true) רק אחרי שיחוברו לסטטוס הפתוח מ-Priority.
 const GREEN_INVOICE_JOBS = new Set(['overdue-invoice-check', 'customer-invoice-reminders']);
-const isGatedOff = (name) =>
-  GREEN_INVOICE_JOBS.has(name) && process.env.GREEN_INVOICE_JOBS_ENABLED !== 'true';
+// הניקוי של 01/11 (רעם: "כן, לבצע"): משימות שרצות על משמרות, אירועים, עובדים ותעודות ב-CRM — הנתונים ריקים או עותק
+// ישן מיולי, והמשמרות והנוכחות עוברות למערכת הנוכחות. גם יצירת החשבוניות הפנימיות כבויה: מסלול חשבוניות שני לצד Priority.
+// מחזירים רק עם CRM_OPS_JOBS_ENABLED=true.
+const CLEANUP_OFF_JOBS = new Set([
+  'daily-shift-reminders', 'predictive-alerts', 'tomorrow-shift-reminders', 'weekly-summary',
+  'document-expiry-check', 'contract-expiry-check', 'unassigned-events-check', 'certification-expiry-check',
+  'unresolved-incidents-check', 'guard-no-show-check', 'guard-location-cleanup', 'auto-generate-shifts',
+  'auto-generate-invoices', 'shift-intelligence-weekly',
+]);
+const gateReason = (name) => {
+  if (GREEN_INVOICE_JOBS.has(name) && process.env.GREEN_INVOICE_JOBS_ENABLED !== 'true') return 'green_invoice_data';
+  if (CLEANUP_OFF_JOBS.has(name) && process.env.CRM_OPS_JOBS_ENABLED !== 'true') return 'cleanup_2026_11';
+  return null;
+};
+const isGatedOff = (name) => gateReason(name) !== null;
 
 class Scheduler {
   constructor() {
@@ -219,7 +232,7 @@ class Scheduler {
   async executeJob(jobName, handler) {
     // Code-level gate first: covers cron, missed-job catch-up and retries alike
     if (isGatedOff(jobName)) {
-      console.log(`[CRON] Skipped (Green Invoice data, off by default): ${jobName}`);
+      console.log(`[CRON] Skipped (off in code: ${gateReason(jobName)}): ${jobName}`);
       return;
     }
 
@@ -323,7 +336,7 @@ class Scheduler {
       return { success: false, message: `Job ${name} not found` };
     }
     if (isGatedOff(name)) {
-      return { success: false, message: `Job ${name} is off: it runs on Green Invoice data (set GREEN_INVOICE_JOBS_ENABLED=true to allow)` };
+      return { success: false, message: `Job ${name} is off in code (${gateReason(name)})` };
     }
 
     // Reset retry count before manual trigger
@@ -380,7 +393,7 @@ class Scheduler {
     const jobEntry = this.jobs.get(name);
     return {
       ...config,
-      ...(isGatedOff(name) ? { is_enabled: 0, disabled_reason: 'green_invoice_data' } : {}),
+      ...(isGatedOff(name) ? { is_enabled: 0, disabled_reason: gateReason(name) } : {}),
       is_registered: !!jobEntry,
       has_pending_retry: this.retryTimers.has(name),
     };
@@ -393,7 +406,7 @@ class Scheduler {
     const configs = await this.getAllJobConfigs();
     return configs.map(config => ({
       ...config,
-      ...(isGatedOff(config.job_name) ? { is_enabled: 0, disabled_reason: 'green_invoice_data' } : {}),
+      ...(isGatedOff(config.job_name) ? { is_enabled: 0, disabled_reason: gateReason(config.job_name) } : {}),
       is_registered: this.jobs.has(config.job_name),
       has_pending_retry: this.retryTimers.has(config.job_name),
     }));

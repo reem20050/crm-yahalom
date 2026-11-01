@@ -1,16 +1,16 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, PartyPopper, CalendarDays, Menu, Building2, Receipt, Landmark } from 'lucide-react';
+import { LayoutDashboard, Users, Menu, Building2, Receipt, Landmark } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 
 interface BottomNavProps {
   onMenuClick: () => void;
 }
 
+// מי שאינו מנהל: המסכים התפעוליים הוסתרו ב-01/11 (ראה HIDDEN_PAGES ב-Layout)
 const opsItems = [
   { name: 'דשבורד', href: '/', icon: LayoutDashboard },
-  { name: 'משמרות', href: '/shifts', icon: Calendar },
-  { name: 'אירועים', href: '/events', icon: PartyPopper },
-  { name: 'לוח שנה', href: '/calendar', icon: CalendarDays },
+  { name: 'לידים', href: '/leads', icon: Users },
+  { name: 'לקוחות', href: '/customers', icon: Building2 },
 ];
 
 // מנהלים עובדים בעיקר מול לקוחות וכספים; השאר תחת "עוד"
